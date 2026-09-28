@@ -7,6 +7,8 @@ import { AuthService } from './auth.service'
 import { AuthController } from './auth.controller'
 import { JwtStrategy } from './strategies/jwt.strategy'
 import { LocalStrategy } from './strategies/local.strategy'
+import { MailerService } from './mailer.service'
+import { VerificationCodeService } from './verification-code.service'
 import { config } from '../config/index.js'
 
 @Module({
@@ -19,7 +21,7 @@ import { config } from '../config/index.js'
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, LocalStrategy],
-  exports: [AuthService],
+  providers: [AuthService, JwtStrategy, LocalStrategy, MailerService, VerificationCodeService],
+  exports: [AuthService, MailerService, VerificationCodeService],
 })
 export class AuthModule {}

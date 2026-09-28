@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合同审查 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  #empty-state-block { display: none; }
+  body:has(#empty-state-block:target) #empty-state-block { display: block; }
+  body:has(#empty-state-block:target) #contracts-table-block { display: none; }
+  #up-text { display: none; }
+  body:has(#tab-text:target) #up-file { display: none; }
+  body:has(#tab-text:target) #up-text { display: block; }
+  body:has(#tab-text:target) #upload { display: flex; }
+  .mini-tabs a { text-decoration: none; }
+  .ct-badges { display: flex; gap: 4px; margin-top: 3px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item active" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>合同审查</h2>
+      <span class="head-sub">Playbook 公司规则 + AI 语义双轨审查，法务确认、负责人审批后生成意见书</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="toolbar">
+        <div class="tb-text"><h2 style="font-size:19px">我的合同</h2><p>共 8 份 · 本月团队已审查 18 次（套餐额度 50 次）</p></div>
+        <div class="tb-right">
+          <div class="segmented">
+            <span class="on">全部</span><a href="#">待审查</a><a href="#">待审批</a><a href="#">已通过</a><a href="#">失败</a>
+          </div>
+          <a class="btn btn-ghost btn-sm" href="#batch"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>批量审查</a>
+          <a class="btn btn-primary" href="#upload"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>上传合同</a>
+        </div>
+      </div>
+
+      <div class="small muted" style="margin-top:-6px">原型演示态：<a href="#empty-state-block">空状态</a> · <a href="#batch">批量审查弹窗</a> · <a href="#paywall">额度付费墙</a></div>
+
+      <!-- 正常列表 -->
+      <div class="panel" id="contracts-table-block">
+        <div class="panel-body flush">
+          <table class="tbl">
+            <thead><tr><th>合同</th><th style="width:100px">审查状态</th><th style="width:100px">审批状态</th><th style="width:70px">条款数</th><th style="width:140px">最近审查</th><th style="width:150px">操作</th></tr></thead>
+            <tbody>
+              <tr class="clickable" onclick="location.href='review.html'">
+                <td><b>员工劳动合同-钱某.docx</b>
+                  <div class="cell-sub">DOCX · 8,432 字</div>
+                  <div class="ct-badges"><span class="tag tag-purple">红线 2</span></div>
+                </td>
+                <td><span class="tag tag-blue tag-dot">待终审</span></td>
+                <td><span class="tag tag-orange">待法务审</span></td>
+                <td>16</td>
+                <td class="small muted">2026-09-17 10:24</td>
+                <td class="row-actions" onclick="event.stopPropagation()"><a class="link-btn" href="review.html">审查工作台</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr class="clickable" onclick="location.href='review.html'">
+                <td><b>保密与竞业限制协议-孙某.pdf</b>
+                  <div class="cell-sub">PDF · 5,120 字</div>
+                  <div class="ct-badges"><span class="tag tag-purple">红线 1</span></div>
+                </td>
+                <td><span class="tag tag-blue tag-dot">待终审</span></td>
+                <td><span class="tag tag-blue">待审批</span></td>
+                <td>12</td>
+                <td class="small muted">2026-09-16 17:02</td>
+                <td class="row-actions" onclick="event.stopPropagation()"><a class="link-btn" href="review.html">审查工作台</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr class="clickable" onclick="location.href='review.html'">
+                <td><b>软件开发服务合同.pdf</b>
+                  <div class="cell-sub">PDF · 12,077 字</div>
+                  <div class="ct-badges"><span class="tag tag-purple">红线 2</span></div>
+                </td>
+                <td><span class="tag tag-green tag-dot">已完成</span></td>
+                <td><span class="tag tag-green">已通过</span></td>
+                <td>22</td>
+                <td class="small muted">2026-09-12 09:40</td>
+                <td class="row-actions" onclick="event.stopPropagation()"><a class="link-btn" href="review.html">查看意见书</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr class="clickable" onclick="location.href='review.html'">
+                <td><b>员工劳动合同-周某（拍照）.jpg</b><div class="cell-sub">JPG · 视觉 OCR 转录</div></td>
+                <td><span class="tag tag-green tag-dot">已完成</span></td>
+                <td><span class="tag tag-green">已通过</span></td>
+                <td>14</td>
+                <td class="small muted">2026-09-08 15:18</td>
+                <td class="row-actions" onclick="event.stopPropagation()"><a class="link-btn" href="review.html">查看意见书</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr class="clickable" onclick="location.href='review.html'">
+                <td><b>实习协议书-李某.txt</b><div class="cell-sub">TXT · 3,210 字</div></td>
+                <td><span class="tag tag-gray tag-dot">待审查</span></td>
+                <td class="muted small">—</td>
+                <td>9</td>
+                <td class="small muted">2026-09-05 11:02</td>
+                <td class="row-actions" onclick="event.stopPropagation()"><a class="link-btn" href="review.html">开始审查</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td><b>扫描件合同_0912.pdf</b><div class="cell-sub" style="color:var(--danger)">解析失败：文件内容无法识别</div></td>
+                <td><span class="tag tag-red">解析失败</span></td>
+                <td><span class="tag tag-red">解析失败</span></td>
+                <td>—</td>
+                <td class="muted small">—</td>
+                <td class="row-actions"><a class="link-btn" href="#upload">重新上传</a><button class="link-btn danger">删除</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 空状态 -->
+      <div class="panel" id="empty-state-block">
+        <div class="empty-state">
+          <div class="es-icon"><svg class="icon" style="width:34px;height:34px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></div>
+          <h3>还没有合同，从第一份开始吧</h3>
+          <p>上传你手头的合同立即审查；也可以先用示例合同，3 分钟体验完整流程，无需准备文件。</p>
+          <div class="empty-actions">
+            <a class="btn btn-primary btn-lg" href="#upload"><svg class="icon-sm" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>上传我的合同</a>
+            <a class="btn btn-ghost btn-lg" href="#">体验示例合同</a>
+          </div>
+          <p class="small muted" style="margin-top:18px">示例合同共 8 份，覆盖试用期、违约金、社保、竞业等高频风险点</p>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 上传合同弹窗 -->
+<div class="mask" id="upload">
+  <div class="modal wide">
+    <div class="modal-head"><h3>上传合同</h3><a class="x" href="#">×</a></div>
+    <div class="modal-body">
+      <div class="segmented mini-tabs" style="margin-bottom:18px">
+        <a class="on" href="#upload" id="tab-file">文件上传</a>
+        <a href="#tab-text" id="tab-text">粘贴文本</a>
+      </div>
+      <div id="up-file">
+        <div class="f-item req" style="margin-bottom:14px"><label>合同标题</label><div class="f-control"><input class="input" placeholder="可选，默认使用文件名，例如：2026 年度劳动合同（钱某）"></div></div>
+        <div style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:34px;text-align:center;background:#fafbff">
+          <svg style="width:36px;height:36px;color:var(--primary);margin-bottom:8px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+          <div style="font-weight:600;margin-bottom:4px">点击选择文件，或拖拽到此处</div>
+          <div class="small muted">支持 .txt / .md / .pdf / .docx / .jpg / .png；图片走视觉 OCR，约需 10~60 秒；单个文件不超过 30MB</div>
+        </div>
+      </div>
+      <div id="up-text">
+        <div class="f-item req" style="margin-bottom:14px"><label>合同标题</label><div class="f-control"><input class="input" placeholder="例如：员工劳动合同（赵某）"></div></div>
+        <div class="f-item req"><label>合同正文</label><div class="f-control"><textarea class="textarea" style="min-height:180px" placeholder="粘贴合同全文，条款请使用「第一条 / 第二条 …」格式以便自动切分"></textarea></div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <a class="btn btn-ghost" href="#">取消</a>
+      <a class="btn btn-primary" href="review.html">上传并解析</a>
+    </div>
+  </div>
+</div>
+
+<!-- 批量审查弹窗 -->
+<div class="mask" id="batch">
+  <div class="modal wide">
+    <div class="modal-head"><h3>批量审查</h3><a class="x" href="#">×</a></div>
+    <div class="modal-body">
+      <div style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:38px 24px;text-align:center;background:#fafbff">
+        <svg style="width:36px;height:36px;color:var(--primary);margin-bottom:8px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <div style="font-weight:600;margin-bottom:4px">拖拽多份合同到此处，或点击批量选择</div>
+        <div class="small muted">单次最多 20 份 · 支持 .pdf / .docx / .jpg / .png；将逐份解析并自动进入团队审批流</div>
+      </div>
+      <div class="info-banner info" style="margin-top:16px">
+        <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div><b>批量审查为团队版能力，即将上线。</b>上线后将按团队套餐额度统一扣减，并在飞书群机器人推送批量完成 digest。</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <a class="btn btn-ghost" href="#">取消</a>
+      <button class="btn btn-primary" disabled>提交批量审查（即将上线）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 付费墙弹窗 -->
+<div class="mask" id="paywall">
+  <div class="modal paywall">
+    <div class="modal-body">
+      <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3>额度用尽后，三种方式继续审查</h3>
+      <p class="muted">按份付费灵活应急，也可升级个人版或团队版</p>
+      <ul class="pw-feats">
+        <li><span class="tag tag-purple">券</span><b>深度审查券 ¥9.9 / 份</b>，随用随买，不浪费月费</li>
+        <li><span class="tag tag-blue">个人版</span><b>¥19 / 月 · ¥99 / 年</b>，适合个人用户高频使用</li>
+        <li><span class="tag tag-green">团队版</span>三角色协作审批、Playbook 公司规则、合同台账与飞书集成，<b>团队升级请联系顾问</b></li>
+      </ul>
+      <a class="btn btn-primary btn-lg btn-block" href="checkout.html">用券 ¥9.9 审查这份</a>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <a class="btn btn-ghost btn-block" href="personal-billing.html">个人版 ¥19/月</a>
+        <a class="btn btn-ghost btn-block" href="pricing.html">团队升级咨询</a>
+      </div>
+      <div style="margin-top:10px"><a href="#" class="small muted">再想想，先返回</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

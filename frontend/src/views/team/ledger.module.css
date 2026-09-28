@@ -1,0 +1,135 @@
+/* frontend/src/views/team/ledger.module.css — 合同台账（文案/配色对齐 docs/prototype/ledger.html） */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── 统计卡 ─────────────────────────────────────────────────────────── */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.statCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px;
+}
+.scTop {
+  font-size: 13px;
+  color: var(--color-text-sub);
+  margin-bottom: 6px;
+}
+.scNum {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.scWarning { color: var(--color-warning); }
+.scDanger { color: var(--color-danger); }
+.scFoot {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 6px;
+}
+
+/* ── 工具栏 ─────────────────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.segWrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.toolBtns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.seg {
+  display: inline-flex;
+  background: var(--color-border-light);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+}
+.segItem {
+  border: none;
+  background: transparent;
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.segItem:hover { color: var(--color-text); }
+.segOn {
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* ── 表格 ───────────────────────────────────────────────────────────── */
+.tagYellow {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #fefce8;
+  color: #a16207;
+}
+.rowActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+/* ── 抽屉表单 ───────────────────────────────────────────────────────── */
+.formGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 18px;
+  margin-top: 4px;
+}
+.colspan2 {
+  grid-column: 1 / -1;
+}
+.drawerFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.footRight {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+:global(.ant-picker) {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .statGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .formGrid { grid-template-columns: 1fr; }
+}
+
+/* 手机：统计数字缩小，避免溢出卡片 */
+@media (max-width: 768px) {
+  .scNum { font-size: 22px; }
+  .statCard { padding: 12px 14px; }
+}

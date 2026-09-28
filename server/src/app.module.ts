@@ -16,6 +16,18 @@ import { AgentModule } from './agent/agent.module'
 import { MonitorModule } from './monitor/monitor.module'
 import { AdminModule } from './admin/admin.module'
 import { ContractModule } from './contract/contract.module.js'
+import { EntitlementsModule } from './billing/entitlements.module.js'
+import { BillingModule } from './billing/billing.module.js'
+import { MeModule } from './me/me.module.js'
+import { PlaybookModule } from './playbook/playbook.module.js'
+import { LedgerModule } from './ledger/ledger.module.js'
+import { DashboardModule } from './dashboard/dashboard.module.js'
+import { TeamModule } from './team/team.module.js'
+import { IntegrationsModule } from './integrations/integrations.module.js'
+import { TemplatesModule } from './templates/templates.module.js'
+import { AnalyticsModule } from './analytics/analytics.module.js'
+import { NotificationsModule } from './notifications/notifications.module.js'
+import { FeishuModule } from './services/feishu/feishu.module.js'
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard'
 import { RolesGuard } from './auth/guards/roles.guard'
 import { logger } from './utils/logger.js'
@@ -38,6 +50,30 @@ import { logger } from './utils/logger.js'
     AdminModule,
     // 业务层：合同风险审查
     ContractModule,
+    // 增长改造 v2：套餐权益判定（全局）
+    EntitlementsModule,
+    // 模拟订单/券包/收银台 + 订阅到期降级
+    BillingModule,
+    // 个人空间：权益快照 / 偏好 / 条款库
+    MeModule,
+    // 企业曲线：Playbook 公司红线/偏好规则（FR-17）
+    PlaybookModule,
+    // 企业/个人共用：合同全生命周期台账（FR-16）
+    LedgerModule,
+    // 企业曲线：合规仪表盘聚合（FR-15）
+    DashboardModule,
+    // 企业曲线：团队席位与成员管理（FR-18）
+    TeamModule,
+    // 企业曲线：集成中心（飞书群机器人 + 联系开通留资）
+    IntegrationsModule,
+    // 企业/个人共用：合同范本库（FR-20，采用/下载按套餐放行）
+    TemplatesModule,
+    // 站内通知铃铛（FR-22，实时计算）
+    NotificationsModule,
+    // 埋点漏斗（FR-26，ADMIN 看板 + 公开接收端）
+    AnalyticsModule,
+    // 飞书 Webhook / digest / MCP（FR-25，无配置即降级）
+    FeishuModule,
   ],
   providers: [
     // 全局守卫：先认证后鉴权。默认所有路由需登录，@Public() 放行

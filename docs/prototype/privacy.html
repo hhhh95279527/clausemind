@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>隐私政策 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* 隐私政策页专属样式（pv- 前缀） */
+  .pv-wrap { max-width:820px; margin:0 auto; padding:48px 24px 80px; }
+  .pv-wrap h1 { font-size:28px; margin-bottom:8px; }
+  .pv-meta { color:var(--text-muted); font-size:13px; margin-bottom:30px; }
+  .pv-wrap h2 { font-size:17px; margin:30px 0 10px; }
+  .pv-wrap p { color:#374151; font-size:14px; margin-bottom:10px; }
+  .pv-wrap ul { padding-left:22px; margin-bottom:10px; }
+  .pv-wrap li { color:#374151; font-size:14px; margin-bottom:7px; line-height:1.7; }
+  .pv-callout { background:var(--primary-bg); border:1px solid #c7d2fe; border-radius:var(--radius-lg); padding:16px 20px; margin:18px 0 6px; font-size:14px; color:var(--primary-dark); }
+  .pv-callout b { display:block; margin-bottom:4px; }
+  .pv-toc { background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 22px; margin-bottom:26px; font-size:13.5px; }
+  .pv-toc a { display:inline-block; margin-right:18px; line-height:2; }
+</style>
+</head>
+<body>
+
+<nav class="pub-nav">
+  <a class="brand" href="index.html">
+    <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+    WorkMind
+  </a>
+  <div class="pub-nav-links">
+    <a href="index.html#abilities">产品能力</a>
+    <a href="pricing.html">定价</a>
+  </div>
+  <div class="pub-nav-actions">
+    <a class="btn btn-ghost btn-sm" href="login.html">登录</a>
+    <a class="btn btn-primary btn-sm" href="register.html">免费注册</a>
+  </div>
+</nav>
+
+<article class="pv-wrap">
+  <h1>隐私政策</h1>
+  <p class="pv-meta">更新日期：2026-09-20 · 生效日期：2026-09-20</p>
+
+  <div class="pv-toc">
+    <a href="#pv-collect">我们收集的信息</a>
+    <a href="#pv-train">关于模型训练</a>
+    <a href="#pv-retain">数据保留</a>
+    <a href="#pv-track">埋点说明</a>
+    <a href="#pv-cookie">Cookie 与本地存储</a>
+    <a href="#pv-security">数据安全</a>
+    <a href="#pv-rights">你的权利</a>
+    <a href="#pv-contact">联系我们</a>
+  </div>
+
+  <p>本政策说明 WorkMind（以下简称「我们」）在提供 AI 合同风险审查服务过程中如何收集、使用、存储与保护你的信息。注册或使用本服务，即表示你已阅读并理解本政策。</p>
+
+  <div class="pv-callout">
+    <b>核心承诺</b>
+    你上传的合同正文仅用于完成本次审查与你主动发起的改稿、导出，不会被用于模型训练，也不会被用于向其他客户提供服务。
+  </div>
+
+  <h2 id="pv-collect">一、我们收集的信息</h2>
+  <ul>
+    <li><b>账号信息：</b>注册时提供的邮箱、用户名、昵称；企业空间还包括企业名称、企业规模、职位等组织信息。</li>
+    <li><b>合同文本：</b>你主动上传的合同文件内容（Word、PDF、图片 OCR 转录文本等），以及审查过程中你与 AI 的对话、修改指令与采纳记录。</li>
+    <li><b>订单信息：</b>套餐订阅、深度审查券购买对应的订单号、金额、时间与状态（演示环境为模拟数据，不发生真实支付）。</li>
+    <li><b>操作日志与埋点事件：</b>登录、上传、审查、导出等操作的时间、功能入口、成功 / 失败状态及设备、浏览器类型等技术属性。</li>
+  </ul>
+
+  <h2 id="pv-train">二、合同内容不用于模型训练</h2>
+  <p>你上传的合同文本、审查意见与改稿内容属于你的业务数据：</p>
+  <ul>
+    <li>仅在完成本次审查、改稿、导出、存档等你主动发起的任务所必需的期间内被处理；</li>
+    <li>不会被用于训练、微调或优化我们或任何第三方的通用模型；</li>
+    <li>不会提供给其他租户或客户，租户之间数据逻辑隔离。</li>
+  </ul>
+
+  <h2 id="pv-retain">三、数据保留</h2>
+  <ul>
+    <li><b>免费版审查记录：</b>自审查完成起保留 7 天，到期自动删除（含合同文本与审查结果）。</li>
+    <li><b>付费版审查记录与存档：</b>在订阅有效期内持续保留；订阅到期或降级为免费版后，已存档内容按当时适用的降级规则处理，删除前会在产品内提示。</li>
+    <li><b>订单与账号记录：</b>为履行法定义务与处理争议，订单与账号相关记录依照法律法规要求的期限保留。</li>
+    <li>你也可以随时在产品内手动删除具体的合同与审查记录。</li>
+  </ul>
+
+  <h2 id="pv-track">四、埋点说明</h2>
+  <p>我们使用自研或第三方统计组件收集产品使用事件，目的是排查故障、评估功能效果与改进体验。埋点仅包含事件名称、发生时间、功能模块、结果状态等属性元数据，<b>不采集、不上传合同正文及其片段</b>。</p>
+
+  <h2 id="pv-cookie">五、Cookie 与本地存储</h2>
+  <ul>
+    <li>我们使用必要的 Cookie / 本地存储维持登录态、记住界面偏好（如侧边栏状态、默认筛选）；</li>
+    <li>这些数据存储在你的浏览器本地，不包含合同正文，你可以通过浏览器设置清除；</li>
+    <li>当前服务不使用面向第三方广告的追踪 Cookie。</li>
+  </ul>
+
+  <h2 id="pv-security">六、数据安全</h2>
+  <ul>
+    <li><b>租户隔离：</b>个人空间与企业空间、不同企业之间的数据进行逻辑隔离，越权访问会被拦截；</li>
+    <li><b>加密存储与传输：</b>合同文本等业务数据加密存储，访问全程使用加密传输；</li>
+    <li><b>访问控制：</b>内部人员仅在排障与授权支持场景下按最小权限访问，并留存访问记录；</li>
+    <li>企业版可在此基础上提供私有化部署、SSO 与审计日志等增强能力。</li>
+  </ul>
+
+  <h2 id="pv-rights">七、你的权利</h2>
+  <p>你对自己的个人信息与合同数据享有查看、更正、删除等权利：</p>
+  <ul>
+    <li>可在产品内查看、更正账号资料，删除具体合同与审查记录；</li>
+    <li>如需导出或要求删除账号下的全部数据，可通过本页「联系我们」中的渠道提出，我们将在核实身份后处理；</li>
+    <li>账号自助注销功能即将上线，上线后可在账号设置中直接完成注销；</li>
+    <li>如你认为我们处理个人信息的行为损害了你的合法权益，也有权向相关监管部门反映。</li>
+  </ul>
+
+  <h2 id="pv-contact">八、联系我们</h2>
+  <p>如对本政策或数据处理有任何疑问、意见或请求，可通过产品内「意见反馈」入口联系我们（当前为演示环境，反馈通道为模拟入口）。我们会在收到后尽快回复。</p>
+  <p class="pv-meta">本政策可能适时更新，更新后将在本页面公布并更新生效日期。</p>
+</article>
+
+<footer class="pub-footer">
+  <p><a href="index.html">产品</a> / <a href="pricing.html">定价</a> / <a href="privacy.html">隐私政策</a> / <a href="terms.html">用户协议</a></p>
+  <p style="margin-top:6px">AI 仅做风险提示，不构成法律意见，重大合同建议咨询执业律师</p>
+</footer>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="pricing.html">定价</a> · <a href="login.html">登录</a> · <a href="register.html">注册分流</a></div>
+</body>
+</html>

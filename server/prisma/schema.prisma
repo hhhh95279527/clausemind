@@ -13,27 +13,47 @@ datasource db {
 // ════════════════════════ 平台层：租户与用户 ════════════════════════
 
 model Tenant {
-  id                String       @id @default(cuid())
-  name              String       @db.VarChar(100)
-  plan              TenantPlan   @default(FREE)
-  status            TenantStatus @default(ACTIVE)
-  monthlyTokenQuota Int          @default(500000) @map("monthly_token_quota")
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  id                String         @id @default(cuid())
+  name              String         @db.VarChar(100)
+  plan              TenantPlan     @default(FREE)
+  workspaceType     WorkspaceType  @default(PERSONAL) @map("workspace_type")
+  status            TenantStatus   @default(ACTIVE)
+  couponBalance     Int            @default(0) @map("coupon_balance")
+  planUpdatedAt     DateTime?      @map("plan_updated_at")
+  planExpiresAt     DateTime?      @map("plan_expires_at") @db.Timestamptz(6)
+  // 取消订阅（模拟）：权益保留至 planExpiresAt，到期后由定时任务降级 FREE
+  cancelAtPeriodEnd Boolean        @default(false) @map("cancel_at_period_end")
+  monthlyTokenQuota Int            @default(500000) @map("monthly_token_quota")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime       @updatedAt @map("updated_at")
 
-  users      User[]
-  contracts  Contract[]
-  reviewTasks ReviewTask[]
-  traces     Trace[]
-  quotaUsage QuotaUsage[]
+  users              User[]
+  contracts          Contract[]
+  reviewTasks        ReviewTask[]
+  traces             Trace[]
+  quotaUsage         QuotaUsage[]
+  ledgers            ContractLedger[]
+  playbookRules      PlaybookRule[]
+  orders             Order[]
+  integrationConfigs IntegrationConfig[]
+  integrationLeads   IntegrationLead[]
 
   @@map("tenants")
 }
 
+// 四档套餐：FREE / PERSONAL 个人版 / TEAM 团队版 / ENTERPRISE 企业版
+// 历史值 PRO/ENT 已在迁移中映射为 TEAM/ENTERPRISE，物理枚举仍保留但业务不再使用。
 enum TenantPlan {
   FREE
-  PRO
-  ENT
+  PERSONAL
+  TEAM
+  ENTERPRISE
+}
+
+// 工作空间类型：个人单成员空间 / 企业团队空间
+enum WorkspaceType {
+  PERSONAL
+  TEAM
 }
 
 enum TenantStatus {
@@ -51,13 +71,15 @@ model User {
   role         UserRole   @default(USER)
   status       UserStatus @default(ACTIVE)
   tenantId     String     @map("tenant_id") @db.VarChar(50)
+  onboardingCompleted Boolean @default(false) @map("onboarding_completed")
+  emailVerified       Boolean @default(false) @map("email_verified")
+  metadata    Json?
   lastLoginAt  DateTime?  @map("last_login_at")
   lastLoginIp  String?    @map("last_login_ip") @db.VarChar(45)
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  profile       UserProfile?
   sessions      ChatSession[]
   messages      Message[]
   uploadedDocs  Document[]     @relation("DocumentUploader")
@@ -66,6 +88,10 @@ model User {
   auditLogs     AuditLog[]
   traces        Trace[]
   refreshTokens RefreshToken[]
+  ledgers       ContractLedger[]
+  playbookRules PlaybookRule[]
+  orders        Order[]
+  integrationLeads IntegrationLead[] @relation("IntegrationLeadUser")
 
   @@index([tenantId])
   @@map("users")
@@ -82,23 +108,6 @@ enum UserStatus {
   ACTIVE
   DISABLED
   PENDING
-}
-
-model UserProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique @map("user_id")
-  name         String?  @db.VarChar(100)
-  dept         String?  @db.VarChar(100)
-  techLevel    String?  @map("tech_level") @db.VarChar(20)
-  primaryStack String[] @default([]) @map("primary_stack")
-  currentGoal  String?  @map("current_goal") @db.VarChar(500)
-  prefersShort Boolean  @default(false) @map("prefers_short")
-  prefersCode  Boolean  @default(false) @map("prefers_code")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("user_profiles")
 }
 
 // 租户按月配额用量（计费/账单架构口，唯一键 = 租户 + 月份）
@@ -355,9 +364,13 @@ model Contract {
   progress     Int            @default(0)
   parseError   String?        @map("parse_error") @db.Text
   fileType     String         @default("txt") @db.VarChar(20)
+  scene        ReviewScene    @default(LABOR)
   charCount    Int            @default(0) @map("char_count")
   clausesCount Int            @default(0) @map("clauses_count")
   reportMd     String?        @map("report_md") @db.Text
+  // 企业审查台「结构化信息」卡（FR：金额/期限/付款节点/关键义务，AI 抽取并缓存；无 Key 不生成）
+  structuredInfo Json?        @map("structured_info")
+  retainUntil  DateTime?      @map("retain_until")
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
 
@@ -366,8 +379,10 @@ model Contract {
   clauses     Clause[]
   reviewTasks ReviewTask[]
   risks       Risk[]
+  ledgerLinks ContractLedger[] @relation("LedgerLinkedContract")
 
   @@index([tenantId, status])
+  @@index([retainUntil])
   @@map("contracts")
 }
 
@@ -379,6 +394,15 @@ enum ContractStatus {
   WAITING_REVIEW
   COMPLETED
   FAILED
+}
+
+// 审查场景：FREE 仅前四类，CUSTOM 非标合同仅深度套餐/深度券
+enum ReviewScene {
+  LABOR    // 劳动合同
+  LEASE    // 房屋租赁
+  SERVICE  // 兼职/劳务
+  NDA      // 保密协议
+  CUSTOM   // 非标合同
 }
 
 model Clause {
@@ -417,6 +441,8 @@ model ReviewTask {
   reviewerId String?          @map("reviewer_id")
   status     ReviewTaskStatus @default(RUNNING)
   threadId   String           @unique @map("thread_id") @db.VarChar(80)
+  isDeep     Boolean          @default(false) @map("is_deep") // 本次是否解锁 Agent 深度轨（深度套餐或深度券）
+  couponUsed Boolean          @default(false) @map("coupon_used") // 本次是否以深度券核销
   stats      Json?
   createdAt  DateTime         @default(now()) @map("created_at")
   updatedAt  DateTime         @updatedAt @map("updated_at")
@@ -451,6 +477,9 @@ model Risk {
   analysis     String     @db.Text
   suggestion   String?    @db.Text
   legalBasis   String?    @map("legal_basis") @db.Text // 法规/模板依据
+  // AI 改稿台（FR-9）：rewritten=可直接替换的改写句；revisionStatus=NONE/PENDING/ACCEPTED/REJECTED
+  rewritten    String?    @db.Text
+  revisionStatus String   @default("NONE") @map("revision_status") @db.VarChar(20)
   refs         Json?      // RAG 来源 [{docTitle, chunkId, score}]
   confidence   Float?
   detectedBy   RiskSource @default(AGENT) @map("detected_by")
@@ -480,6 +509,7 @@ enum RiskSource {
   RULE
   AGENT
   BOTH
+  PLAYBOOK // 企业 Playbook 公司红线/偏好规则命中（FR-17）
 }
 
 enum RiskStatus {
@@ -561,4 +591,182 @@ model SystemConfig {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("system_configs")
+}
+
+// ════════════════════════ 增长改造 v2：台账 / Playbook / 订单 / 埋点 / 集成 ════════════════════════
+
+// 合同台账：企业全生命周期管理，个人空间轻量复用（额度 ≤10）
+model ContractLedger {
+  id               String       @id @default(cuid())
+  tenantId         String       @map("tenant_id") @db.VarChar(50)
+  employeeName     String       @map("employee_name") @db.VarChar(100)
+  dept             String?      @db.VarChar(100)
+  // 7 类字符串枚举：FIXED_TERM_LABOR/OPEN_ENDED_LABOR/SERVICE/INTERNSHIP/NDA/NON_COMPETE/OTHER
+  contractType     String       @default("FIXED_TERM_LABOR") @map("contract_type") @db.VarChar(30)
+  startDate        DateTime     @map("start_date") @db.Date
+  endDate          DateTime?    @map("end_date") @db.Date
+  probationEnd     DateTime?    @map("probation_end") @db.Date
+  position         String?      @db.VarChar(100)
+  note             String?      @db.Text
+  status           LedgerStatus @default(ACTIVE)
+  linkedContractId String?      @map("linked_contract_id") @db.VarChar(50)
+  renewedFromId    String?      @map("renewed_from_id") @db.VarChar(50)
+  remindBeforeDays Int          @default(30) @map("remind_before_days")
+  createdById      String?      @map("created_by_id") @db.VarChar(50)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  linkedContract  Contract?         @relation("LedgerLinkedContract", fields: [linkedContractId], references: [id], onDelete: SetNull)
+  renewedFrom     ContractLedger?   @relation("LedgerRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewals        ContractLedger[]  @relation("LedgerRenewal")
+  createdBy       User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, endDate])
+  @@map("contract_ledgers")
+}
+
+enum LedgerStatus {
+  ACTIVE
+  RENEWED
+  TERMINATED
+}
+
+// Playbook 企业自定义审查规则（企业护城河）
+model PlaybookRule {
+  id            String         @id @default(cuid())
+  tenantId      String         @map("tenant_id") @db.VarChar(50)
+  kind          PlaybookKind   @default(FORBIDDEN)
+  title         String         @db.VarChar(200)
+  description   String?        @db.Text
+  naturalPrompt String         @default("") @map("natural_prompt") @db.Text
+  // 结构化规则草稿：{ keywords?: string[], regex?: string, severity?: ..., prompt?: string }
+  pattern       Json?
+  contractTypes String[]       @default([]) @map("contract_types")
+  enabled       Boolean        @default(true)
+  hitCount      Int            @default(0) @map("hit_count")
+  source        PlaybookSource @default(MANUAL)
+  createdById   String?        @map("created_by_id") @db.VarChar(50)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, enabled])
+  @@map("playbook_rules")
+}
+
+enum PlaybookKind {
+  FORBIDDEN   // 红线规则（禁止条款）
+  PREFERENCE  // 偏好口径
+  STANDARD    // 企业标准合同库
+  INDUSTRY    // 行业专项包
+}
+
+enum PlaybookSource {
+  MANUAL
+  AI
+  SEED_PACK
+}
+
+// 模拟订单：不接真实支付，收银台一键 PAID 立即生效
+model Order {
+  id          String       @id @default(cuid())
+  tenantId    String       @map("tenant_id") @db.VarChar(50)
+  kind        OrderKind
+  period      OrderPeriod?
+  targetPlan  String?      @map("target_plan") @db.VarChar(20)
+  couponQty   Int?         @map("coupon_qty")
+  amountFen   Int          @default(0) @map("amount_fen")
+  status      OrderStatus  @default(PENDING)
+  createdById String?      @map("created_by_id") @db.VarChar(50)
+  paidAt      DateTime?    @map("paid_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([status])
+  @@map("orders")
+}
+
+enum OrderKind {
+  SUBSCRIPTION
+  COUPON_PACK
+  UPGRADE
+}
+
+enum OrderPeriod {
+  MONTH
+  YEAR
+  NONE
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+// 增长埋点事件：只采事件与属性元数据，绝不采合同正文/风险全文
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  tenantId  String?  @map("tenant_id") @db.VarChar(50)
+  userId    String?  @map("user_id") @db.VarChar(50)
+  type      String   @db.VarChar(50)
+  path      String?  @db.VarChar(500)
+  props     Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, createdAt])
+  @@index([type, createdAt])
+  @@map("analytics_events")
+}
+
+// 集成配置：P0 飞书群机器人 Webhook（config 加密存储、脱敏返回）
+model IntegrationConfig {
+  id         String              @id @default(cuid())
+  tenantId   String              @unique @map("tenant_id") @db.VarChar(50)
+  provider   IntegrationProvider @default(FEISHU)
+  config     Json                @default("{}")
+  status     IntegrationStatus   @default(NOT_CONFIGURED)
+  lastTestAt DateTime?           @map("last_test_at")
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("integration_configs")
+}
+
+enum IntegrationProvider {
+  FEISHU
+}
+
+enum IntegrationStatus {
+  NOT_CONFIGURED
+  ACTIVE
+}
+
+// 集成中心「联系开通」留资（钉钉/企微/电子签/OA/SSO/Open API/Word 插件/私有化）
+model IntegrationLead {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id") @db.VarChar(50)
+  userId      String?  @map("user_id") @db.VarChar(50)
+  integration String   @db.VarChar(30)
+  name        String   @db.VarChar(100)
+  phone       String   @db.VarChar(30)
+  note        String?  @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation("IntegrationLeadUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId])
+  @@map("integration_leads")
 }

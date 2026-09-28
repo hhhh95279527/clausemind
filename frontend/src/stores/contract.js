@@ -28,26 +28,37 @@ export const SEVERITY_TEXT = { HIGH: '高风险', MED: '中风险', LOW: '低风
 export const useContractStore = create((set, get) => ({
   contracts: [],
   loadingList: false,
+  sampleCopied: false,  // 本租户是否已领取新手引导示例合同（每租户限一次）
   detail: null,          // { contract, clauses, review }
   loadingDetail: false,
 
   // ── 合同列表 ────────────────────────────────────────────────
-  loadContracts: async (status = '') => {
+  // ── 合同列表（reviewStatus：PENDING/WAITING_REVIEW/APPROVED/FAILED）──
+  loadContracts: async (reviewStatus = '') => {
     set({ loadingList: true })
     try {
-      const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+      const qs = reviewStatus ? `?reviewStatus=${encodeURIComponent(reviewStatus)}` : ''
       const data = await http.get(`/contracts${qs}`)
-      set({ contracts: data.contracts })
+      set({ contracts: data.contracts, sampleCopied: !!data.sampleCopied })
     } finally {
       set({ loadingList: false })
     }
   },
 
+  // ── 新手引导：体验示例合同（每租户限一次、不扣额度；FR-3）──────
+  copySample: async () => {
+    const result = await http.post('/contracts/sample')
+    useAppStore.getState().toast.success('示例合同已放入，正在解析条款…')
+    await get().loadContracts()
+    return result.contract
+  },
+
   // ── 上传合同文件（XHR 监听进度；服务端异步入队解析）────────────
-  uploadFile: async (file, title) => {
+  uploadFile: async (file, title, scene = 'LABOR') => {
     const formData = new FormData()
     formData.append('file', file)
     if (title) formData.append('title', title)
+    formData.append('scene', scene)
 
     const result = await new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest()
@@ -66,12 +77,20 @@ export const useContractStore = create((set, get) => ({
   },
 
   // ── 粘贴文本建档 ────────────────────────────────────────────
-  uploadText: async ({ title, content }) => {
-    const result = await http.post('/contracts/text', { title, content })
+  uploadText: async ({ title, content, scene = 'LABOR' }) => {
+    const result = await http.post('/contracts/text', { title, content, scene })
     useAppStore.getState().toast.success('合同已创建，正在解析条款…')
     await get().loadContracts()
     return result.contract
   },
+
+  // ── 发起审查前置预检（不扣券、不建任务）：PLAN_LIMIT 由页面捕获弹付费墙 ──
+  checkEligibility: async ({ charCount, scene, payWithCoupon = false }) =>
+    http.post('/contracts/eligibility', { charCount, scene, payWithCoupon }, { skipErrorToast: true }),
+
+  // ── 合同助手窄域问答（FREE 仅 1 轮，锁定由后端返回 locked）────
+  askContract: async (contractId, question) =>
+    http.post(`/contracts/${contractId}/ask`, { question }),
 
   deleteContract: async (id) => {
     await http.delete(`/contracts/${id}`)
@@ -101,10 +120,11 @@ export const useContractStore = create((set, get) => ({
 
   resetReviewRun: () => set({ reviewStages: [], liveRisks: [], reviewStats: null, reviewError: '' }),
 
-  startReview: async (contractId) => {
+  startReview: async (contractId, { payWithCoupon = false } = {}) => {
     set({ reviewing: true, reviewStages: [], liveRisks: [], reviewStats: null, reviewError: '' })
     let taskId = null
-    await fetchStream(`/api/contracts/${contractId}/reviews`, {}, {
+    let blockedErr = null
+    await fetchStream(`/api/contracts/${contractId}/reviews`, { payWithCoupon }, {
       onEvent: (event, data) => {
         if (event === 'task') taskId = data.taskId
         if (event === 'stage') {
@@ -117,13 +137,19 @@ export const useContractStore = create((set, get) => ({
       },
       onDone: () => {},
       onError: (err) => {
+        // PLAN_LIMIT（initSse 前真 403）交给页面弹付费墙，不在此 toast
+        if (err.code === 'PLAN_LIMIT') {
+          blockedErr = err
+          set({ reviewError: err.message })
+          return
+        }
         set({ reviewError: err.message })
         useAppStore.getState().toast.error('审查失败：' + err.message)
       },
     })
     set({ reviewing: false })
     await get().loadDetail(contractId)
-    return taskId
+    return { taskId, blocked: blockedErr }
   },
 
   // ── 待人工终审列表 ─────────────────────────────────────────
@@ -135,6 +161,28 @@ export const useContractStore = create((set, get) => ({
 
   // ── 意见书 ─────────────────────────────────────────────────
   loadReport: async (taskId) => (await http.get(`/reviews/${taskId}/report`)).reportMd,
+
+  // 意见书 Word 下载（FR-21：终审完成 + PERSONAL+；403/PLAN_LIMIT 由调用侧处理）
+  downloadReportDocx: async (taskId, filename = '审查意见书.docx') => {
+    const resp = await fetch(`/api/reviews/${taskId}/report/docx`, {
+      headers: { Authorization: `Bearer ${useAuthToken()}` },
+    })
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}))
+      throw Object.assign(new Error(data.error?.message || '导出失败'), {
+        status: resp.status, code: data.error?.code, reason: data.error?.reason,
+      })
+    }
+    const blob = await resp.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  },
 }))
 
 // 组件外取 token（避免在 store 文件里直接耦合响应式 API）

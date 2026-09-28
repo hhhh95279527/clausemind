@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 改稿台 · 房屋租赁合同 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ── 修订卡 ── */
+  .df-item .df-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .df-item .df-head b { font-size: 14.5px; }
+  .df-line { display: flex; gap: 10px; padding: 8px 10px; border-radius: 6px; font-size: 13px; line-height: 1.8; margin-bottom: 6px; }
+  .df-line .df-lab { flex: none; width: 42px; font-size: 12px; color: var(--text-muted); padding-top: 2px; }
+  .df-line.df-old { background: var(--danger-bg); }
+  .df-line.df-new { background: var(--primary-bg); }
+  .df-reason { margin: 6px 0 10px; display: flex; gap: 6px; }
+  .df-foot { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--border-light); padding-top: 10px; }
+  .df-foot .link-btn { font-size: 12.5px; }
+  .df-foot .df-spacer { margin-left: auto; }
+
+  /* 模拟反驳气泡 */
+  .df-rebut { display: none; margin-top: 10px; }
+  body:has(#rebut:target) .df-rebut { display: block; }
+  .df-rebutbox { background: #fff; border: 1px solid var(--warning); border-radius: 10px; padding: 10px 13px; font-size: 13px; border-top-left-radius: 3px; }
+  .df-rebutbox b { color: #b45309; }
+
+  /* 对比原版 modal */
+  .df-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .df-compare h5 { font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .df-compare .df-col { background: var(--bg); border-radius: var(--radius-md); padding: 12px 14px; font-size: 12.5px; line-height: 1.9; max-height: 420px; overflow: auto; }
+
+  /* 右栏说明 */
+  .df-tip-list { list-style: none; display: flex; flex-direction: column; gap: 9px; font-size: 13px; margin-top: 12px; }
+  .df-tip-list li { display: flex; gap: 8px; }
+  .df-tip-list .tick { color: var(--success); flex: none; }
+
+  /* FREE 访问态整页遮罩 */
+  .df-lock {
+    display: none; position: fixed; inset: 0; z-index: 150;
+    background: rgba(255,255,255,.86); backdrop-filter: blur(2px);
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+  }
+  body:has(#free:target) .df-lock { display: flex; }
+  .df-lockbox { max-width: 420px; }
+  .df-lock-ic {
+    width: 64px; height: 64px; border-radius: 50%; background: var(--primary-bg); color: var(--primary);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;
+  }
+  .df-lockbox h3 { font-size: 18px; margin-bottom: 8px; }
+  .df-lockbox p { color: var(--text-sub); font-size: 13.5px; margin-bottom: 18px; }
+  .df-lock-btns { display: flex; gap: 10px; justify-content: center; }
+
+  /* 铃铛 / 通知 */
+  .df-bell { position: relative; color: var(--text-sub); display: inline-flex; }
+  .df-bell:hover { color: var(--primary); }
+  .df-bell .df-dot { position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 1.5px solid #fff; }
+  .df-note { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+  .df-note:last-child { border-bottom: none; }
+  .df-note .df-n-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; flex: none; }
+  .df-note .small { color: var(--text-muted); }
+
+  .df-statechip {
+    position: fixed; left: 14px; bottom: 14px; z-index: 200;
+    background: #fff; border: 1px solid var(--border); border-radius: 99px;
+    padding: 6px 8px 6px 14px; font-size: 11.5px; display: flex; gap: 6px; align-items: center;
+    box-shadow: var(--shadow-md);
+  }
+  .df-statechip b { color: var(--text); }
+  .df-statechip a { padding: 2px 10px; border-radius: 99px; color: var(--text-sub); }
+  .df-statechip a.df-on { background: var(--success-bg); color: #047857; font-weight: 600; }
+  body:has(#free:target) .df-statechip a[href="#top"] { background: none; color: var(--text-sub); font-weight: 400; }
+  body:has(#free:target) .df-statechip a[href="#free"] { background: var(--danger-bg); color: var(--danger); font-weight: 600; }
+</style>
+</head>
+<body>
+<span id="rebut"></span><span id="free"></span>
+<div class="app-shell" id="top">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="home.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>工作台</a>
+      <a class="nav-item active" href="new-review.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/></svg>审合同</a>
+      <a class="nav-item" href="my-contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/></svg>我的合同</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="personal-billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的订阅</a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">李</span><div><div style="color:#fff">李小白</div><div style="font-size:11px;color:#6b7280">个人空间</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>AI 改稿台 · 房屋租赁合同</h2>
+      <span class="head-sub">逐条接受 / 拒绝，满意后导出 Word 红划线修订稿</span>
+      <div class="head-right">
+        <a class="df-bell" href="#notify" aria-label="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="df-dot"></span>
+        </a>
+        <span class="plan-chip" style="background:var(--success-bg);color:#047857">个人版 PERSONAL</span>
+        <span class="avatar">李</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <div class="toolbar">
+        <div class="tb-text">
+          <h2>4 条 AI 修订建议</h2>
+          <p>依据《民法典》与各地住房租赁条例生成，可逐条接受、拒绝或重新生成</p>
+        </div>
+        <div class="tb-right">
+          <a class="btn btn-ghost" href="#diff">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M21 3l-7 7M8 21H3v-5M3 21l7-7"/></svg>
+            对比原版
+          </a>
+          <button class="btn btn-ghost">全部接受</button>
+          <button class="btn btn-primary">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            导出 Word 红划线 <span class="small muted" style="font-weight:400">.docx</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dash-cols">
+
+        <!-- 左：修订卡 -->
+        <div>
+
+          <!-- 修订 1（已接受） -->
+          <div class="panel df-item">
+            <div class="panel-body">
+              <div class="df-head">
+                <b>修订 1 · 第四条 押金</b>
+                <span class="tag tag-green">已接受</span>
+                <span class="tag tag-red" style="margin-left:auto">高风险</span>
+              </div>
+              <div class="df-line df-old"><span class="df-lab">原句</span><span>乙方于签约时支付押金 <del style="color:var(--danger)">8,000 元。租赁期满，墙面、地面有任何划痕或设施有任何损耗的，押金不予退还</del>。</span></div>
+              <div class="df-line df-new"><span class="df-lab">改写</span><span>甲方收取押金人民币 <u style="color:#1d4ed8;text-underline-offset:3px">贰仟陆佰元整（相当于 1 个月租金）。租赁期满或合同解除后，在乙方结清应承担费用、房屋无人为损坏的 3 个工作日内无息退还；正常使用产生的自然损耗不影响退还</u>。</span></div>
+              <div class="df-reason small muted">
+                <svg class="icon-sm" style="margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <span>理由：多地租赁条例规定押金一般不超过 1 个月租金；「任何划痕不退押金」与公平原则冲突，诉讼中大概率被认定无效。</span>
+              </div>
+              <div class="df-foot">
+                <button class="btn btn-ghost btn-sm">撤销接受</button>
+                <button class="link-btn">重新生成</button>
+                <span class="df-spacer small muted">已写入修订稿</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 修订 2 -->
+          <div class="panel df-item">
+            <div class="panel-body">
+              <div class="df-head">
+                <b>修订 2 · 第七条 提前退租违约金</b>
+                <span class="tag tag-orange">待确认</span>
+                <span class="tag tag-orange" style="margin-left:auto">中风险</span>
+              </div>
+              <div class="df-line df-old"><span class="df-lab">原句</span><span>乙方提前退租的，应支付 <del style="color:var(--danger)">2 个月租金的违约金，且已付租金不予退还</del>。</span></div>
+              <div class="df-line df-new"><span class="df-lab">改写</span><span>乙方提前退租应 <u style="color:#1d4ed8;text-underline-offset:3px">提前 30 日书面通知甲方，并支付相当于 1 个月租金的违约金；甲方应积极重新招租以减少损失，招租成功后乙方不再承担此后租金</u>。</span></div>
+              <div class="df-reason small muted">
+                <svg class="icon-sm" style="margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <span>理由：违约金超过实际损失 30% 的，依《民法典》第五百八十五条法院可能调减；提前通知 + 减损义务对双方更公平。</span>
+              </div>
+              <div class="df-foot">
+                <button class="btn btn-primary btn-sm">接受</button>
+                <button class="btn btn-ghost btn-sm">拒绝</button>
+                <button class="link-btn">重新生成</button>
+                <a class="link-btn" href="#rebut">模拟对方反驳</a>
+              </div>
+
+              <!-- 模拟反驳 -->
+              <div class="df-rebut">
+                <div class="df-rebutbox">
+                  <b>模拟房东反驳：</b>「我这房子找下家至少空置一两个月，1 个月违约金根本不够 cover 我的损失；而且合同是你自己签的，现在又要改？」
+                  <div class="small muted" style="margin-top:6px">建议回应：强调法定减损规则（房东有义务积极招租），并可提出「协助转租 + 1 个月违约金」的折中方案。点击「重新生成」可换一版更强硬 / 更温和的措辞。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 修订 3 -->
+          <div class="panel df-item">
+            <div class="panel-body">
+              <div class="df-head">
+                <b>修订 3 · 第六条 维修义务</b>
+                <span class="tag tag-orange">待确认</span>
+                <span class="tag tag-blue" style="margin-left:auto">低风险</span>
+              </div>
+              <div class="df-line df-old"><span class="df-lab">原句</span><span>租赁期间，房屋及设施的 <del style="color:var(--danger)">一切维修均由乙方负责并承担费用，与甲方无关</del>。</span></div>
+              <div class="df-line df-new"><span class="df-lab">改写</span><span><u style="color:#1d4ed8;text-underline-offset:3px">房屋主体结构及水电管线因自然老化产生的维修由甲方负责并承担费用；因乙方使用不当造成的损坏由乙方负责维修或照价赔偿。甲方接到维修通知后 3 日内未处理的，乙方可自行维修，合理费用由甲方承担</u>。</span></div>
+              <div class="df-reason small muted">
+                <svg class="icon-sm" style="margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <span>理由：《民法典》第七百一十二、七百一十三条规定出租方承担法定维修义务，承租人自行维修后可追偿。</span>
+              </div>
+              <div class="df-foot">
+                <button class="btn btn-primary btn-sm">接受</button>
+                <button class="btn btn-ghost btn-sm">拒绝</button>
+                <button class="link-btn">重新生成</button>
+                <button class="link-btn">模拟对方反驳</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 修订 4 -->
+          <div class="panel df-item">
+            <div class="panel-body">
+              <div class="df-head">
+                <b>修订 4 · 第十条 争议解决</b>
+                <span class="tag tag-orange">待确认</span>
+                <span class="tag tag-blue" style="margin-left:auto">低风险</span>
+              </div>
+              <div class="df-line df-old"><span class="df-lab">原句</span><span>协商不成的，向 <del style="color:var(--danger)">甲方所在地</del> 人民法院起诉。</span></div>
+              <div class="df-line df-new"><span class="df-lab">改写</span><span>协商不成的，向 <u style="color:#1d4ed8;text-underline-offset:3px">租赁房屋所在地</u> 人民法院起诉。</span></div>
+              <div class="df-reason small muted">
+                <svg class="icon-sm" style="margin-top:3px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+                <span>理由：房屋租赁合同纠纷按不动产纠纷由房屋所在地法院专属管辖，写明后可避免立案争议。</span>
+              </div>
+              <div class="df-foot">
+                <button class="btn btn-primary btn-sm">接受</button>
+                <button class="btn btn-ghost btn-sm">拒绝</button>
+                <button class="link-btn">重新生成</button>
+                <button class="link-btn">模拟对方反驳</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 右：改稿说明 -->
+        <div>
+          <div class="panel">
+            <div class="panel-head"><h3>改稿说明</h3></div>
+            <div class="panel-body">
+              <div class="small muted">已接受修订</div>
+              <div style="font-size:24px;font-weight:800;margin:2px 0">1 <span style="font-size:14px;color:var(--text-muted);font-weight:400">/ 4</span></div>
+              <div class="progress"><i style="width:25%"></i></div>
+              <div class="info-banner info" style="margin-top:14px">
+                <svg class="icon-sm" style="flex:none;margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                <div>接受全部后可导出 Word 红划线修订稿，对方打开即可看到所有改动痕迹。</div>
+              </div>
+              <ul class="df-tip-list">
+                <li><span class="tick">✓</span><span>接受的修订自动写入 .docx 修订模式</span></li>
+                <li><span class="tick">✓</span><span>拒绝的条款保留原文，不影响其他修订</span></li>
+                <li><span class="tick">✓</span><span>可对任意一条「重新生成」，换一版措辞</span></li>
+                <li><span class="tick">✓</span><span>「模拟对方反驳」帮你提前准备谈判话术</span></li>
+              </ul>
+              <div style="border-top:1px solid var(--border-light);margin-top:16px;padding-top:14px;display:flex;flex-direction:column;gap:8px">
+                <a class="btn btn-ghost btn-block" href="review.html#state-personal">返回审查结果</a>
+                <a class="small" href="my-contracts.html" style="text-align:center">查看我的合同</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- FREE 访问态遮罩 -->
+<div class="df-lock" id="df-free-lock">
+  <div class="df-lockbox">
+    <div class="df-lock-ic"><svg class="icon" style="width:30px;height:30px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <h3>AI 多轮改稿为个人版权益</h3>
+    <p>开通个人版（¥19/月 或 ¥99/年）即可使用逐条改稿、模拟反驳与 Word 红划线导出；也可使用 1 张深度审查券（¥9.9）解锁本份合同的改稿。</p>
+    <div class="df-lock-btns">
+      <a class="btn btn-primary btn-lg" href="personal-billing.html">开通个人版</a>
+      <a class="btn btn-ghost btn-lg" href="#paywall">使用深度券 ¥9.9</a>
+    </div>
+    <div style="margin-top:14px"><a class="small muted" href="review.html">← 返回免费审查结果</a></div>
+  </div>
+</div>
+
+<!-- 对比原版 -->
+<div class="mask" id="diff">
+  <div class="modal wide">
+    <div class="modal-head"><h3>对比原版 · 第四条 押金（红划线预览）</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body">
+      <div class="df-compare">
+        <div>
+          <h5><span class="tag tag-red">原版</span> 房屋租赁合同-张某.txt</h5>
+          <div class="df-col">
+            第四条 押金<br>
+            乙方于签约时支付押金 <del style="color:var(--danger)">8,000 元。租赁期满，墙面、地面有任何划痕或设施有任何损耗的，押金不予退还</del>。<br><br>
+            第七条 提前退租与违约金（节选）<br>
+            乙方提前退租的，应支付 <del style="color:var(--danger)">2 个月租金的违约金，且已付租金不予退还</del>。
+          </div>
+        </div>
+        <div>
+          <h5><span class="tag tag-green">AI 修订稿</span> 已接受 1 条</h5>
+          <div class="df-col">
+            第四条 押金<br>
+            甲方收取押金人民币 <u style="color:#1d4ed8;text-underline-offset:3px">贰仟陆佰元整（相当于 1 个月租金）。租赁期满或合同解除后，在乙方结清应承担费用、房屋无人为损坏的 3 个工作日内无息退还；正常使用产生的自然损耗不影响退还</u>。<br><br>
+            第七条 提前退租与违约金（节选）<br>
+            乙方提前退租应 <u style="color:#1d4ed8;text-underline-offset:3px">提前 30 日书面通知甲方，并支付相当于 1 个月租金的违约金；甲方应积极重新招租</u>。
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <a class="btn btn-ghost" href="#">关闭</a>
+      <button class="btn btn-primary">导出 Word 红划线 .docx</button>
+    </div>
+  </div>
+</div>
+
+<!-- 统一付费墙 -->
+<div class="mask" id="paywall">
+  <div class="modal paywall" style="position:relative">
+    <a class="x" href="#" aria-label="关闭" style="position:absolute;top:14px;right:18px;color:var(--text-muted);font-size:20px">×</a>
+    <div class="modal-body">
+      <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3>解锁完整深度审查</h3>
+      <p class="muted">深度券与个人版均可解锁本份合同的 AI 多轮改稿与 Word 红划线导出。</p>
+      <ul class="pw-feats">
+        <li><span class="tick">✓</span>AI 语义审查 + 法条依据，置信度透明</li>
+        <li><span class="tick">✓</span>逐条修改建议与可直接替换的措辞</li>
+        <li><span class="tick">✓</span>合同助手多轮追问与 AI 改稿</li>
+        <li><span class="tick">✓</span>Word 红划线导出与永久存档</li>
+      </ul>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <a class="btn btn-primary btn-lg btn-block" href="review.html#state-personal">使用 1 张深度券（余额 1 张）</a>
+        <a class="btn btn-ghost btn-block" href="checkout.html">开通个人版 ¥19/月</a>
+        <a class="btn btn-block" href="checkout.html#yearly" style="color:var(--primary)">年付 ¥99，省 48% →</a>
+      </div>
+      <div style="margin-top:12px"><a href="#" class="small muted">暂不解锁</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- 通知弹层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:380px">
+    <div class="modal-head"><h3>通知</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body" style="padding-top:4px;padding-bottom:4px">
+      <div class="df-note">
+        <span class="df-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+        <div><div>《房屋租赁合同》还有 3 条修订待确认</div><div class="small">接受全部后可导出 Word 红划线修订稿</div></div>
+      </div>
+      <div class="df-note">
+        <span class="df-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M12 15V3"/></svg></span>
+        <div>个人版将于 2027-09-20 到期</div><div class="small">到期前续费可继续不限份数审查与改稿</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="df-statechip"><b>演示态</b><a class="df-on" href="#top">付费态（默认）</a><a href="#free">FREE 访问态</a></div>
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="new-review.html">审合同</a> · <a href="review.html">结果三态</a> · <a href="draft.html">AI改稿</a> · <a href="personal-billing.html">我的订阅</a> · <a href="dashboard.html">企业工作台→</a></div>
+</body>
+</html>

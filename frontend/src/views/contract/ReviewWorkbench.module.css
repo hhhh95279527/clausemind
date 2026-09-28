@@ -271,3 +271,114 @@
 }
 
 .reportMd :global(h3) { font-size: 15px; margin-top: 18px; }
+
+/* 6.2 企业审批流条 */
+.approvalBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 10px 20px 0;
+  padding: 10px 16px;
+  background: #faf5ff;
+  border: 1px solid #ddd6fe;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #4c1d95;
+  flex-shrink: 0;
+}
+
+.approvalLeft {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.approvalIcon { font-size: 18px; color: #7c3aed; }
+
+.approvalActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 风险分区标题 */
+.sectionHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  margin: 4px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border-radius: 6px;
+}
+
+/* 结构化信息卡 */
+.structuredCard {
+  flex-shrink: 0;
+  max-height: 42%;
+  overflow-y: auto;
+  margin: 0 14px 14px;
+  border: 1px solid var(--color-border-light);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.structuredHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.structuredTitle { font-size: 13px; font-weight: 600; }
+
+.structuredHead :global(.ant-btn) { margin-left: auto; }
+
+.structuredTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.structuredTable th {
+  width: 84px;
+  text-align: left;
+  vertical-align: top;
+  padding: 8px 12px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  border-bottom: 1px solid var(--color-border-light);
+  white-space: nowrap;
+}
+
+.structuredTable td {
+  padding: 8px 12px 8px 0;
+  line-height: 1.6;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.structuredTable tr:last-child th,
+.structuredTable tr:last-child td { border-bottom: none; }
+
+.amountRedline {
+  color: var(--color-danger);
+  font-weight: 700;
+}
+
+.structuredNote {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.obligationItem { line-height: 1.8; }

@@ -1,0 +1,258 @@
+/* dashboard.module.css — 企业合规仪表盘（对齐 docs/prototype/dashboard.html） */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.center {
+  height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── 顶部 ───────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.title { font-size: 20px; font-weight: 700; }
+.subtitle { font-size: 13px; color: var(--color-text-muted); margin-top: 4px; }
+.toolbarRight { display: flex; align-items: center; gap: 10px; }
+
+/* ── 快捷操作 ───────────────────────────────────────────── */
+.quickGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.quickCard {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.quickCard:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .06);
+}
+.quickCard h3 { margin: 0 0 2px; font-size: 15px; }
+.quickCard p { margin: 0; font-size: 12px; color: var(--color-text-muted); }
+.quickIcon {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  color: var(--color-primary);
+  font-size: 20px;
+}
+
+/* ── 统计卡 ─────────────────────────────────────────────── */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.statCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px;
+}
+.statTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+  margin-bottom: 6px;
+}
+.statNum { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.statUnit { font-size: 14px; font-weight: 400; color: var(--color-text-muted); }
+.warning { color: var(--color-warning); }
+.danger { color: var(--color-danger); }
+.statFoot { font-size: 12px; color: var(--color-text-muted); margin-top: 6px; }
+.statFoot a { color: var(--color-primary); cursor: pointer; }
+
+.progress {
+  margin-top: 10px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border-light);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--color-primary);
+}
+
+/* ── 两栏布局 ───────────────────────────────────────────── */
+.dashCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.panelHead h3 { margin: 0; font-size: 15px; }
+.panelBody { padding: 6px 0; }
+.panelBodyPad { padding: 14px 16px; }
+.panelFooter { padding: 10px 16px; border-top: 1px solid var(--color-border-light); }
+.smallLink { font-size: 13px; color: var(--color-primary); cursor: pointer; }
+.mutedSmall { font-size: 12px; color: var(--color-text-muted); }
+
+/* ── 待办 ───────────────────────────────────────────────── */
+.todoItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+.todoItem:hover { background: var(--color-bg); }
+.todoMain { flex: 1; min-width: 0; }
+.todoMain b { font-size: 13px; }
+.todoMain div {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.todoTime { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
+.dotTag { flex-shrink: 0; }
+.hitCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* ── 风险条形 ───────────────────────────────────────────── */
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.barLabel { width: 76px; flex-shrink: 0; font-size: 13px; color: var(--color-text-sub); }
+.barTrack {
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--color-border-light);
+  overflow: hidden;
+}
+.barTrack i { display: block; height: 100%; border-radius: 5px; }
+.barValue { width: 32px; text-align: right; font-size: 13px; }
+.divider { border-top: 1px solid var(--color-border-light); margin: 14px 0 12px; }
+
+/* ── 到期提醒 ───────────────────────────────────────────── */
+.deadlineRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.deadlineRow:hover { background: var(--color-bg); }
+.deadlineDate {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* ── 套餐用量 ───────────────────────────────────────────── */
+.usageLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.usageLine b { color: var(--color-text); font-weight: 600; }
+
+/* ── 个人空间加锁卡 ─────────────────────────────────────── */
+.lockWrap {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+.lockCard {
+  width: 460px;
+  max-width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 32px 28px;
+  text-align: center;
+}
+.lockIcon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f3e8ff;
+  color: #7c3aed;
+  font-size: 28px;
+}
+.lockCard h3 { margin: 0 0 8px; font-size: 17px; }
+.lockMuted { font-size: 13px; color: var(--color-text-muted); margin: 0 0 18px; }
+.lockFeats {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+.tick { color: var(--color-success); margin-right: 8px; font-weight: 700; }
+
+/* ── 窄屏 ───────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .dashCols { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .statGrid { grid-template-columns: repeat(2, 1fr); }
+  .quickGrid { grid-template-columns: 1fr; }
+}

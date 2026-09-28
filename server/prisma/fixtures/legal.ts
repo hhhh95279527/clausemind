@@ -1,5 +1,9 @@
 // server/prisma/fixtures/legal.ts
 // 种子法规库（条文原文节选）与公司合同模板。法规为公开法律文本节选，供 legal_search 检索引用。
+// 合同范本的元数据/正文唯一事实源在 src/templates/（template-catalog.ts / template-contents.ts），
+// 本文件仅拼装入库形状 TEMPLATE_DOCS，并在加载时做一致性校验。
+import { TEMPLATE_CATALOG } from '../../src/templates/template-catalog.js'
+import { TEMPLATE_CONTENTS } from '../../src/templates/template-contents.js'
 
 export interface LegalDocSeed {
   docId: string
@@ -71,42 +75,19 @@ export const LEGAL_DOCS: LegalDocSeed[] = [
   },
 ]
 
-export const TEMPLATE_DOCS: LegalDocSeed[] = [
-  {
-    docId: 'tpl_labor_contract',
-    title: '公司标准劳动合同模板',
-    fileName: '标准劳动合同模板.txt',
-    category: '劳动合同',
-    content: `XX 科技有限公司标准劳动合同（模板）
+// ── 合同范本库（FR-20，≥12 份：8 份 HR + 房屋租赁 / 兼职劳务 / NDA 锚点）──
+// 元数据 + 正文均来自 src/templates；缺正文会在加载期直接报错，防止目录与内容漂移。
+for (const meta of TEMPLATE_CATALOG) {
+  const content = TEMPLATE_CONTENTS[meta.docId]
+  if (!content || !content.trim()) {
+    throw new Error(`范本 ${meta.docId} 缺少正文，请补 src/templates/template-contents.ts`)
+  }
+}
 
-第一条 合同期限。本合同为固定期限劳动合同，期限三年，自实际用工之日起计算。
-第二条 试用期。试用期二个月，试用期工资不低于转正工资的百分之八十且不低于当地最低工资标准。
-第三条 工作岗位与地点。岗位、职责以录用通知书为准，变更岗位应协商一致并书面确认。
-第四条 劳动报酬。每月十五日之前以货币形式足额支付上月工资，不得克扣或无故拖欠。
-第五条 工作时间与休息。执行标准工时制，加班依法支付加班费或安排调休。
-第六条 社会保险。自用工之日起依法为劳动者缴纳社会保险，个人部分由公司代扣代缴。
-第七条 劳动保护。公司提供符合标准的劳动条件与必要劳保用品。
-第八条 保密义务。劳动者对商业秘密负保密义务，保密期限按保密协议执行。
-第九条 竞业限制。确有必要的岗位另行签订竞业限制协议，公司在竞业限制期内按月支付经济补偿，期限不超过二年。
-第十条 合同解除。双方依法定及约定条件解除合同，公司应依法出具解除证明并办理转移手续。
-第十一条 争议解决。协商不成的，向劳动合同履行地或用人单位所在地有管辖权的人民法院起诉。`,
-  },
-  {
-    docId: 'tpl_software_dev',
-    title: '公司标准软件开发合同模板',
-    fileName: '标准软件开发合同模板.txt',
-    category: '技术合同',
-    content: `软件开发合同（模板）
-
-第一条 项目内容。开发范围、交付物、验收标准以附件需求说明书为准，需求变更须书面签认并另行计价。
-第二条 合同价款与支付。总价含税，按里程碑分期付款：启动付30%，中期验收付40%，终验合格付30%。
-第三条 交付与验收。乙方按期交付，甲方应在十个工作日内组织验收并书面反馈，逾期未反馈视为验收通过。
-第四条 知识产权。定制开发成果著作权在甲方付清全款后归甲方所有，乙方保留通用组件与既有技术的权利。
-第五条 保密。双方对合作中知悉的商业秘密互负保密义务，期限为合同终止后三年。
-第六条 违约责任。逾期交付或逾期付款的，每日按合同总额万分之五支付违约金，累计不超过合同总额的20%。
-第七条 质保。免费质保期六个月，质保期内乙方应在接到通知后两个工作日内响应修复。
-第八条 不可抗力。因不可抗力不能履行的，受影响方应及时通知并提供证明，双方协商变更或解除合同。
-第九条 合同解除。一方根本违约经催告后十五日内未改正的，另一方有权书面解除并要求赔偿损失。
-第十条 争议解决。协商不成的，向合同履行地有管辖权的人民法院起诉。`,
-  },
-]
+export const TEMPLATE_DOCS: LegalDocSeed[] = TEMPLATE_CATALOG.map((meta) => ({
+  docId: meta.docId,
+  title: meta.title,
+  fileName: meta.fileName,
+  category: meta.category,
+  content: TEMPLATE_CONTENTS[meta.docId],
+}))

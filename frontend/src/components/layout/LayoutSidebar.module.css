@@ -1,0 +1,151 @@
+/* LayoutSidebar.module.css —— 新三套布局壳（PersonalLayout/TeamLayout）共用
+   与 AppSidebar.module.css 同源，新增 .nav-group-title 用于系统管理分组标题 */
+.sidebar {
+  width: var(--sidebar-width);
+  height: 100vh;
+  height: 100dvh;
+  background: var(--sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 100;
+}
+
+/* ── 移动端（≤768）：侧边栏变为左侧抽屉，默认滑出屏幕外 ──────── */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 80vw;
+    max-width: 280px;
+    transform: translateX(-100%);
+    transition: transform .25s ease;
+    box-shadow: none;
+  }
+  /* 抽屉打开：滑回可视区 */
+  .open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, .25);
+  }
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}
+
+.logo-icon {
+  font-size: 20px;
+  color: #fff;
+}
+
+.logo-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: .02em;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  color: var(--sidebar-text);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition);
+  text-decoration: none;
+  position: relative;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, .07);
+  color: #fff;
+}
+
+.nav-item.active {
+  background: var(--sidebar-active);
+  color: #fff;
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, .4);
+}
+
+.nav-icon {
+  font-size: 16px;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.nav-badge {
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--color-warning);
+  color: #fff;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  letter-spacing: .04em;
+}
+
+/* 系统管理分组标题 */
+.nav-group-title {
+  margin-top: 16px;
+  padding: 4px 12px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, .35);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border-top: 1px solid rgba(255, 255, 255, .06);
+}
+
+.sidebar-footer {
+  padding: 12px 10px;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+}
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  color: var(--sidebar-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, .07);
+  color: #fff;
+}
+
+.version {
+  text-align: center;
+  font-size: 11px;
+  color: rgba(255, 255, 255, .2);
+  margin-top: 6px;
+}

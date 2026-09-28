@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的订阅 — WorkMind 个人空间</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ── FREE / PERSONAL 两态 ── */
+  .pb-paid, .pb-chip-paid { display: none; }
+  body:has(#paid:target) .pb-free { display: none; }
+  body:has(#paid:target) .pb-paid { display: block; }
+  body:has(#paid:target) .pb-chip-free { display: none; }
+  body:has(#paid:target) .pb-chip-paid { display: inline-flex; }
+  body:has(#paid:target) .pb-paid-flex { display: flex; }
+
+  .pb-current { display: flex; gap: 22px; align-items: stretch; }
+  .pb-badge {
+    width: 64px; height: 64px; border-radius: 16px; flex: none;
+    background: var(--primary-bg); color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pb-badge.paid { background: var(--success-bg); color: var(--success); }
+  .pb-plan-name { font-size: 24px; font-weight: 800; }
+  .pb-plan-sub { color: var(--text-sub); font-size: 13px; margin-top: 2px; }
+  .pb-usage { margin-top: 14px; max-width: 420px; }
+  .pb-usage .pb-usage-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-sub); }
+  .pb-side {
+    margin-left: auto; flex: none; width: 220px; display: flex; flex-direction: column;
+    gap: 10px; justify-content: center; border-left: 1px solid var(--border-light); padding-left: 22px;
+  }
+  .pb-coupon {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    background: var(--bg); border-radius: var(--radius-md); padding: 10px 12px;
+  }
+  .pb-coupon b { font-size: 17px; }
+
+  .pb-section-title { font-size: 15px; margin: 4px 0 2px; }
+  .pb-section-sub { font-size: 12.5px; color: var(--text-sub); margin-bottom: 14px; }
+  .plan-price .pb-per { font-size: 13px; font-weight: 400; color: var(--text-sub); }
+  .pb-cardtag { position: absolute; top: 14px; right: 14px; }
+
+  /* 铃铛 / 通知 */
+  .pb-bell { position: relative; color: var(--text-sub); display: inline-flex; }
+  .pb-bell:hover { color: var(--primary); }
+  .pb-bell .pb-dot { position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 1.5px solid #fff; }
+  .pb-note { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+  .pb-note:last-child { border-bottom: none; }
+  .pb-note .pb-n-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; flex: none; }
+  .pb-note .small { color: var(--text-muted); }
+
+  .pb-statechip {
+    position: fixed; left: 14px; bottom: 14px; z-index: 200;
+    background: #fff; border: 1px solid var(--border); border-radius: 99px;
+    padding: 6px 8px 6px 14px; font-size: 11.5px; display: flex; gap: 6px; align-items: center;
+    box-shadow: var(--shadow-md);
+  }
+  .pb-statechip b { color: var(--text); }
+  .pb-statechip a { padding: 2px 10px; border-radius: 99px; color: var(--text-sub); }
+  .pb-statechip a.pb-on { background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+  body:has(#paid:target) .pb-statechip a[href="#top"] { background: none; color: var(--text-sub); font-weight: 400; }
+  body:has(#paid:target) .pb-statechip a[href="#paid"] { background: var(--success-bg); color: #047857; font-weight: 600; }
+</style>
+</head>
+<body>
+<span id="paid"></span>
+<div class="app-shell" id="top">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="home.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>工作台</a>
+      <a class="nav-item" href="new-review.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/></svg>审合同</a>
+      <a class="nav-item" href="my-contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/></svg>我的合同</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item active" href="personal-billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的订阅</a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">李</span><div><div style="color:#fff">李小白</div><div style="font-size:11px;color:#6b7280">个人空间</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>我的订阅</h2>
+      <span class="head-sub">套餐、用量、深度券与订单记录</span>
+      <div class="head-right">
+        <a class="pb-bell" href="#notify" aria-label="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="pb-dot"></span>
+        </a>
+        <span class="plan-chip pb-chip-free">免费版 FREE</span>
+        <span class="plan-chip pb-chip-paid" style="background:var(--success-bg);color:#047857">个人版 PERSONAL</span>
+        <span class="avatar">李</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- 当前套餐：免费态 -->
+      <section class="panel pb-free">
+        <div class="panel-body pb-current">
+          <div class="pb-badge">
+            <svg class="icon" style="width:30px;height:30px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+          </div>
+          <div style="min-width:0">
+            <div class="pb-plan-name">免费版 FREE</div>
+            <div class="pb-plan-sub">每月 2 份 · 每份 ≤ 3000 字 · 劳动 / 租赁 / 劳务 / NDA · 记录保留 7 天</div>
+            <div class="pb-usage">
+              <div class="pb-usage-row"><span>本月免费额度</span><b style="color:var(--text)">0 / 2 份</b></div>
+              <div class="progress"><i style="width:0%"></i></div>
+              <div class="pb-usage-row" style="margin-top:12px"><span>长文档 / 非标合同</span><span>需深度券或个人版</span></div>
+            </div>
+          </div>
+          <div class="pb-side">
+            <div class="pb-coupon">
+              <svg class="icon-sm" style="color:var(--warning)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>
+              <span>深度券余额</span><b style="margin-left:auto">0 张</b>
+            </div>
+            <a class="btn btn-primary btn-block" href="#plans">升级个人版</a>
+            <a class="btn btn-ghost btn-block" href="checkout.html#coupons">购买深度券 ¥9.9/份</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 当前套餐：个人版态 -->
+      <section class="panel pb-paid">
+        <div class="panel-body pb-current">
+          <div class="pb-badge paid">
+            <svg class="icon" style="width:30px;height:30px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div style="min-width:0">
+            <div class="pb-plan-name">个人版 PERSONAL <span class="tag tag-green" style="vertical-align:4px">使用中</span></div>
+            <div class="pb-plan-sub">年付套餐 · 有效期至 2027-09-20 · 到期前可随时续费</div>
+            <div class="pb-usage">
+              <div class="pb-usage-row"><span>本月审查份数</span><b style="color:var(--text)">3 份 · 不限份数</b></div>
+              <div class="progress"><i style="width:100%;background:var(--success)"></i></div>
+              <div class="pb-usage-row" style="margin-top:12px"><span>权益</span><span>AI 改稿 · Word 红划线 · 永久存档 · 个人条款库</span></div>
+            </div>
+          </div>
+          <div class="pb-side">
+            <div class="pb-coupon">
+              <svg class="icon-sm" style="color:var(--warning)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg>
+              <span>深度券余额</span><b style="margin-left:auto">1 张</b>
+            </div>
+            <a class="btn btn-ghost btn-block" href="#cancel">取消订阅（模拟）</a>
+          </div>
+        </div>
+      </section>
+
+      <!-- 升级区 -->
+      <div id="plans">
+        <h3 class="pb-section-title">升级与加购</h3>
+        <p class="pb-section-sub">个人使用推荐年付，相当于每月 8.25 元；偶尔审长文档可只买深度券。</p>
+        <div class="plan-grid">
+
+          <div class="plan-card">
+            <div class="plan-name">个人版 · 月付</div>
+            <div class="plan-desc">适合短期集中签约的月份，随时取消</div>
+            <div class="plan-price">¥19<small class="pb-per"> / 月</small></div>
+            <ul class="plan-feats">
+              <li><span class="tick">✓</span>不限份数审查，长文档不限字数</li>
+              <li><span class="tick">✓</span>AI 语义审查 + 法条依据 + 修改建议</li>
+              <li><span class="tick">✓</span>多轮追问、AI 改稿、模拟反驳</li>
+              <li><span class="tick">✓</span>Word 红划线导出 · 永久存档 · 条款库</li>
+            </ul>
+            <a class="btn btn-primary btn-block" href="checkout.html#monthly">选择月付</a>
+          </div>
+
+          <div class="plan-card featured">
+            <div class="plan-flag">最划算</div>
+            <span class="tag tag-green pb-cardtag">省 48%</span>
+            <div class="plan-name">个人版 · 年付</div>
+            <div class="plan-desc">相当于 ¥8.25/月，权益与月付完全一致</div>
+            <div class="plan-price">¥99<small class="pb-per"> / 年</small></div>
+            <ul class="plan-feats">
+              <li><span class="tick">✓</span>不限份数审查，长文档不限字数</li>
+              <li><span class="tick">✓</span>AI 语义审查 + 法条依据 + 修改建议</li>
+              <li><span class="tick">✓</span>多轮追问、AI 改稿、模拟反驳</li>
+              <li><span class="tick">✓</span>Word 红划线导出 · 永久存档 · 条款库</li>
+            </ul>
+            <a class="btn btn-primary btn-block" href="checkout.html#yearly">选择年付</a>
+          </div>
+
+          <div class="plan-card">
+            <div class="plan-name">深度审查券包</div>
+            <div class="plan-desc">不开通订阅，按份解锁，1 券 = 1 份深度审查</div>
+            <div class="plan-price">¥99<small class="pb-per"> / 10 张（¥9.9/份）</small></div>
+            <ul class="plan-feats">
+              <li><span class="tick">✓</span>1 券解锁 1 份深度审查，含长文档</li>
+              <li><span class="tick">✓</span>支持非标合同（借款 / 合作 / 买卖等）</li>
+              <li><span class="tick">✓</span>含 AI 改稿与 Word 红划线导出</li>
+              <li class="off"><span class="tick">✓</span>无份数不限量与条款库权益</li>
+            </ul>
+            <a class="btn btn-ghost btn-block" href="checkout.html#coupons">购买券包</a>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="dash-cols">
+        <!-- 订单记录 -->
+        <div class="panel">
+          <div class="panel-head"><h3>订单记录</h3><div class="ph-right"><span class="small muted">近 2 条</span></div></div>
+          <table class="tbl">
+            <thead><tr><th>订单号</th><th>商品</th><th>金额</th><th>状态</th><th>下单时间</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>WM20260918001</td>
+                <td>个人版年付</td>
+                <td><b>¥99.00</b></td>
+                <td><span class="tag tag-green">已支付</span></td>
+                <td class="small muted">2026-09-18 21:04</td>
+              </tr>
+              <tr>
+                <td>WM20260917002</td>
+                <td>深度审查券包 × 10</td>
+                <td class="muted">¥99.00</td>
+                <td><span class="tag tag-gray">已取消</span></td>
+                <td class="small muted">2026-09-17 19:36</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 团队版引导 -->
+        <div class="panel">
+          <div class="panel-head"><h3>需要团队协作？</h3></div>
+          <div class="panel-body">
+            <p class="small muted" style="line-height:1.9">如果你和同事需要<b style="color:var(--text)">共享合同库、统一审查规则（Playbook）、审批流与企业级管理后台</b>，WorkMind 提供团队版与企业版，支持成员席位、合同台账与操作审计。</p>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
+              <a class="btn btn-primary btn-block" href="pricing.html">了解团队版</a>
+              <a class="btn btn-ghost btn-block" href="dashboard.html">预览企业工作台</a>
+            </div>
+            <div class="small muted" style="margin-top:12px;line-height:1.8">TEAM 套餐适合 3–20 人小团队；ENTERPRISE 支持 SSO、私有化部署与定制规则。</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 取消订阅二次确认 -->
+<div class="mask" id="cancel">
+  <div class="modal">
+    <div class="modal-head"><h3>确认取消个人版？</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body">
+      <div class="info-banner warn" style="margin-bottom:12px">
+        <svg class="icon-sm" style="flex:none;margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <div>演示操作，不会产生真实变更。</div>
+      </div>
+      <p class="small" style="line-height:1.9;color:var(--text-sub)">取消后，个人版权益将保留至 <b style="color:var(--text)">2027-09-20</b>；到期后账户恢复为 FREE：每月 2 份免费额度、深度内容加锁、新记录仅保留 7 天。已存档合同与条款库可导出。</p>
+    </div>
+    <div class="modal-foot">
+      <a class="btn btn-ghost" href="#paid">我再想想</a>
+      <a class="btn btn-danger-ghost" href="#top">确认取消</a>
+    </div>
+  </div>
+</div>
+
+<!-- 通知弹层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:380px">
+    <div class="modal-head"><h3>通知</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body" style="padding-top:4px;padding-bottom:4px">
+      <div class="pb-note">
+        <span class="pb-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg></span>
+        <div><div>个人版年付订单 WM20260918001 支付成功</div><div class="small">权益已生效，有效期至 2027-09-20</div></div>
+      </div>
+      <div class="pb-note">
+        <span class="pb-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/></svg></span>
+        <div><div>深度券购买订单未完成支付</div><div class="small">订单 WM20260917002 已自动取消，可重新下单</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pb-statechip"><b>演示态</b><a class="pb-on" href="#top">FREE 态</a><a href="#paid">PERSONAL 态</a></div>
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="new-review.html">审合同</a> · <a href="review.html">结果三态</a> · <a href="draft.html">AI改稿</a> · <a href="personal-billing.html">我的订阅</a> · <a href="dashboard.html">企业工作台→</a></div>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法规问答 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ── kz- 法规问答专属 ── */
+  .kz-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+  .kz-src { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--radius-md); cursor: pointer; }
+  .kz-src:hover { background: var(--bg); }
+  .kz-src.active { background: var(--primary-bg); }
+  .kz-src .ico { color: var(--primary); margin-top: 1px; flex: none; }
+  .kz-src b { font-size: 13px; font-weight: 600; display: block; }
+  .kz-src .small { line-height: 1.5; }
+  .kz-group { margin-top: 6px; padding: 8px 12px 4px; font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .kz-upload { margin: 8px 12px 12px; border: 1px dashed var(--border); border-radius: var(--radius-md); padding: 12px; text-align: center; color: var(--text-muted); font-size: 12.5px; cursor: pointer; }
+  .kz-upload:hover { border-color: #c7d2fe; color: var(--primary); background: #fafbff; }
+  .kz-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .kz-chip { font-size: 12.5px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: #fff; color: var(--text-sub); cursor: pointer; }
+  .kz-chip:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-bg); }
+  .kz-chat { height: 440px; overflow: auto; }
+  .bubble.ai ul { margin: 6px 0 2px; padding-left: 18px; }
+  .bubble.ai li { margin: 5px 0; line-height: 1.65; }
+  .kz-cite { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light); font-size: 11.5px; color: var(--text-muted); }
+  .kz-disclaimer { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item active" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>法规问答</h2>
+      <span class="head-sub">基于平台法规库，回答合同与劳动 / 租赁相关问题</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <div class="kz-layout">
+
+        <!-- 左栏：法规库 -->
+        <div class="panel">
+          <div class="panel-head"><h3>平台法规库</h3><span class="tag tag-blue" style="margin-left:auto">平台共享</span></div>
+          <div class="panel-body" style="padding:6px 4px">
+            <div class="kz-src active">
+              <svg class="icon-sm ico" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              <div><b>中华人民共和国劳动合同法</b><div class="small muted">含 2012 修正版 · 试用期 / 违约金 / 解除</div></div>
+            </div>
+            <div class="kz-src">
+              <svg class="icon-sm ico" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              <div><b>中华人民共和国劳动法</b><div class="small muted">工作时间、工资与劳动保护</div></div>
+            </div>
+            <div class="kz-src">
+              <svg class="icon-sm ico" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+              <div><b>民法典 · 合同编</b><div class="small muted">合同订立、效力、违约责任通用规则</div></div>
+            </div>
+            <div class="kz-src">
+              <svg class="icon-sm ico" style="width:16px;height:16px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>
+              <div><b>房屋租赁相关司法解释</b><div class="small muted">城镇房屋租赁合同纠纷司法解释</div></div>
+            </div>
+
+            <div class="kz-group"><svg class="icon-sm" style="width:13px;height:13px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>我的资料 <span class="tag tag-gray">仅本团队</span></div>
+            <div class="small muted" style="padding:6px 12px 2px">暂无团队私有资料</div>
+            <div class="kz-upload">
+              <svg class="icon-sm" style="width:16px;height:16px;margin-bottom:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg><br>
+              <span class="tag tag-gray">上传自有文档（知识库）</span>
+              <div style="margin-top:6px">支持 txt / md / pdf，团队规则与内部制度可加入问答</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右栏：问答 -->
+        <div class="panel">
+          <div class="panel-body flush">
+            <!-- 常用问题 -->
+            <div style="padding:14px 16px 10px">
+              <div class="small muted" style="margin-bottom:8px">常用问题</div>
+              <div class="kz-chips">
+                <span class="kz-chip">试用期法定上限是多久？</span>
+                <span class="kz-chip">押金能不能超过两个月？</span>
+                <span class="kz-chip">兼职协议属于劳动关系吗？</span>
+                <span class="kz-chip">NDA 违约金怎么约定？</span>
+              </div>
+            </div>
+
+            <!-- 对话流 -->
+            <div class="chat-stream kz-chat">
+              <div class="bubble human">试用期最长可以约定多久？</div>
+              <div class="bubble ai">
+                根据《劳动合同法》第十九条，试用期时长与<b>劳动合同期限</b>挂钩：
+                <ul>
+                  <li>劳动合同期限 <b>3 个月以上不满 1 年</b>的，试用期不得超过 <b>1 个月</b>；</li>
+                  <li>劳动合同期限 <b>1 年以上不满 3 年</b>的，试用期不得超过 <b>2 个月</b>；</li>
+                  <li>劳动合同期限 <b>3 年以上</b>固定期限及<b>无固定期限</b>合同，试用期不得超过 <b>6 个月</b>；</li>
+                  <li><b>以完成一定工作任务为期限</b>的合同，或劳动合同期限<b>不满 3 个月</b>的，<b>不得约定试用期</b>。</li>
+                </ul>
+                另外：同一用人单位与同一劳动者<b>只能约定一次</b>试用期；试用期工资不得低于转正工资的 80%，且不得低于当地最低工资标准。
+                <div class="kz-cite">引用来源：《中华人民共和国劳动合同法》第十九条、第二十条（平台法规库）</div>
+                <div class="kz-disclaimer">回答仅供参考，不构成法律意见。</div>
+              </div>
+            </div>
+
+            <!-- 输入 -->
+            <div class="chat-input">
+              <input class="input" placeholder="输入你的合同 / 法规问题，如：竞业限制补偿金最低多少？">
+              <button class="btn btn-primary" type="button" style="flex:none">
+                <svg class="icon-sm" style="width:15px;height:15px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/></svg>
+                发送
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

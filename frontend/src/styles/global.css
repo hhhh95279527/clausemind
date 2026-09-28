@@ -92,6 +92,8 @@ html, body {
   color: var(--color-text);
   background: var(--color-bg);
   -webkit-font-smoothing: antialiased;
+  /* 防子元素意外撑出横向滚动（真正的宽内容在各自容器内横向滚） */
+  overflow-x: hidden;
 }
 
 #root {
@@ -99,11 +101,20 @@ html, body {
   display: flex;
 }
 
+/* antd <App> 的包裹层：作为 #root 的 flex 子元素必须允许收缩，
+   否则内部宽内容（表格/工具栏）会把整个窗口撑宽导致右侧被裁 */
+#root > .ant-app {
+  min-width: 0;
+  flex: 1;
+}
+
 /* ── 根布局（App.jsx）──────────────────────────────────────── */
 .app-layout {
   display: flex;
   width: 100%;
+  min-width: 0;       /* 防止子内容把 #root 撑宽 */
   height: 100vh;
+  height: 100dvh;   /* 移动端浏览器地址栏动态视口，不支持 dvh 的浏览器沿用上一行 vh */
   overflow: hidden;
   background: var(--color-bg);
 }
@@ -116,9 +127,18 @@ html, body {
   min-width: 0;  /* 防止 flex 子元素溢出 */
 }
 
+/* 纵向滚动的唯一承担者：
+   所有登录后页面的内容超出时都在这里滚动，父级链不再裁切纵向内容 */
 .page-content {
   flex: 1;
-  overflow: hidden;   /* 各页面自己管理内部滚动 */
+  min-height: 0;              /* 允许在 flex 列容器中收缩并产生滚动 */
+  min-width: 0;               /* 不把宽子内容向父级传播 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;            /* 滚到边界不穿透到父级页面 */
+  -webkit-overflow-scrolling: touch;       /* iOS 惯性滚动 */
+  scroll-behavior: smooth;                 /* 箭头按钮平滑上下移动 */
+  padding: 20px;
 }
 
 a {
@@ -368,4 +388,66 @@ textarea.input {
 /* EvalView 失败用例行高亮 */
 .eval-row-failed > td {
   background: rgba(239, 68, 68, 0.06) !important;
+}
+
+/* =============================================================
+   响应式适配：桌面 → 平板 → 手机
+   主断点 768px：结构性变化（侧边栏抽屉化、header 简化）
+   ============================================================= */
+
+/* 汉堡按钮：桌面隐藏，仅 ≤768 显示 */
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  background: transparent;
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+.menu-toggle:hover { background: var(--color-border-light); }
+
+/* 侧边栏遮罩：桌面不用，仅 ≤768 存在 */
+.sidebar-backdrop {
+  display: none;
+}
+
+/* header 描述文字 ≤768 隐藏（由布局给标题行预留的 class） */
+.header-desc { display: inline; }
+
+@media (max-width: 768px) {
+  .menu-toggle { display: inline-flex; }
+
+  .header-desc { display: none; }
+
+  /* 内容区收紧内边距，充分利用手机宽度 */
+  .page-content { padding: 12px; }
+
+  /* app header 本身的左右内边距也同步收窄 */
+  .app-header { padding-left: 12px !important; padding-right: 12px !important; gap: 8px; }
+  .app-header .header-username { display: none; }  /* 只留头像，名字隐藏 */
+
+  /* 侧边栏遮罩：淡入蒙层 */
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .45);
+    z-index: 90;
+    animation: backdropFade .2s ease;
+  }
+
+  /* 手机端不显示桌面滚动箭头（触屏直接滑动即可） */
+  .scroll-arrows { display: none !important; }
+}
+
+@keyframes backdropFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* 小屏微调（≤480）：只允许改间距/字号，不动布局结构 */
+@media (max-width: 480px) {
+  html, body { font-size: 13px; }
+  .page-content { padding: 10px; }
 }

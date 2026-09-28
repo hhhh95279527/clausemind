@@ -1,5 +1,5 @@
 // server/src/chat/chat.controller.ts
-// 对话控制器：流式对话 + 精确缓存（租户隔离）+ DB 会话历史 + 用户画像
+// 对话控制器：流式对话 + 精确缓存（租户隔离）+ DB 会话历史
 // 可观测：每次请求一条 Trace，模型调用自动产生 Span；配额超额 429
 import { Body, Controller, Delete, ForbiddenException, Get, OnModuleInit, Param, Post, Req, Res } from '@nestjs/common'
 import type { Request, Response } from 'express'
@@ -8,7 +8,6 @@ import { chatModel } from '../services/model.js'
 import { cache } from '../services/cache.js'
 import {
   getHistory, trimHistory,
-  getProfile, profileToContext, extractAndUpdateProfile,
   listSessions, createSession, getSessionDetail, setDatabase,
 } from '../services/chat/memory.js'
 import { MonitorService } from '../monitor/monitor.service'
@@ -80,10 +79,9 @@ export class ChatController implements OnModuleInit {
             if (!owned) throw new ForbiddenException('会话不存在或无权访问')
           }
 
-          // 2. system prompt = 角色预设 + 用户画像
+          // 2. system prompt = 角色预设
           const baseSystem = ROLES[role] || ROLES.default
-          const profile = await getProfile(userId)
-          const systemPrompt = baseSystem + profileToContext(profile)
+          const systemPrompt = baseSystem
 
           // 3. 精确缓存（命名空间=租户，杜绝跨租户命中）
           const cached = await cache.get(systemPrompt, message, tenantId)
@@ -149,9 +147,8 @@ export class ChatController implements OnModuleInit {
           })
           await this.db.chatSession.update({ where: { id: sessionId }, data: { updatedAt: new Date() } })
 
-          // 8. 写缓存 + 异步更新画像
+          // 8. 写缓存
           await cache.set(systemPrompt, message, { content: fullReply, tokens: inputTokens + outputTokens }, tenantId)
-          extractAndUpdateProfile(userId, message, fullReply).catch(() => {})
 
           send('done', { sessionId, fromCache: false, inputTokens, outputTokens })
         },
@@ -188,9 +185,10 @@ export class ChatController implements OnModuleInit {
   }
 
   // ── GET /api/chat/profile ─────────────────────────────────────
+  // 用户画像已下线，保留空对象响应兼容旧前端调用
   @Get('profile')
-  async profile(@Req() req: Request) {
-    return getProfile((req as any).user.userId)
+  profile() {
+    return {}
   }
 
   @Get('roles')

@@ -89,7 +89,10 @@ http.interceptors.response.use(
       const status = error.response.status
       const msg = error.response.data?.error?.message || error.response.data?.error || '请求失败'
 
-      if (status === 429) {
+      // 业务页自行处理的错误（如 PLAN_LIMIT 弹付费墙）可在 config.skipErrorToast 静默
+      if (error.config?.skipErrorToast) {
+        // fall through，不 toast
+      } else if (status === 429) {
         toast.warning('请求太频繁，请稍后再试')
       } else if (status >= 500) {
         toast.error('服务器异常，请稍后重试')
@@ -126,7 +129,13 @@ export async function fetchStream(url, body, { onToken, onEvent, onDone, onError
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data.error?.message || data.error || `HTTP ${response.status}`)
+      // 保留 status/code/reason/blocked，供业务侧识别 PLAN_LIMIT 弹付费墙
+      const err = new Error(data.error?.message || data.error || `HTTP ${response.status}`)
+      err.status = response.status
+      err.code = data.error?.code
+      err.reason = data.error?.reason
+      err.blocked = data.error?.blocked
+      throw err
     }
 
     const reader  = response.body.getReader()

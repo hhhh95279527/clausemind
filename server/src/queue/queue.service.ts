@@ -10,10 +10,17 @@ import { logger } from '../utils/logger.js'
 /** 全局队列名注册表（类型安全，避免散落字符串） */
 export const QUEUES = {
   CONTRACT_PARSE: 'contract-parse',
+  /** 每日清理 FREE 档过保留期合同（FR-10） */
+  RETENTION_CLEANUP: 'retention-cleanup',
+  /** 每日处理订阅到期：cancelAtPeriodEnd 或已过期的付费套餐降级 FREE（FR-13） */
+  SUBSCRIPTION_EXPIRY: 'subscription-expiry',
+  /** 每日 9:00 飞书/站内通知摘要（FR-25） */
+  DAILY_DIGEST: 'daily-digest',
 } as const
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]
 type Processor = (job: Job) => Promise<unknown>
+interface RepeatableSpec { pattern: string; tz?: string }
 
 @Injectable()
 export class QueueService implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
@@ -21,6 +28,7 @@ export class QueueService implements OnModuleInit, OnApplicationBootstrap, OnMod
   private queues = new Map<string, Queue>()
   private workers: Worker[] = []
   private processors = new Map<string, Processor>()
+  private repeatables = new Map<QueueName, RepeatableSpec>()
 
   onModuleInit() {
     // BullMQ 要求 maxRetriesPerRequest=null（阻塞命令 BRPOPLPUSH 等不能被重试策略打断）
@@ -60,6 +68,14 @@ export class QueueService implements OnModuleInit, OnApplicationBootstrap, OnMod
     this.processors.set(name, fn)
   }
 
+  /**
+   * 注册 repeatable cron（同样在 onModuleInit 注册，bootstrap 统一 upsert）。
+   * BullMQ 对同 name + pattern 的调度幂等，重启不会产生重复任务。
+   */
+  repeatable(name: QueueName, pattern: string, tz = 'Asia/Shanghai') {
+    this.repeatables.set(name, { pattern, tz })
+  }
+
   async onApplicationBootstrap() {
     for (const [name, fn] of this.processors) {
       const worker = new Worker(name, fn, { connection: this.connection, concurrency: 3 })
@@ -68,6 +84,17 @@ export class QueueService implements OnModuleInit, OnApplicationBootstrap, OnMod
         logger.error('job failed', { queue: name, jobId: job?.id, attempts: job?.attemptsMade, error: err.message }))
       this.workers.push(worker)
       logger.info('worker started', { queue: name })
+    }
+
+    for (const [name, spec] of this.repeatables) {
+      // BullMQ v6：repeatable 改走 Job Schedulers API（同 id + pattern 幂等 upsert）
+      await this.ensureQueue(name)
+        .upsertJobScheduler(name, { pattern: spec.pattern, tz: spec.tz }, {
+          name,
+          data: { scheduled: true },
+        })
+        .then(() => logger.info('repeatable scheduled', { queue: name, pattern: spec.pattern }))
+        .catch((e) => logger.error('repeatable schedule failed', { queue: name, error: e.message }))
     }
   }
 

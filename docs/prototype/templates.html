@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合同范本 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item active" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>合同范本库</h2>
+      <span class="head-sub">12 套高频文书 · 劳动 / 租赁 / 兼职通用 · 在线预览 · 一键采用发起审查</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="toolbar">
+        <div class="tb-right" style="margin-left:0">
+          <div class="segmented">
+            <span class="on">全部</span><a href="#">劳动合同类</a><a href="#">租赁类</a><a href="#">兼职与通用</a>
+          </div>
+          <input class="input" style="width:240px" placeholder="搜索范本名称 / 关键字">
+        </div>
+      </div>
+
+      <div class="tpl-grid">
+        <!-- 劳动合同类 ×7 -->
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>标准劳动合同（固定期限）</b>
+          <div class="tpl-desc">合规条款齐全，含合同期限、试用期、社保、保密等必备约定。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>无固定期限劳动合同</b>
+          <div class="tpl-desc">适用于连续工作满十年或二次续签等法定情形。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>实习协议（在校生）</b>
+          <div class="tpl-desc">明确实习性质、不构成劳动关系、实习补贴与安全责任。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>劳务协议</b>
+          <div class="tpl-desc">适用于退休返聘、项目外包等非劳动关系用工场景。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 2v4M16 2v4M4 10h16"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>录用通知书 Offer</b>
+          <div class="tpl-desc">岗位、薪资、报到时间与材料清单，附录用失效条件。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 2v4M16 2v4M4 10h16"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>劳动合同续签通知书</b>
+          <div class="tpl-desc">配合台账到期提醒使用，载明续签条件与答复期限。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 2v4M16 2v4M4 10h16"/></svg></div>
+          <span class="tag tag-blue" style="align-self:flex-start">劳动合同类</span>
+          <b>解除 / 终止劳动合同通知书</b>
+          <div class="tpl-desc">覆盖协商解除、到期终止等情形，载明事由与结算安排。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+
+        <!-- 租赁类 ×2 -->
+        <div class="tpl-card" style="border-color:#bfdbfe">
+          <div class="tpl-icon" style="background:var(--warning-bg);color:#b45309"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></div>
+          <div style="display:flex;gap:6px;align-self:flex-start"><span class="tag tag-orange">租赁类</span><span class="tag tag-blue">新</span></div>
+          <b>房屋租赁合同（个人居住）</b>
+          <div class="tpl-desc">押金不超过 2 个月租金、维修责任与转租限制，适配个人居住场景。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card">
+          <div class="tpl-icon" style="background:var(--warning-bg);color:#b45309"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 13v.01M9 17v.01"/></svg></div>
+          <span class="tag tag-orange" style="align-self:flex-start">租赁类</span>
+          <b>办公场地租赁合同</b>
+          <div class="tpl-desc">企业办公 / 共享空间租赁，含物业费、免租期、违约与退场条款。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+
+        <!-- 兼职与通用 ×2 -->
+        <div class="tpl-card" style="border-color:#bfdbfe">
+          <div class="tpl-icon" style="background:var(--primary-bg);color:var(--primary-dark)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+          <div style="display:flex;gap:6px;align-self:flex-start"><span class="tag tag-purple">兼职与通用</span><span class="tag tag-blue">新</span></div>
+          <b>兼职劳务协议</b>
+          <div class="tpl-desc">按小时 / 按任务结算的非全日制用工协议，明确工时与报酬口径。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+        <div class="tpl-card" style="border-color:#bfdbfe">
+          <div class="tpl-icon" style="background:var(--primary-bg);color:var(--primary-dark)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <div style="display:flex;gap:6px;align-self:flex-start"><span class="tag tag-purple">兼职与通用</span><span class="tag tag-blue">新</span></div>
+          <b>保密与竞业限制协议 NDA</b>
+          <div class="tpl-desc">保密范围、竞业期限与补偿标准、违约金一体化版本。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+
+        <!-- 通用：保密协议（补足 12） -->
+        <div class="tpl-card">
+          <div class="tpl-icon" style="background:var(--primary-bg);color:var(--primary-dark)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+          <span class="tag tag-purple" style="align-self:flex-start">兼职与通用</span>
+          <b>保密协议</b>
+          <div class="tpl-desc">商业秘密范围、保密义务期限与违约责任的通用版本。</div>
+          <div class="tpl-actions"><a class="btn btn-ghost btn-sm" href="#preview">预览</a><a class="btn btn-primary btn-sm" href="#paywall">采用</a></div>
+        </div>
+      </div>
+
+      <div class="panel" style="background:#fafbff;border-style:dashed">
+        <div class="panel-body small muted" style="display:flex;gap:10px;align-items:center">
+          <svg class="icon-sm" style="width:15px;height:15px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+          范本由平台依据现行法规整理，使用前请结合所在地规定与实际情况调整；免费仅可在线预览，「采用」后会在「合同审查」中生成一份可编辑的文本合同，可直接发起审查。
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 范本预览抽屉 -->
+<a class="drawer-mask" id="preview" href="#"></a>
+<aside class="drawer">
+  <div class="drawer-head">
+    <div><h3 style="font-size:16px">标准劳动合同（固定期限）</h3><div class="small muted">劳动合同类 · 全文约 3,200 字 · 更新于 2026-09</div></div>
+    <a href="#" class="x" style="margin-left:auto;color:var(--text-muted);font-size:20px">×</a>
+  </div>
+  <div class="drawer-body">
+    <div class="doc-preview">
+      <h4 style="text-align:center;font-size:15px">劳动合同书</h4>
+      <p>甲方（用人单位）：____________________</p>
+      <p>乙方（劳动者）：____________________ 身份证号：__________________</p>
+      <h4>第一条 合同期限</h4>
+      <p>本合同为固定期限劳动合同，自 ____年__月__日起至 ____年__月__日止，合计 __ 年。</p>
+      <h4>第二条 试用期</h4>
+      <p>试用期 __ 个月，自用工之日起计算。试用期包含在劳动合同期限内。（提示：合同期限一年以上不满三年的，试用期不得超过二个月。）</p>
+      <h4>第三条 工作内容与工作地点</h4>
+      <p>乙方担任 ________ 岗位，工作地点为 ________。甲方因生产经营需要可依法协商调整。</p>
+      <h4>第四条 劳动报酬</h4>
+      <p>乙方试用期工资不低于转正工资的 80%，且不低于当地最低工资标准……</p>
+      <h4>第五条 社会保险与福利</h4>
+      <p>甲乙双方依法参加社会保险，缴纳社会保险费……</p>
+      <h4>第六条 工作时间与休息休假</h4>
+      <p>乙方实行标准工时制度……</p>
+      <h4>第七条 保密与知识产权</h4>
+      <p>乙方在职期间及离职后，对甲方商业秘密负有保密义务……</p>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <button class="btn btn-ghost" disabled>免费仅可在线预览</button>
+    <a class="btn btn-primary" href="#paywall">采用此范本，去发起审查</a>
+  </div>
+</aside>
+
+<!-- 采用 / 下载付费墙 -->
+<div class="mask" id="paywall">
+  <div class="modal paywall">
+    <div class="modal-body">
+      <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+      <h3>免费仅可在线预览</h3>
+      <p class="muted">采用范本生成可编辑合同、下载 Word 需要付费能力</p>
+      <ul class="pw-feats">
+        <li><span class="tag tag-purple">券</span><b>深度审查券 ¥9.9 / 份</b>，采用范本并立即审查这份合同</li>
+        <li><span class="tag tag-blue">个人版</span><b>¥19 / 月 · ¥99 / 年</b>，范本采用、Word 导出不限次</li>
+        <li><span class="tag tag-green">团队版</span>公司标准合同库 + Playbook 规则联动，<b>团队升级请联系顾问</b></li>
+      </ul>
+      <a class="btn btn-primary btn-lg btn-block" href="checkout.html">用券 ¥9.9 采用并审查</a>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <a class="btn btn-ghost btn-block" href="personal-billing.html">个人版 ¥19/月</a>
+        <a class="btn btn-ghost btn-block" href="pricing.html">团队升级咨询</a>
+      </div>
+      <div style="margin-top:10px"><a href="#" class="small muted">继续在线预览</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

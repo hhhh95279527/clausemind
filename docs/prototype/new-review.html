@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>审合同 — WorkMind 个人空间</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ── 合同类型卡片（锚点选中态） ── */
+  .nr-types { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .nr-type {
+    position: relative; display: flex; flex-direction: column; gap: 8px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-lg);
+    padding: 16px 14px; background: #fff; color: var(--text); text-align: left;
+  }
+  .nr-type:hover { border-color: #c7d2fe; }
+  .nr-type .nr-ic {
+    width: 38px; height: 38px; border-radius: 9px; background: var(--primary-bg);
+    color: var(--primary); display: flex; align-items: center; justify-content: center;
+  }
+  .nr-type b { font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+  .nr-type .nr-desc { font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+  .nr-type .nr-check { display: none; position: absolute; top: 8px; right: 8px; color: var(--primary); }
+  /* 默认选中：劳动合同 */
+  a.nr-type[href="#scene-labor"] { border-color: var(--primary); background: var(--primary-bg); }
+  a.nr-type[href="#scene-labor"] .nr-check { display: block; }
+  /* :target 选中态 */
+  body:has(#scene-labor:target) a.nr-type[href="#scene-labor"],
+  body:has(#scene-rent:target) a.nr-type[href="#scene-rent"],
+  body:has(#scene-parttime:target) a.nr-type[href="#scene-parttime"],
+  body:has(#scene-nda:target) a.nr-type[href="#scene-nda"] {
+    border-color: var(--primary); background: var(--primary-bg);
+  }
+  body:has(#scene-labor:target) a.nr-type[href="#scene-labor"] .nr-check,
+  body:has(#scene-rent:target) a.nr-type[href="#scene-rent"] .nr-check,
+  body:has(#scene-parttime:target) a.nr-type[href="#scene-parttime"] .nr-check,
+  body:has(#scene-nda:target) a.nr-type[href="#scene-nda"] .nr-check { display: block; }
+  /* 选中其他类型后，取消劳动合同默认高亮 */
+  body:has(#scene-rent:target) a.nr-type[href="#scene-labor"],
+  body:has(#scene-parttime:target) a.nr-type[href="#scene-labor"],
+  body:has(#scene-nda:target) a.nr-type[href="#scene-labor"] {
+    border-color: var(--border); background: #fff;
+  }
+  body:has(#scene-rent:target) a.nr-type[href="#scene-labor"] .nr-check,
+  body:has(#scene-parttime:target) a.nr-type[href="#scene-labor"] .nr-check,
+  body:has(#scene-nda:target) a.nr-type[href="#scene-labor"] .nr-check { display: none; }
+
+  /* ── 粘贴 / 上传 tab ── */
+  #nr-pane-upload { display: none; }
+  body:has(#nr-upload:target) #nr-pane-paste { display: none; }
+  body:has(#nr-upload:target) #nr-pane-upload { display: block; }
+  body:has(#nr-upload:target) .nr-seg a[href="#nr-paste"] { color: var(--text-sub); background: none; box-shadow: none; font-weight: 400; }
+  body:has(#nr-upload:target) .nr-seg a[href="#nr-upload"] { background: #fff; color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+
+  .nr-count { display: block; text-align: right; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+  .nr-count-long { display: none; color: var(--danger); font-weight: 600; }
+  body:has(#long:target) .nr-count-free { display: none; }
+  body:has(#long:target) .nr-count-long { display: block; }
+
+  .nr-drop {
+    border: 2px dashed #c7d2fe; border-radius: var(--radius-lg); background: #fafbff;
+    padding: 46px 20px; text-align: center; color: var(--text-sub);
+  }
+  .nr-drop .nr-drop-ic {
+    width: 56px; height: 56px; border-radius: 50%; background: var(--primary-bg); color: var(--primary);
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;
+  }
+  .nr-drop b { color: var(--text); font-size: 14.5px; }
+  .nr-drop .nr-formats { margin-top: 6px; font-size: 12.5px; color: var(--text-muted); }
+
+  /* ── 超长态 banner ── */
+  .nr-banner-long { display: none; background: var(--danger-bg); color: #991b1b; border: 1px solid #fecaca; }
+  body:has(#long:target) .nr-banner-warn { display: none; }
+  body:has(#long:target) .nr-banner-long { display: flex; }
+
+  .nr-actions { display: flex; align-items: center; gap: 14px; }
+  .nr-anchor { position: absolute; }
+
+  /* 付费墙三按钮 */
+  .nr-pw-btns { display: flex; flex-direction: column; gap: 10px; }
+
+  /* 通知铃铛 */
+  .nr-bell { position: relative; color: var(--text-sub); display: inline-flex; }
+  .nr-bell:hover { color: var(--primary); }
+  .nr-bell .nr-dot { position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 1.5px solid #fff; }
+  .nr-note { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+  .nr-note:last-child { border-bottom: none; }
+  .nr-note .nr-n-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; flex: none; }
+  .nr-note .small { color: var(--text-muted); }
+
+  .nr-statechip {
+    position: fixed; left: 14px; bottom: 14px; z-index: 200;
+    background: #fff; border: 1px solid var(--border); border-radius: 99px;
+    padding: 6px 8px 6px 14px; font-size: 11.5px; display: flex; gap: 6px; align-items: center;
+    box-shadow: var(--shadow-md);
+  }
+  .nr-statechip b { color: var(--text); }
+  .nr-statechip a { padding: 2px 10px; border-radius: 99px; color: var(--text-sub); }
+  .nr-statechip a.on { background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+  body:has(#long:target) .nr-statechip a[href="#top"] { background: none; color: var(--text-sub); font-weight: 400; }
+  body:has(#long:target) .nr-statechip a[href="#long"] { background: var(--danger-bg); color: var(--danger); font-weight: 600; }
+
+  @media (max-width: 1100px) { .nr-types { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<span id="scene-labor" class="nr-anchor"></span><span id="scene-rent" class="nr-anchor"></span><span id="scene-parttime" class="nr-anchor"></span><span id="scene-nda" class="nr-anchor"></span><span id="nr-paste" class="nr-anchor"></span><span id="nr-upload" class="nr-anchor"></span><span id="long" class="nr-anchor"></span>
+<div class="app-shell" id="top">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="home.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>工作台</a>
+      <a class="nav-item active" href="new-review.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/></svg>审合同</a>
+      <a class="nav-item" href="my-contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/></svg>我的合同</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="personal-billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的订阅</a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">李</span><div><div style="color:#fff">李小白</div><div style="font-size:11px;color:#6b7280">个人空间</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>审合同</h2>
+      <span class="head-sub">选择类型 → 粘贴或上传 → 免费看到风险点与评分</span>
+      <div class="head-right">
+        <a class="nr-bell" href="#notify" aria-label="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="nr-dot"></span>
+        </a>
+        <span class="plan-chip">免费版 FREE</span>
+        <span class="avatar">李</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- ① 选择合同类型 -->
+      <section class="panel">
+        <div class="panel-head"><h3>① 选择合同类型</h3><div class="ph-right"><span class="small muted">免费支持前四类</span></div></div>
+        <div class="panel-body">
+          <div class="nr-types">
+            <a class="nr-type" href="#scene-labor">
+              <svg class="nr-check icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              <span class="nr-ic"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+              <b>劳动合同</b>
+              <span class="nr-desc">入职、转正、试用期、社保与竞业</span>
+            </a>
+            <a class="nr-type" href="#scene-rent">
+              <svg class="nr-check icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              <span class="nr-ic"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></span>
+              <b>房屋租赁</b>
+              <span class="nr-desc">租房、合租、押金与退租约定</span>
+            </a>
+            <a class="nr-type" href="#scene-parttime">
+              <svg class="nr-check icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              <span class="nr-ic"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+              <b>兼职劳务</b>
+              <span class="nr-desc">兼职、实习、按次结算的劳务协议</span>
+            </a>
+            <a class="nr-type" href="#scene-nda">
+              <svg class="nr-check icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              <span class="nr-ic"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/></svg></span>
+              <b>保密与 NDA</b>
+              <span class="nr-desc">入职背调、合作前的保密协议</span>
+            </a>
+            <a class="nr-type" href="#paywall">
+              <span class="nr-ic" style="background:#f3f4f6;color:var(--text-sub)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+              <b>非标合同 <span class="tag tag-gray">深度权益</span></b>
+              <span class="nr-desc">借款、合作、买卖等其他类型，需深度审查</span>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- ② 合同内容 -->
+      <section class="panel">
+        <div class="panel-head">
+          <h3>② 合同内容</h3>
+          <div class="ph-right">
+            <span class="segmented nr-seg">
+              <a href="#nr-paste" class="on" style="text-decoration:none">粘贴文本</a>
+              <a href="#nr-upload" style="text-decoration:none">上传文档</a>
+            </span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div id="nr-pane-paste">
+            <textarea class="textarea" rows="12" placeholder="把合同正文粘贴到这里…&#10;免费版每份不超过 3000 字，长文档可使用深度审查券（¥9.9/份）或开通个人版。"></textarea>
+            <span class="nr-count nr-count-free">0 / 3000 字（免费额度）</span>
+            <span class="nr-count nr-count-long">4,820 / 3000 字，超出 1,820 字（演示态）</span>
+          </div>
+          <div id="nr-pane-upload">
+            <div class="nr-drop">
+              <div class="nr-drop-ic"><svg class="icon" style="width:26px;height:26px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></div>
+              <b>点击或拖拽文件到这里</b>
+              <div class="nr-formats">支持 txt / md / docx / pdf / jpg / png，单文件 ≤ 2MB</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 额度提示 -->
+      <div class="info-banner warn nr-banner-warn">
+        <svg class="icon" style="flex:none;margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div>免费版：每月 2 份、每份 3000 字以内，仅支持劳动 / 租赁 / 劳务 / NDA 四类；<b>长文档与非标合同请使用深度审查券（¥9.9/份）或开通个人版</b>。</div>
+      </div>
+      <div class="info-banner nr-banner-long">
+        <svg class="icon" style="flex:none;margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div><b>文档 4,820 字，超出免费 3000 字额度。</b>使用 1 张深度审查券（¥9.9）即可解锁完整深度审查，或开通个人版不限字数。</div>
+      </div>
+
+      <!-- 操作行 -->
+      <div class="nr-actions">
+        <a class="btn btn-primary btn-lg" href="review.html">开始免费审查</a>
+        <a class="link-btn" href="#paywall" style="font-size:13.5px">我有深度审查券，审查长文档</a>
+        <span class="small muted" style="margin-left:auto">免费版可查看：风险点 · 大白话摘要 · 风险评分</span>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 付费墙 -->
+<div class="mask" id="paywall">
+  <div class="modal paywall" style="position:relative">
+    <a class="x" href="#" aria-label="关闭" style="position:absolute;top:14px;right:18px;color:var(--text-muted);font-size:20px">×</a>
+    <div class="modal-body">
+      <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3>解锁完整深度审查</h3>
+      <p class="muted">免费版已给出风险点、摘要与评分；深度内容让你知道<strong>依据是什么、具体怎么改</strong>。</p>
+      <ul class="pw-feats">
+        <li><span class="tick">✓</span>AI 语义审查 + 法条依据，置信度透明</li>
+        <li><span class="tick">✓</span>逐条修改建议与可直接替换的措辞</li>
+        <li><span class="tick">✓</span>合同助手多轮追问与 AI 改稿</li>
+        <li><span class="tick">✓</span>Word 红划线导出与永久存档</li>
+      </ul>
+      <div class="nr-pw-btns">
+        <a class="btn btn-primary btn-lg btn-block" href="review.html#state-personal">使用 1 张深度券（余额 1 张）</a>
+        <a class="btn btn-ghost btn-block" href="checkout.html">开通个人版 ¥19/月</a>
+        <a class="btn btn-block" href="checkout.html#yearly" style="color:var(--primary)">年付 ¥99，省 48% →</a>
+      </div>
+      <div style="margin-top:12px"><a href="#" class="small muted">暂不解锁，先看免费结果</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- 通知弹层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:380px">
+    <div class="modal-head"><h3>通知</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body" style="padding-top:4px;padding-bottom:4px">
+      <div class="nr-note">
+        <span class="nr-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <div><div>深度审查券余额 1 张</div><div class="small">长文档与非标合同可用，1 券解锁 1 份</div></div>
+      </div>
+      <div class="nr-note">
+        <span class="nr-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></span>
+        <div><div>本月还有 2 份免费额度</div><div class="small">每份 ≤ 3000 字，支持四类常用合同</div></div>
+      </div>
+      <div class="nr-note">
+        <span class="nr-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <div><div>法规问答新增「租房押金」专题</div><div class="small">来自《民法典》合同编与各地租赁条例</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="nr-statechip"><b>演示态</b><a class="on" href="#top">免费态</a><a href="#long">#long 超长态</a></div>
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="new-review.html">审合同</a> · <a href="review.html">结果三态</a> · <a href="draft.html">AI改稿</a> · <a href="personal-billing.html">我的订阅</a> · <a href="dashboard.html">企业工作台→</a></div>
+</body>
+</html>

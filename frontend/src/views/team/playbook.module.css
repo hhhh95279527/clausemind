@@ -1,0 +1,192 @@
+/* Playbook 企业审查规则（FR-17），风格对齐 personal.module.css */
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.toolRight { display: flex; gap: 8px; flex: none; }
+
+.banner {
+  display: flex;
+  gap: 12px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 26%, transparent);
+  background: var(--color-primary-bg);
+  font-size: 13px;
+  line-height: 1.7;
+  margin-bottom: 16px;
+}
+.bico {
+  color: var(--color-primary);
+  font-size: 20px;
+  flex: none;
+  margin-top: 2px;
+}
+
+/* 四分区 segmented */
+.seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-border-light);
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.segItem {
+  border: none;
+  background: transparent;
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.segItem:hover { color: var(--color-text); }
+.segOn {
+  background: var(--color-bg-container, #fff);
+  color: var(--color-primary-dark, var(--color-primary));
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* 列表面板 */
+.panel {
+  background: var(--color-bg-container, #fff);
+  border: 1px solid var(--color-border-light);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.panelHead h3 { margin: 0; font-size: 15px; }
+
+.cellSub {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+  max-width: 420px;
+}
+.rowActions { white-space: nowrap; }
+.linkBtn {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-right: 12px;
+  color: var(--color-primary);
+  font-size: 13px;
+  cursor: pointer;
+}
+.linkDanger { color: var(--color-danger, #dc2626); margin-right: 0; }
+
+/* 抽屉内结构化规则区 */
+.aiBox {
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-bg-container, #fff));
+  border-radius: 12px;
+  padding: 16px 18px 6px;
+}
+.testBox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+.testRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.testError {
+  color: var(--color-danger, #dc2626);
+  font-size: 12.5px;
+  background: color-mix(in srgb, var(--color-danger, #dc2626) 8%, transparent);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+/* 行业包卡片 */
+.packGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.packCard {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-container, #fff);
+  border: 1px solid var(--color-border-light);
+  border-radius: 12px;
+  padding: 18px;
+  gap: 10px;
+  opacity: 0.92;
+}
+.packLive {
+  border-color: color-mix(in srgb, var(--color-success, #16a34a) 30%, transparent);
+  opacity: 1;
+}
+.packHead { display: flex; align-items: flex-start; gap: 10px; }
+.packLogo {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  background: var(--color-success-bg, rgba(22, 163, 74, 0.1));
+  color: var(--color-success, #16a34a);
+  flex: none;
+}
+.packList {
+  margin: 4px 0;
+  padding-left: 18px;
+  color: var(--color-text-sub);
+  font-size: 12.5px;
+  line-height: 1.9;
+}
+.packFoot { margin-top: auto; display: flex; gap: 8px; align-items: center; }
+
+/* 个人空间加锁 */
+.lockWrap {
+  display: flex;
+  justify-content: center;
+  padding: 60px 16px;
+}
+.lockCard {
+  width: 440px;
+  max-width: 100%;
+  text-align: center;
+  background: var(--color-bg-container, #fff);
+  border: 1px solid var(--color-border-light);
+  border-radius: 16px;
+  padding: 34px 30px 30px;
+}
+.lockIcon {
+  font-size: 30px;
+  color: var(--color-primary);
+  margin-bottom: 12px;
+}
+.lockCard h3 { font-size: 18px; margin: 0 0 8px; }
+.lockFeats {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--color-text-sub);
+}
+.lockFeats span { margin-right: 8px; }
+
+@media (max-width: 900px) {
+  .packGrid { grid-template-columns: 1fr; }
+  .toolbar { flex-direction: column; }
+}

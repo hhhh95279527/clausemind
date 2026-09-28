@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkMind — AI 合同风险审查 · 免费看到风险</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* 落地页专属样式（lp- 前缀） */
+  .lp-scene { display: block; text-decoration: none; color: inherit; transition: .18s; }
+  .lp-scene:hover { border-color: var(--primary); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .lp-scene .lp-more { font-size: 12.5px; color: var(--primary); margin-top: 10px; display: inline-block; }
+
+  .lp-track-sec { background:#fff; border-top:1px solid var(--border-light); border-bottom:1px solid var(--border-light); max-width:none; }
+  .lp-track-sec > .lp-track-inner { max-width:1080px; margin:0 auto; }
+  .lp-track-grid { display:grid; grid-template-columns: 1fr 1fr; gap:22px; }
+  .lp-track-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); padding:32px 30px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; }
+  .lp-track-card.ent { background:linear-gradient(150deg,#1f2937,#312e81); color:#fff; border-color:transparent; }
+  .lp-track-head { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .lp-track-head .lp-ticon { width:44px; height:44px; border-radius:11px; background:var(--primary-bg); color:var(--primary); display:flex; align-items:center; justify-content:center; flex:none; }
+  .lp-track-card.ent .lp-track-head .lp-ticon { background:rgba(255,255,255,.14); color:#fff; }
+  .lp-track-head b { font-size:20px; }
+  .lp-track-card > p { color:var(--text-sub); font-size:14px; margin-bottom:16px; }
+  .lp-track-card.ent > p { color:#c7d2fe; }
+  .lp-track-card ul { list-style:none; display:flex; flex-direction:column; gap:10px; font-size:13.5px; margin-bottom:22px; }
+  .lp-track-card ul li { display:flex; gap:9px; align-items:flex-start; }
+  .lp-track-card ul .tick { color:var(--success); flex:none; margin-top:1px; }
+  .lp-track-card.ent ul .tick { color:#6ee7b7; }
+  .lp-track-price { font-size:26px; font-weight:800; margin-bottom:18px; }
+  .lp-track-price span { font-size:13px; font-weight:400; color:var(--text-sub); }
+  .lp-track-card.ent .lp-track-price span { color:#a5b4fc; }
+  .lp-track-actions { display:flex; gap:10px; margin-top:auto; flex-wrap:wrap; }
+  .lp-track-card.ent .btn-ghost { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.28); color:#fff; }
+  .lp-track-card.ent .btn-ghost:hover { border-color:#fff; color:#fff; }
+
+  .lp-price-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; }
+  .lp-price-card { background:#fff; border:1px solid var(--border); border-radius:var(--radius-lg); padding:22px 20px; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; }
+  .lp-price-card .lp-pname { font-size:14px; font-weight:700; color:var(--text-sub); display:flex; align-items:center; gap:6px; }
+  .lp-price-card .lp-pprice { font-size:26px; font-weight:800; margin:10px 0 4px; }
+  .lp-price-card .lp-pprice small { font-size:12px; font-weight:400; color:var(--text-sub); }
+  .lp-price-card .lp-pdesc { font-size:12.5px; color:var(--text-muted); flex:1; }
+  .lp-price-card .btn { margin-top:14px; }
+
+  .lp-coupon { margin-top:18px; display:flex; align-items:center; gap:14px; background:linear-gradient(100deg,#fffbeb,#fff7ed); border:1px dashed #f59e0b; border-radius:var(--radius-lg); padding:16px 22px; }
+  .lp-coupon .lp-cicon { width:40px; height:40px; border-radius:10px; background:#fef3c7; color:#b45309; display:flex; align-items:center; justify-content:center; flex:none; }
+  .lp-coupon b { font-size:14.5px; }
+  .lp-coupon p { font-size:12.5px; color:#92400e; margin:0; }
+  .lp-coupon .btn { margin-left:auto; flex:none; }
+
+  .lp-band { background:linear-gradient(100deg,#4f46e5,#7c3aed); border-radius:var(--radius-xl); padding:56px 32px; text-align:center; color:#fff; }
+  .lp-band h2 { font-size:28px; margin-bottom:10px; }
+  .lp-band p { color:#e0e7ff; font-size:15px; margin-bottom:26px; }
+  .lp-band .btn-ghost { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.35); color:#fff; }
+  .lp-band .btn-ghost:hover { background:rgba(255,255,255,.18); color:#fff; }
+
+  .lp-free-note { text-align:center; color:var(--text-muted); font-size:13px; margin-top:22px; }
+  @media (max-width:1100px) {
+    .lp-track-grid { grid-template-columns:1fr; }
+    .lp-price-grid { grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+</head>
+<body id="top">
+
+<!-- 顶部导航 -->
+<nav class="pub-nav">
+  <a class="brand" href="index.html">
+    <span class="logo-mark">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
+    </span>
+    WorkMind
+  </a>
+  <div class="pub-nav-links">
+    <a href="index.html#abilities">产品能力</a>
+    <a href="pricing.html">定价</a>
+  </div>
+  <div class="pub-nav-actions">
+    <a class="btn btn-ghost btn-sm" href="login.html">登录</a>
+    <a class="btn btn-primary btn-sm" href="register.html">免费注册</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<header class="hero">
+  <span class="hero-badge">
+    <svg style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+    AI 合同风险审查 · 免费看到风险
+  </span>
+  <h1>签合同前，先让 AI 帮你<span class="hl">排雷</span></h1>
+  <p class="hero-sub">个人签入职、租房、兼职合同，企业管团队审批与合同台账——上传合同，30 秒输出风险清单、大白话摘要与整体评分，看清楚再签字。</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary btn-lg" href="register.html#form-personal">我是个人，免费审合同</a>
+    <a class="btn btn-ghost btn-lg" href="register.html#form-team">为团队开通企业版</a>
+  </div>
+  <p class="hero-micro">免费版每月 2 份 · 注册即看风险点与评分 · 无需信用卡</p>
+
+  <!-- 示例意见书 -->
+  <div class="hero-report">
+    <div class="hero-report-head">
+      <span class="tag tag-red tag-dot">高风险 1</span>
+      <span class="tag tag-orange tag-dot">中风险 1</span>
+      <span class="tag tag-blue tag-dot">低风险 1</span>
+      <span style="margin-left:auto;font-size:12px;color:var(--text-muted)">《合同风险审查意见书》摘要 · 示例</span>
+    </div>
+    <div class="hero-report-body">
+      <div class="report-row">
+        <span class="tag tag-red">高风险</span>
+        <div><b>违约金比例过高</b>
+          <div class="small muted">大白话：违约金写了 3 个月工资，但法律只在培训服务期、竞业限制两种情况下认这笔钱，这条大概率无效，却很容易先把人吓住。</div>
+        </div>
+      </div>
+      <div class="report-row">
+        <span class="tag tag-orange">中风险</span>
+        <div><b>试用期超过法定上限</b>
+          <div class="small muted">大白话：合同只签 1 年却约定 3 个月试用期，按法律最多只能约定 2 个月，多出来的月份可以要工资差额。</div>
+        </div>
+      </div>
+      <div class="report-row">
+        <span class="tag tag-blue">低风险</span>
+        <div><b>管辖约定不明确</b>
+          <div class="small muted">大白话：没写清楚将来在哪个法院打官司，万一扯皮可能要跑外地，费时费钱，建议补一句本地法院管辖。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- 免费就能看到什么 -->
+<section class="section" style="padding-top:72px">
+  <h2 class="section-title">免费就能看到什么</h2>
+  <p class="section-sub">不用先付费、不用绑卡，注册后第一份合同就能拿到这些</p>
+  <div class="grid-3">
+    <div class="card-flat">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+      <h3>完整风险清单与命中条款</h3>
+      <p>逐条列出高 / 中 / 低风险，每条风险都定位到合同原文，不错杀、不漏掉。</p>
+    </div>
+    <div class="card-flat">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <h3>大白话合同摘要</h3>
+      <p>用人人都懂的话讲清楚这份合同让你承担什么、放弃什么、风险在哪，不需要法律背景。</p>
+    </div>
+    <div class="card-flat">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+      <h3>整体风险评分</h3>
+      <p>综合风险数量与严重程度给出评分与建议结论：可以签、谨慎签，还是先改再签。</p>
+    </div>
+  </div>
+  <p class="lp-free-note">深度修改建议、法条依据、替代措辞、Word 导出与永久存档为付费权益。</p>
+</section>
+
+<!-- 场景入口 -->
+<section class="section" style="padding-top:0">
+  <h2 class="section-title">你手上是哪种合同？</h2>
+  <p class="section-sub">免费版覆盖四类高频合同，上传即审</p>
+  <div class="grid-4">
+    <a class="card-flat lp-scene" href="register.html">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg></div>
+      <h3>劳动合同</h3>
+      <p>试用期、违约金、社保、竞业限制，入职前先过一遍。</p>
+      <span class="lp-more">免费审查 →</span>
+    </a>
+    <a class="card-flat lp-scene" href="register.html">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></div>
+      <h3>房屋租赁</h3>
+      <p>押金、维修责任、提前退租、涨租条款，租房不吃哑巴亏。</p>
+      <span class="lp-more">免费审查 →</span>
+    </a>
+    <a class="card-flat lp-scene" href="register.html">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+      <h3>兼职劳务</h3>
+      <p>劳务报酬、结算周期、工伤责任，接私活也要看明白。</p>
+      <span class="lp-more">免费审查 →</span>
+    </a>
+    <a class="card-flat lp-scene" href="register.html">
+      <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3>保密与竞业 NDA</h3>
+      <p>保密范围、补偿金、竞业期限，签字前搞清代价。</p>
+      <span class="lp-more">免费审查 →</span>
+    </a>
+  </div>
+</section>
+
+<!-- 核心能力 -->
+<section class="section" id="abilities" style="background:#fff;border-top:1px solid var(--border-light);border-bottom:1px solid var(--border-light);max-width:none">
+  <div style="max-width:1080px;margin:0 auto">
+    <h2 class="section-title">四项核心能力，覆盖审签全流程</h2>
+    <p class="section-sub">不是通用问答机器人，每个模块都对应一个真实的合同任务</p>
+    <div class="grid-4">
+      <div class="card-flat">
+        <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>双轨审查 + 人工终审</h3>
+        <p>规则引擎确定性保底，AI 语义审查发现隐藏风险，结果合并去重，采纳与否由你最终拍板。</p>
+      </div>
+      <div class="card-flat">
+        <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></div>
+        <h3>AI 多轮改稿与红划线</h3>
+        <p>针对每条风险多轮对话让 AI 修改措辞，改动处以红划线呈现，新旧条款逐条对比。</p>
+      </div>
+      <div class="card-flat">
+        <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>
+        <h3>拍照 OCR 审查</h3>
+        <p>纸质合同拍张照，OCR 自动转录文字，直接进入同一条审查管线，免费版同样可用。</p>
+      </div>
+      <div class="card-flat">
+        <div class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg></div>
+        <h3>合同台账到期提醒</h3>
+        <p>合同期限、试用期、续签节点统一管理，临期合同自动倒计时预警，不再靠脑子记。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 双曲线对比 -->
+<section class="section lp-track-sec">
+  <div class="lp-track-inner">
+    <h2 class="section-title">个人与企业，各走各的曲线</h2>
+    <p class="section-sub">同一套审查引擎，按使用场景选择身份，随时可升级</p>
+    <div class="lp-track-grid">
+      <div class="lp-track-card">
+        <div class="lp-track-head">
+          <span class="lp-ticon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <b>个人</b>
+        </div>
+        <p>适合偶尔签合同的个人：入职劳动合同、租房、兼职劳务、NDA，先看懂风险再落笔。</p>
+        <ul>
+          <li><span class="tick">✓</span>低频合同，按月开通，不用长期订阅</li>
+          <li><span class="tick">✓</span>大白话解读风险，不需要法律背景</li>
+          <li><span class="tick">✓</span>免费版每月 2 份，风险点与评分直接看</li>
+          <li><span class="tick">✓</span>不订阅也能买 ¥9.9 深度审查券，逐份解锁</li>
+        </ul>
+        <div class="lp-track-price">¥19<span>/月起 · 年付 ¥99</span></div>
+        <div class="lp-track-actions">
+          <a class="btn btn-primary" href="register.html#form-personal">我是个人，免费开始</a>
+          <a class="btn btn-ghost" href="pricing.html">查看个人版</a>
+        </div>
+      </div>
+      <div class="lp-track-card ent">
+        <div class="lp-track-head">
+          <span class="lp-ticon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 11h.01M15 11h.01"/></svg></span>
+          <b>企业 / 团队</b>
+        </div>
+        <p>适合 HR、法务与业务团队：把企业自己的审查标准固化成规则，多人协作、审批留痕。</p>
+        <ul>
+          <li><span class="tick">✓</span>企业 Playbook：自定义审查规则与禁用表述</li>
+          <li><span class="tick">✓</span>团队席位、三角色权限与审批流转</li>
+          <li><span class="tick">✓</span>合同台账不限条数，到期合规提醒</li>
+          <li><span class="tick">✓</span>飞书通知、系统集成与私有化（企业版）</li>
+        </ul>
+        <div class="lp-track-price">¥99<span>/席/月起 · 企业版定制</span></div>
+        <div class="lp-track-actions">
+          <a class="btn btn-primary" href="register.html#form-team">创建团队空间</a>
+          <a class="btn btn-ghost" href="pricing.html">查看团队 / 企业方案</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 定价预览 -->
+<section class="section">
+  <h2 class="section-title">四档套餐，免费就能起步</h2>
+  <p class="section-sub">从 ¥0 到企业定制，按身份和用量选择，随时升级</p>
+  <div class="lp-price-grid">
+    <div class="lp-price-card">
+      <div class="lp-pname">FREE</div>
+      <div class="lp-pprice">¥0</div>
+      <div class="lp-pdesc">每月 2 份 · 3000 字以内 · 四类合同 · 风险点 + 摘要 + 评分 · 记录保留 7 天</div>
+      <a class="btn btn-ghost btn-block btn-sm" href="pricing.html">免费开始</a>
+    </div>
+    <div class="lp-price-card">
+      <div class="lp-pname">PERSONAL</div>
+      <div class="lp-pprice">¥19<small>/月</small></div>
+      <div class="lp-pdesc">或 ¥99/年（省 48%）· 不限份数与长度 · 深度报告 · 多轮改稿 · 永久存档</div>
+      <a class="btn btn-ghost btn-block btn-sm" href="pricing.html">查看个人版</a>
+    </div>
+    <div class="lp-price-card">
+      <div class="lp-pname">TEAM</div>
+      <div class="lp-pprice">¥99<small>/席/月</small></div>
+      <div class="lp-pdesc">5 席位 · 企业 Playbook · 审批流转 · 不限台账 · 飞书通知</div>
+      <a class="btn btn-ghost btn-block btn-sm" href="pricing.html">查看团队版</a>
+    </div>
+    <div class="lp-price-card">
+      <div class="lp-pname">ENTERPRISE</div>
+      <div class="lp-pprice" style="font-size:24px;padding-top:4px">定制</div>
+      <div class="lp-pdesc">不限席位 · 行业专项包 · SSO / 私有化 / API · 审计存证 · 专属客户成功</div>
+      <a class="btn btn-ghost btn-block btn-sm" href="pricing.html">联系我们</a>
+    </div>
+  </div>
+  <div class="lp-coupon">
+    <span class="lp-cicon"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V8H4v4a2 2 0 0 1 0 4v4h16v-4a2 2 0 0 1 0-4z"/><path d="M14 6v12"/></svg></span>
+    <div>
+      <b>深度审查券 ¥9.9/份</b>
+      <p>不订阅也能逐份解锁：1 券解锁 1 份完整深度审查（含长文档），免费用户也可购买。</p>
+    </div>
+    <a class="btn btn-primary" href="pricing.html">了解券包</a>
+  </div>
+</section>
+
+<!-- 结尾 CTA -->
+<section class="section" style="padding-top:0">
+  <div class="lp-band">
+    <h2>下一份合同签字之前，先排个雷</h2>
+    <p>免费版每月 2 份，注册即看风险点、大白话摘要与整体评分，无需信用卡</p>
+    <div class="hero-cta" style="margin-bottom:0">
+      <a class="btn btn-primary btn-lg" style="background:#fff;color:var(--primary)" href="register.html#form-personal">我是个人，免费审合同</a>
+      <a class="btn btn-ghost btn-lg" href="register.html#form-team">为团队开通企业版</a>
+    </div>
+  </div>
+</section>
+
+<footer class="pub-footer">
+  <p><a href="index.html">产品</a> / <a href="pricing.html">定价</a> / <a href="privacy.html">隐私政策</a> / <a href="terms.html">用户协议</a></p>
+  <p style="margin-top:6px">AI 仅做风险提示，不构成法律意见，重大合同建议咨询执业律师</p>
+</footer>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="pricing.html">定价</a> · <a href="login.html">登录</a> · <a href="register.html">注册分流</a></div>
+</body>
+</html>

@@ -7,10 +7,14 @@ import {
 } from 'antd'
 import {
   ArrowLeftOutlined, PlayCircleOutlined, FileSearchOutlined, PrinterOutlined,
+  FileWordOutlined,
   CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, WarningOutlined,
+  SafetyCertificateFilled, MessageOutlined, RedoOutlined,
 } from '@ant-design/icons'
 import { useContractStore, CONTRACT_STATUS_META, SEVERITY_TEXT } from '@/stores/contract.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useMeStore } from '@/stores/me.js'
+import http from '@/utils/http.js'
 import RiskCard from '@/components/contract/RiskCard.jsx'
 import styles from './ReviewWorkbench.module.css'
 
@@ -20,17 +24,23 @@ const CLAUSE_TYPE_TEXT = {
   IP: '知识产权', OTHER: '其他',
 }
 
+const SCENE_TEXT = {
+  LABOR: '劳动', LEASE: '租赁', SERVICE: '劳务', NDA: '保密', CUSTOM: '非标',
+}
+
 export default function ReviewWorkbench() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { message, modal } = App.useApp()
   const role = useAuthStore((s) => s.user?.role)
   const canDecide = role === 'ADMIN' || role === 'MANAGER'
+  const { entitlement, loadEntitlement } = useMeStore()
+  const isTeamSpace = entitlement?.workspaceType === 'TEAM'
 
   const {
     detail, loadingDetail, loadDetail,
     reviewing, reviewStages, liveRisks, reviewStats, reviewError, resetReviewRun, startReview,
-    submitDecision, loadReport,
+    submitDecision, loadReport, downloadReportDocx,
   } = useContractStore()
 
   const [selectedClause, setSelectedClause] = useState(null)
@@ -41,7 +51,16 @@ export default function ReviewWorkbench() {
   const [reportMd, setReportMd] = useState('')
   const [reportHtml, setReportHtml] = useState('')
   const [reportOpen, setReportOpen] = useState(false)
+  const [exportingReport, setExportingReport] = useState(false)
+  // 企业态：结构化信息卡 + 审批评论
+  const [structured, setStructured] = useState(null)
+  const [structuredLoading, setStructuredLoading] = useState(false)
+  const [commentOpen, setCommentOpen] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [commentSending, setCommentSending] = useState(false)
   const riskRefs = useRef({})
+
+  useEffect(() => { loadEntitlement() }, [loadEntitlement])
 
   // markdown 渲染器（marked+hljs 近 1MB）仅在意见书弹窗实际打开时动态加载，不拖慢工作台首屏
   const showReport = (md) => {
@@ -87,6 +106,51 @@ export default function ReviewWorkbench() {
   const reviewOpen = review?.status === 'WAITING_REVIEW' && !reviewing
   const stats = review?.stats
   const acceptedCount = risks.filter((r) => r.status === 'ACCEPTED').length
+
+  // 企业态：Playbook 命中分区（公司红线/偏好 vs 通用风险）
+  const playbookRisks = useMemo(
+    () => filteredRisks.filter((r) => r.detectedBy === 'PLAYBOOK'),
+    [filteredRisks],
+  )
+  const normalRisks = useMemo(
+    () => filteredRisks.filter((r) => r.detectedBy !== 'PLAYBOOK'),
+    [filteredRisks],
+  )
+  const playbookTotal = risks.filter((r) => r.detectedBy === 'PLAYBOOK').length
+  const redlineTotal = risks.filter(
+    (r) => r.detectedBy === 'PLAYBOOK' && r.category !== '偏好口径',
+  ).length
+
+  // 企业态：结构化信息（详情带缓存直接用；否则请求 AI 抽取，409/400 静默隐藏卡片）
+  const refreshStructured = async (force = false) => {
+    setStructuredLoading(true)
+    try {
+      const d = await http.get(
+        `/contracts/${id}/structured${force ? '?force=1' : ''}`,
+        { skipErrorToast: true },
+      )
+      if (d.structured) setStructured(d.structured)
+    } catch { /* 无 Key 或无条款：不展示该卡 */ }
+    finally { setStructuredLoading(false) }
+  }
+  useEffect(() => {
+    setStructured(null)
+    if (!isTeamSpace || !contract) return
+    if (contract.structuredInfo) { setStructured(contract.structuredInfo); return }
+    refreshStructured(false)
+  }, [isTeamSpace, id, contract?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submitComment = async () => {
+    const c = commentText.trim()
+    if (!c) { message.warning('请输入评论内容'); return }
+    setCommentSending(true)
+    try {
+      await http.post(`/reviews/${review.id}/comment`, { comment: c })
+      message.success('评论已记录到审批日志')
+      setCommentOpen(false)
+      setCommentText('')
+    } finally { setCommentSending(false) }
+  }
 
   const handleStart = async () => {
     setDecisions({})
@@ -167,6 +231,20 @@ export default function ReviewWorkbench() {
     setTimeout(() => w.print(), 300)
   }
 
+  // 意见书 Word 导出（FR-21，归属/终审状态/套餐权益由后端三校验）
+  const exportReportDocx = async () => {
+    setExportingReport(true)
+    try {
+      await downloadReportDocx(review.id, `审查意见书_${contract.title}.docx`)
+    } catch (e) {
+      message.warning(e?.status === 403
+        ? (e.message || '当前套餐不支持导出 Word 意见书')
+        : '意见书尚未生成或导出失败')
+    } finally {
+      setExportingReport(false)
+    }
+  }
+
   if (loadingDetail && !detail) {
     return <div className={styles.center}><Spin size="large" tip="加载合同…" /></div>
   }
@@ -184,6 +262,9 @@ export default function ReviewWorkbench() {
             <div className={styles.title}>
               {contract.title}
               <Tag color={statusMeta?.color} style={{ marginLeft: 8 }}>{statusMeta?.text}</Tag>
+              {isTeamSpace && playbookTotal > 0 && (
+                <Tag color="purple" style={{ marginLeft: 4 }}>Playbook 命中 {playbookTotal} 条</Tag>
+              )}
             </div>
             <div className={styles.subtitle}>
               {contract.fileName} · {contract.clausesCount} 条 · {contract.charCount} 字
@@ -207,6 +288,28 @@ export default function ReviewWorkbench() {
       {contract.status === 'FAILED' && (
         <div className={styles.errorBar}>
           <WarningOutlined /> 条款解析失败：{contract.parseError || '未知原因'}（可能为扫描版 PDF，请改为文本版或直接粘贴文本）
+        </div>
+      )}
+
+      {/* 企业审批流条 */}
+      {isTeamSpace && reviewOpen && (
+        <div className={styles.approvalBar}>
+          <div className={styles.approvalLeft}>
+            <SafetyCertificateFilled className={styles.approvalIcon} />
+            <span>
+              {redlineTotal > 0
+                ? <>命中公司{SCENE_TEXT[contract.scene] || ''} Playbook 红线 <b>{redlineTotal}</b> 条，法务终审前请处理</>
+                : <>未命中公司{SCENE_TEXT[contract.scene] || ''} Playbook 红线，可进入终审流程</>}
+            </span>
+            {playbookTotal > 0 && <Tag color="purple" style={{ marginLeft: 8 }}>Playbook 命中 {playbookTotal} 条</Tag>}
+          </div>
+          <div className={styles.approvalActions}>
+            <Button icon={<MessageOutlined />} disabled={!canDecide} onClick={() => setCommentOpen(true)}>评论</Button>
+            <Button danger icon={<CloseCircleOutlined />} loading={submitting} disabled={!canDecide}
+              onClick={() => handleFinal('REJECTED')}>驳回</Button>
+            <Button type="primary" icon={<CheckCircleOutlined />} loading={submitting} disabled={!canDecide}
+              onClick={() => handleFinal('APPROVED')}>通过</Button>
+          </div>
         </div>
       )}
 
@@ -295,7 +398,7 @@ export default function ReviewWorkbench() {
               />
             )}
 
-            {!reviewing && filteredRisks.map((r) => (
+            {!reviewing && !isTeamSpace && filteredRisks.map((r) => (
               <div key={r.id} ref={(el) => { riskRefs.current[r.id] = el }}>
                 <RiskCard
                   risk={r}
@@ -307,10 +410,112 @@ export default function ReviewWorkbench() {
                 />
               </div>
             ))}
-          </div>
-        </div>
 
-        {/* 右：审查进程/终审操作 */}
+            {!reviewing && isTeamSpace && review && (
+              <>
+                {playbookRisks.length > 0 && (
+                  <div className={styles.sectionHead}>
+                    <SafetyCertificateFilled style={{ color: '#7c3aed' }} />
+                    公司红线 / 偏好 · {playbookRisks.length} 项
+                  </div>
+                )}
+                {playbookRisks.map((r) => (
+                  <div key={r.id} ref={(el) => { riskRefs.current[r.id] = el }}>
+                    <RiskCard
+                      risk={r}
+                      active={selectedClause && r.clauseId === selectedClause}
+                      reviewOpen={reviewOpen && canDecide}
+                      decision={decisions[r.id]}
+                      onSelectClause={selectClauseAndScroll}
+                      onDecision={decide}
+                    />
+                  </div>
+                ))}
+                {normalRisks.length > 0 && (
+                  <div className={styles.sectionHead}>通用风险 · {normalRisks.length} 项</div>
+                )}
+                {normalRisks.map((r) => (
+                  <div key={r.id} ref={(el) => { riskRefs.current[r.id] = el }}>
+                    <RiskCard
+                      risk={r}
+                      active={selectedClause && r.clauseId === selectedClause}
+                      reviewOpen={reviewOpen && canDecide}
+                      decision={decisions[r.id]}
+                      onSelectClause={selectClauseAndScroll}
+                      onDecision={decide}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* 企业态：AI 抽取结构化信息（无 Key 时整块隐藏） */}
+          {isTeamSpace && (structured || structuredLoading) && (
+            <div className={styles.structuredCard}>
+              <div className={styles.structuredHead}>
+                <span className={styles.structuredTitle}>结构化信息</span>
+                <Tag color="purple">AI 抽取</Tag>
+                {structured && (
+                  <Tooltip title="按当前条款重新抽取">
+                    <Button
+                      type="text" size="small" icon={<RedoOutlined />}
+                      loading={structuredLoading}
+                      onClick={() => refreshStructured(true)}
+                    />
+                  </Tooltip>
+                )}
+              </div>
+              {structuredLoading && !structured && (
+                <div style={{ padding: '16px 0', textAlign: 'center' }}><Spin tip="AI 抽取中…" /></div>
+              )}
+              {structured && (
+                <table className={styles.structuredTable}>
+                  <tbody>
+                    {structured.amounts?.map((a, i) => (
+                      <tr key={`a${i}`}>
+                        <th>{a.name || '金额项'}</th>
+                        <td>
+                          <span className={a.redline ? styles.amountRedline : ''}>{a.amount}</span>
+                          {a.redline && <Tag color="red" style={{ marginLeft: 8 }}>红线</Tag>}
+                          {a.note && <div className={styles.structuredNote}>{a.note}</div>}
+                        </td>
+                      </tr>
+                    ))}
+                    {(structured.term?.duration || structured.term?.description) && (
+                      <tr>
+                        <th>合同期限</th>
+                        <td>
+                          {[structured.term.duration, structured.term.startDate, structured.term.endDate]
+                            .filter(Boolean).join(' · ')}
+                          {structured.term.description && (
+                            <div className={styles.structuredNote}>{structured.term.description}</div>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {structured.paymentTerms && (
+                      <tr>
+                        <th>付款节点</th>
+                        <td>{structured.paymentTerms}</td>
+                      </tr>
+                    )}
+                    {structured.keyObligations?.length > 0 && (
+                      <tr>
+                        <th>关键义务</th>
+                        <td>
+                          {structured.keyObligations.map((o, i) => (
+                            <div key={`o${i}`} className={styles.obligationItem}>· {o}</div>
+                          ))}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </div>
         <div className={styles.sidePanel}>
           <div className={styles.panelTitle}>审查进程</div>
 
@@ -400,6 +605,25 @@ export default function ReviewWorkbench() {
         </div>
       </div>
 
+      {/* 企业审批评论 */}
+      <Modal
+        title="审批评论"
+        open={commentOpen}
+        onCancel={() => setCommentOpen(false)}
+        confirmLoading={commentSending}
+        okText="提交评论"
+        cancelText="取消"
+        onOk={submitComment}
+        destroyOnClose
+      >
+        <Input.TextArea
+          rows={4} maxLength={500} showCount
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          placeholder="填写审批意见或要求法务补充核查的要点（评论将记录到审批日志，不改变审批状态）"
+        />
+      </Modal>
+
       {/* 意见书 Modal */}
       <Modal
         title="合同风险审查意见书"
@@ -407,6 +631,7 @@ export default function ReviewWorkbench() {
         width={860}
         onCancel={() => setReportOpen(false)}
         footer={[
+          <Button key="docx" icon={<FileWordOutlined />} loading={exportingReport} onClick={exportReportDocx}>导出 Word 意见书</Button>,
           <Button key="print" type="primary" icon={<PrinterOutlined />} onClick={printReport}>打印 / 另存 PDF</Button>,
           <Button key="close" onClick={() => setReportOpen(false)}>关闭</Button>,
         ]}

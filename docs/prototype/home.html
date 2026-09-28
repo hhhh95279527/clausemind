@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工作台 — WorkMind 个人空间</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  .hm-welcome { padding: 2px 2px 0; }
+  .hm-welcome h1 { font-size: 22px; margin-bottom: 2px; }
+  .hm-welcome p { color: var(--text-sub); font-size: 13.5px; }
+
+  /* 额度卡两态 */
+  .hm-quota { align-items: stretch; }
+  .hm-quota .hm-q-left { flex: 1; min-width: 0; }
+  .hm-quota .hm-q-left h3 { font-size: 16px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .hm-quota .hm-q-left .muted { font-size: 12.5px; }
+  .hm-quota .hm-q-right { display: flex; gap: 10px; align-items: center; flex: none; }
+  .hm-quota .progress { max-width: 320px; }
+  .hm-q-paid { display: none; }
+  body:has(#paid:target) .hm-q-free { display: none; }
+  body:has(#paid:target) .hm-q-paid { display: flex; gap: 14px; align-items: center; width: 100%; }
+  .hm-paid-badge { width: 44px; height: 44px; border-radius: 50%; background: var(--success-bg); color: var(--success); display: flex; align-items: center; justify-content: center; flex: none; }
+  .hm-chip-paid { display: none; }
+  body:has(#paid:target) .hm-chip-free { display: none; }
+  body:has(#paid:target) .hm-chip-paid { display: inline-flex; }
+
+  /* 场景卡 */
+  .hm-scene { display: block; color: inherit; transition: .18s; }
+  .hm-scene:hover { border-color: #c7d2fe; box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .hm-scene .ci { width: 44px; height: 44px; }
+  .hm-scene p { line-height: 1.6; }
+
+  /* 避坑指南 */
+  .hm-guide { display: flex; flex-direction: column; gap: 6px; }
+  .hm-guide .hm-g-top { display: flex; align-items: center; gap: 8px; }
+  .hm-guide .hm-g-top .ci { width: 32px; height: 32px; margin: 0; border-radius: 8px; }
+  .hm-guide b { font-size: 14px; }
+  .hm-guide .hm-gmore { margin-top: 2px; font-size: 12.5px; }
+
+  /* 通知铃铛 */
+  .hm-bell { position: relative; color: var(--text-sub); display: inline-flex; }
+  .hm-bell:hover { color: var(--primary); }
+  .hm-bell .hm-dot { position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 1.5px solid #fff; }
+  .hm-note { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+  .hm-note:last-child { border-bottom: none; }
+  .hm-note .hm-n-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; flex: none; }
+  .hm-note div div:first-child { font-weight: 500; }
+  .hm-note .small { color: var(--text-muted); }
+
+  /* 演示态切换 */
+  .hm-statechip {
+    position: fixed; left: 14px; bottom: 14px; z-index: 200;
+    background: #fff; border: 1px solid var(--border); border-radius: 99px;
+    padding: 6px 8px 6px 14px; font-size: 11.5px; display: flex; gap: 6px; align-items: center;
+    box-shadow: var(--shadow-md);
+  }
+  .hm-statechip b { color: var(--text); }
+  .hm-statechip a { padding: 2px 10px; border-radius: 99px; color: var(--text-sub); }
+  .hm-statechip a.on { background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+  .hm-statechip a[href="#paid"].on { background: var(--success-bg); color: #047857; }
+  body:has(#paid:target) .hm-statechip a[href="#top"] { background: none; color: var(--text-sub); font-weight: 400; }
+  body:has(#paid:target) .hm-statechip a[href="#paid"] { background: var(--success-bg); color: #047857; font-weight: 600; }
+</style>
+</head>
+<body>
+<span id="paid"></span>
+<div class="app-shell" id="top">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" href="home.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>工作台</a>
+      <a class="nav-item" href="new-review.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/></svg>审合同</a>
+      <a class="nav-item" href="my-contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/></svg>我的合同</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="personal-billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的订阅</a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">李</span><div><div style="color:#fff">李小白</div><div style="font-size:11px;color:#6b7280">个人空间</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>工作台</h2>
+      <span class="head-sub">个人合同风险，30 秒先看一遍</span>
+      <div class="head-right">
+        <a class="hm-bell" href="#notify" aria-label="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="hm-dot"></span>
+        </a>
+        <span class="plan-chip hm-chip-free">免费版 FREE</span>
+        <span class="plan-chip hm-chip-paid" style="background:var(--success-bg);color:#047857">个人版 PERSONAL</span>
+        <span class="avatar">李</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- 欢迎区 -->
+      <div class="hm-welcome">
+        <h1>你好，李小白</h1>
+        <p>租房、入职、兼职、签 NDA 之前，把合同丢给 WorkMind，先帮你把坑标出来。</p>
+      </div>
+
+      <!-- 首次登录引导 -->
+      <div class="onboard-banner">
+        <svg class="icon" style="color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        <div style="display:none"></div>
+        <div>
+          <b>第一次来？3 步认识 WorkMind</b>
+          <div class="small muted">预计 2 分钟，可随时跳过</div>
+        </div>
+        <div class="onboard-steps">
+          <a class="ob-step" href="new-review.html"><span class="num">1</span>审一份合同</a>
+          <a class="ob-step" href="review.html"><span class="num">2</span>体验示例报告</a>
+          <a class="ob-step" href="templates.html"><span class="num">3</span>逛逛合同范本</a>
+          <a class="ob-step" href="#"><span style="color:var(--text-muted);font-size:13px">跳过</span></a>
+        </div>
+      </div>
+
+      <!-- 额度卡：免费 / 个人版两态 -->
+      <div class="onboard-banner hm-quota">
+        <div class="hm-q-left hm-q-free">
+          <h3>
+            <svg class="icon" style="color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+            本月免费额度 <span style="color:var(--primary)">0 / 2</span> 份
+          </h3>
+          <div class="progress"><i style="width:0%"></i></div>
+          <div class="muted" style="margin-top:8px">每月 2 份免费审查 · 单份 ≤ 3000 字 · 记录保留 7 天；升级个人版后不限份数，长合同也能审。</div>
+        </div>
+        <div class="hm-q-right hm-q-free">
+          <a class="btn btn-ghost" href="pricing.html">查看全部权益</a>
+          <a class="btn btn-primary" href="new-review.html">审查一份合同</a>
+        </div>
+
+        <div class="hm-q-left hm-q-paid">
+          <div class="hm-paid-badge">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div>
+            <h3 style="margin-bottom:2px">个人版有效期至 2027-09-20 · 不限份数</h3>
+            <div class="progress" style="max-width:320px"><i style="width:100%;background:var(--success)"></i></div>
+            <div class="muted" style="margin-top:8px">AI 改稿、Word 红划线、永久存档、个人条款库已全部解锁，长文档也可放心上传。</div>
+          </div>
+        </div>
+        <div class="hm-q-right hm-q-paid">
+          <a class="btn btn-primary" href="new-review.html">审查一份合同</a>
+        </div>
+      </div>
+
+      <!-- 场景四卡 -->
+      <div class="grid-4">
+        <a class="card-flat hm-scene" href="new-review.html#scene-labor">
+          <span class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+          <h3>劳动合同</h3>
+          <p>新 offer 要签了？试用期、社保、竞业限制一眼看清。</p>
+        </a>
+        <a class="card-flat hm-scene" href="new-review.html#scene-rent">
+          <span class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg></span>
+          <h3>房屋租赁</h3>
+          <p>租房签约前查押金、维修义务和提前退租违约金。</p>
+        </a>
+        <a class="card-flat hm-scene" href="new-review.html#scene-parttime">
+          <span class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+          <h3>兼职劳务</h3>
+          <p>咖啡厅、家教、接单兼职：报酬、工伤与扣款写明白。</p>
+        </a>
+        <a class="card-flat hm-scene" href="new-review.html#scene-nda">
+          <span class="ci"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/></svg></span>
+          <h3>保密与 NDA</h3>
+          <p>入职背调、合作前签 NDA：保密范围与违约责任别踩坑。</p>
+        </a>
+      </div>
+
+      <!-- 最近审查 -->
+      <div class="panel">
+        <div class="panel-head">
+          <h3>最近审查</h3>
+          <div class="ph-right"><a href="my-contracts.html" class="small">全部记录</a></div>
+        </div>
+        <table class="tbl">
+          <tr class="clickable">
+            <td style="width:38%">
+              <a href="review.html" style="font-weight:600">房屋租赁合同-张某.txt</a>
+              <div class="cell-sub">房屋租赁 · 2,460 字 · 2026-09-20</div>
+            </td>
+            <td><span class="tag tag-orange">3 条风险</span></td>
+            <td class="small" style="color:#b45309">5 天后自动清除</td>
+            <td style="text-align:right"><a class="link-btn" href="review.html">查看报告</a></td>
+          </tr>
+          <tr class="clickable">
+            <td>
+              <a href="review.html" style="font-weight:600">兼职劳务协议-咖啡厅.docx</a>
+              <div class="cell-sub">兼职劳务 · 1,180 字 · 2026-09-19</div>
+            </td>
+            <td><span class="tag tag-blue">1 条风险</span></td>
+            <td class="small" style="color:#b45309">6 天后清除</td>
+            <td style="text-align:right"><a class="link-btn" href="review.html">查看报告</a></td>
+          </tr>
+        </table>
+        <div class="panel-body" style="text-align:center;border-top:1px solid var(--border-light)">
+          <a href="review.html" class="small">没有合同？体验示例合同审查报告 →</a>
+        </div>
+      </div>
+
+      <!-- 避坑指南 -->
+      <div>
+        <h3 style="font-size:15px;margin-bottom:12px">避坑指南</h3>
+        <div class="grid-3">
+          <a class="card-flat hm-guide" href="#">
+            <div class="hm-g-top">
+              <span class="ci"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.3-1 .8-1 1.7"/><path d="M12 17h.01"/></svg></span>
+              <b>定金与订金的区别</b>
+            </div>
+            <p class="small muted">一字之差，违约时能不能双倍返还，结果完全不同。</p>
+            <span class="hm-gmore small">阅读 2 分钟 →</span>
+          </a>
+          <a class="card-flat hm-guide" href="#">
+            <div class="hm-g-top">
+              <span class="ci"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+              <b>试用期最长能约定多久</b>
+            </div>
+            <p class="small muted">合同签 1 年和签 3 年，试用期上限差了 4 个月。</p>
+            <span class="hm-gmore small">阅读 3 分钟 →</span>
+          </a>
+          <a class="card-flat hm-guide" href="#">
+            <div class="hm-g-top">
+              <span class="ci"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></span>
+              <b>兼职协议也要写明这 3 点</b>
+            </div>
+            <p class="small muted">报酬结算、安全责任、随时解除：口头约定最容易扯皮。</p>
+            <span class="hm-gmore small">阅读 2 分钟 →</span>
+          </a>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知弹层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:380px">
+    <div class="modal-head"><h3>通知</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body" style="padding-top:4px;padding-bottom:4px">
+      <div class="hm-note">
+        <span class="hm-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg></span>
+        <div>
+          <div>本月还有 2 份免费额度未使用</div>
+          <div class="small">每份可查 ≤ 3000 字的劳动 / 租赁 / 劳务 / NDA 合同</div>
+        </div>
+      </div>
+      <div class="hm-note">
+        <span class="hm-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div>
+          <div>《房屋租赁合同-张某》5 天后自动清除</div>
+          <div class="small">免费记录仅保留 7 天，升级可永久存档</div>
+        </div>
+      </div>
+      <div class="hm-note">
+        <span class="hm-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></span>
+        <div>
+          <div>合同范本库新增 12 套个人常用合同</div>
+          <div class="small">含租房、兼职、借款、NDA 模板</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="hm-statechip"><b>演示态</b><a class="on" href="#top">免费态</a><a href="#paid">个人版态</a></div>
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="new-review.html">审合同</a> · <a href="review.html">结果三态</a> · <a href="draft.html">AI改稿</a> · <a href="personal-billing.html">我的订阅</a> · <a href="dashboard.html">企业工作台→</a></div>
+</body>
+</html>

@@ -7,28 +7,40 @@ import {
 } from 'antd'
 import {
   UploadOutlined, FileTextOutlined, DeleteOutlined, AuditOutlined, ReloadOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons'
-import { useContractStore, CONTRACT_STATUS_META } from '@/stores/contract.js'
+import { useContractStore } from '@/stores/contract.js'
 import styles from './ContractListView.module.css'
 
 const { TextArea } = Input
 const { Text } = Typography
 
-// 列表筛选项 → 后端 status 参数
+// 列表筛选项 → 后端 reviewStatus 参数
 const FILTERS = [
   { label: '全部', value: '' },
-  { label: '待审查', value: 'READY' },
-  { label: '待终审', value: 'WAITING_REVIEW' },
-  { label: '审查中', value: 'REVIEWING' },
-  { label: '已完成', value: 'COMPLETED' },
-  { label: '解析失败', value: 'FAILED' },
+  { label: '待审查', value: 'PENDING' },
+  { label: '待审批', value: 'WAITING_REVIEW' },
+  { label: '已通过', value: 'APPROVED' },
+  { label: '失败', value: 'FAILED' },
 ]
 
-const REVIEW_TAG = {
-  WAITING_REVIEW: { color: 'orange', text: '待终审' },
+const SCENE_TEXT = {
+  LABOR: '劳动合同', LEASE: '租赁合同', SERVICE: '劳务合同', NDA: '保密协议', CUSTOM: '非标合同',
+}
+
+// 审查状态（合同/任务整体阶段）
+const REVIEW_PHASE_TAG = {
+  WAITING_REVIEW: { color: 'blue', text: '待终审', dot: true },
+  RUNNING: { color: 'processing', text: '审查中' },
+  APPROVED: { color: 'default', text: '已完成' },
+  REJECTED: { color: 'default', text: '已完成' },
+}
+
+// 审批状态（终审结论）
+const APPROVAL_TAG = {
+  WAITING_REVIEW: { color: 'orange', text: '待法务审' },
   APPROVED: { color: 'success', text: '已通过' },
   REJECTED: { color: 'error', text: '已驳回' },
-  RUNNING: { color: 'processing', text: '审查中' },
 }
 
 export default function ContractListView() {
@@ -36,12 +48,14 @@ export default function ContractListView() {
   const { message } = App.useApp()
   const {
     contracts, loadingList, loadContracts, uploadFile, uploadText, deleteContract,
+    sampleCopied, copySample,
   } = useContractStore()
   const [filter, setFilter] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
   const [tab, setTab] = useState('file')
   const [file, setFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [sampleLoading, setSampleLoading] = useState(false)
   const [form] = Form.useForm()
 
   useEffect(() => { loadContracts(filter) }, [loadContracts, filter])
@@ -78,6 +92,45 @@ export default function ContractListView() {
     } finally { setSubmitting(false) }
   }
 
+  // 空状态：体验示例合同（每租户限一次、不扣额度；FR-3）
+  const handleCopySample = async () => {
+    setSampleLoading(true)
+    try {
+      const c = await copySample()
+      navigate(`/contracts/${c.id}`)
+    } catch {
+      // 409 等错误已由拦截器提示
+    } finally {
+      setSampleLoading(false)
+    }
+  }
+
+  // 空列表：全部视图给双等权动作；筛选视图仅提示无数据
+  const emptyNode = filter
+    ? undefined
+    : (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyTitle}>还没有合同，先审一份看看</div>
+        <div className={styles.emptySub}>免费版每月 2 份 · 3000 字以内 · 劳动 / 租赁 / 劳务 / NDA 四类</div>
+        <div className={styles.emptyActions}>
+          <Button
+            type="primary" size="large" icon={<UploadOutlined />}
+            onClick={() => { setUploadOpen(true); setTab('file') }}
+          >
+            上传我的合同
+          </Button>
+          {!sampleCopied && (
+            <Button
+              size="large" icon={<ExperimentOutlined />} loading={sampleLoading}
+              onClick={handleCopySample}
+            >
+              体验示例合同
+            </Button>
+          )}
+        </div>
+      </div>
+    )
+
   const columns = [
     {
       title: '合同',
@@ -85,76 +138,88 @@ export default function ContractListView() {
       key: 'title',
       render: (t, row) => (
         <div>
-          <FileTextOutlined style={{ marginRight: 8, color: 'var(--color-primary)' }} />
-          <a onClick={() => navigate(`/contracts/${row.id}`)}>{t}</a>
-          <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{row.fileName}</div>
+          <div>
+            <FileTextOutlined style={{ marginRight: 8, color: 'var(--color-primary)' }} />
+            <a onClick={() => navigate(`/contracts/${row.id}`)}>{t}</a>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+            {SCENE_TEXT[row.scene] || '合同'} · {row.charCount} 字
+            {row.playbookHitCount > 0 && (
+              <Tag color="purple" style={{ marginLeft: 8, fontSize: 12, lineHeight: '18px', padding: '0 6px' }}>
+                红线 {row.playbookHitCount}
+              </Tag>
+            )}
+          </div>
         </div>
       ),
     },
     {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      width: 130,
-      render: (s, row) => {
-        const meta = CONTRACT_STATUS_META[s] || { color: 'default', text: s }
-        return (
-          <div>
-            <Tag color={meta.color}>{meta.text}</Tag>
-            {s === 'PARSING' && <div style={{ fontSize: 12, color: 'var(--color-text-sub)' }}>{row.progress ?? 0}%</div>}
-            {s === 'FAILED' && row.parseError && (
-              <div style={{ fontSize: 12, color: 'var(--color-danger)' }}>{row.parseError}</div>
-            )}
-          </div>
-        )
+      title: '审查状态',
+      key: 'reviewPhase',
+      width: 110,
+      render: (_, row) => {
+        if (row.status === 'FAILED') return <Tag color="error">解析失败</Tag>
+        const rs = row.review?.status
+        if (!rs) return <Tag>待审查</Tag>
+        const m = REVIEW_PHASE_TAG[rs]
+        if (!m) return <Text type="secondary">—</Text>
+        return <Tag color={m.color} dot={m.dot}>{m.text}</Tag>
+      },
+    },
+    {
+      title: '审批状态',
+      key: 'approval',
+      width: 110,
+      render: (_, row) => {
+        if (row.status === 'FAILED') return <Text type="secondary">—</Text>
+        const m = APPROVAL_TAG[row.review?.status]
+        return m ? <Tag color={m.color}>{m.text}</Tag> : <Text type="secondary">—</Text>
       },
     },
     {
       title: '条款数',
       dataIndex: 'clausesCount',
       key: 'clausesCount',
-      width: 90,
+      width: 80,
       render: (n) => n ?? 0,
     },
     {
       title: '最近审查',
-      key: 'review',
-      width: 110,
-      render: (_, row) => {
-        if (!row.review) return <Text type="secondary">—</Text>
-        const m = REVIEW_TAG[row.review.status]
-        return m ? <Tag color={m.color}>{m.text}</Tag> : <Text type="secondary">—</Text>
-      },
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 170,
-      render: (t) => new Date(t).toLocaleString('zh-CN', { hour12: false }),
+      key: 'reviewedAt',
+      width: 150,
+      render: (_, row) => row.review
+        ? new Date(row.review.createdAt).toLocaleDateString('zh-CN')
+        : <Text type="secondary">—</Text>,
     },
     {
       title: '操作',
       key: 'actions',
-      width: 170,
-      render: (_, row) => (
-        <div className={styles.rowActions}>
-          <Button
-            type="link" size="small" icon={<AuditOutlined />}
-            disabled={row.status === 'UPLOADED' || row.status === 'PARSING' || row.status === 'FAILED'}
-            onClick={() => navigate(`/contracts/${row.id}`)}
-          >
-            审查工作台
-          </Button>
-          <Popconfirm
-            title="确认删除该合同？条款、审查记录与风险将一并删除"
-            onConfirm={() => deleteContract(row.id)}
-            okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </div>
-      ),
+      width: 150,
+      render: (_, row) => {
+        const rs = row.review?.status
+        let actionText = '审查工作台'
+        if (row.status === 'FAILED') actionText = '重新上传'
+        else if (rs === 'APPROVED' && row.hasReport) actionText = '查看意见书'
+        else if (!rs) actionText = '开始审查'
+        return (
+          <div className={styles.rowActions} onClick={(e) => e.stopPropagation()}>
+            <Button
+              type="link" size="small" icon={<AuditOutlined />}
+              disabled={row.status === 'UPLOADED' || row.status === 'PARSING'}
+              onClick={() => navigate(`/contracts/${row.id}`)}
+            >
+              {actionText}
+            </Button>
+            <Popconfirm
+              title="确认删除该合同？条款、审查记录与风险将一并删除"
+              onConfirm={() => deleteContract(row.id)}
+              okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
+            >
+              <Button type="link" size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </div>
+        )
+      },
     },
   ]
 
@@ -184,6 +249,8 @@ export default function ContractListView() {
           columns={columns}
           dataSource={contracts}
           loading={loadingList}
+          scroll={{ x: 900 }}
+          locale={{ emptyText: emptyNode || '暂无数据' }}
           pagination={{ pageSize: 15, hideOnSinglePage: true }}
           onRow={(row) => ({ onClick: () => navigate(`/contracts/${row.id}`), style: { cursor: 'pointer' } })}
         />

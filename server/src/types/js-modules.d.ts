@@ -11,9 +11,6 @@ declare module '*/services/*' {
   export function getHistory(sessionId: string): any[]
   export function trimHistory(history: any[], maxTokens: number): any[]
   export function clearHistory(sessionId: string): void
-  export function getProfile(userId: string): any
-  export function profileToContext(profile: any): string
-  export function extractAndUpdateProfile(userId: string, message: string, reply: string): Promise<any>
   export function listSessions(): any[]
 
   export function getVectorStore(): Promise<any>

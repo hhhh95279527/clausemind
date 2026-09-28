@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>审查规则 Playbook — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ── pb- Playbook 页专属 ─────────────────────── */
+  .pb-banner { background: linear-gradient(100deg,#eef2ff,#f5f3ff); border: 1px solid #c7d2fe; border-radius: var(--radius-lg); padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; }
+  .pb-banner .pb-bico { width: 34px; height: 34px; flex: none; border-radius: 9px; background: #fff; color: var(--primary); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); }
+
+  /* segmented 四面板（:target 纯 CSS） */
+  .pb-panel { display: none; }
+  #pb-redline { display: block; }
+  body:has(#pb-redline:target) #pb-redline { display: block; }
+  body:has(#pb-pref:target) #pb-pref { display: block; }
+  body:has(#pb-std:target) #pb-std { display: block; }
+  body:has(#pb-pack:target) #pb-pack { display: block; }
+  body:has(:is(#pb-pref,#pb-std,#pb-pack):target) #pb-redline { display: none; }
+  .pb-seg a { padding: 5px 14px; font-size: 13px; border-radius: 6px; color: var(--text-sub); text-decoration: none; }
+  .pb-seg a.on { background: #fff; color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+  body:has(#pb-redline:target) .pb-seg a[href="#pb-redline"],
+  body:has(#pb-pref:target) .pb-seg a[href="#pb-pref"],
+  body:has(#pb-std:target) .pb-seg a[href="#pb-std"],
+  body:has(#pb-pack:target) .pb-seg a[href="#pb-pack"] { background: #fff; color: var(--text); font-weight: 600; box-shadow: var(--shadow-sm); }
+  body:has(:is(#pb-pref,#pb-std,#pb-pack):target) .pb-seg a.on { background: transparent; color: var(--text-sub); box-shadow: none; font-weight: 400; }
+
+  /* 静态开关 */
+  .pb-switch { position: relative; display: inline-block; width: 40px; height: 22px; vertical-align: middle; }
+  .pb-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .pb-switch i { position: absolute; inset: 0; background: #d1d5db; border-radius: 99px; transition: .2s; }
+  .pb-switch i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: .2s; }
+  .pb-switch input:checked + i { background: var(--success); }
+  .pb-switch input:checked + i::after { transform: translateX(18px); }
+
+  /* 类型多选 chips */
+  .pb-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 13px; border: 1px solid var(--border); border-radius: 99px; font-size: 12.5px; color: var(--text-sub); background: #fff; }
+  .pb-chip.on { border-color: var(--primary); background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+
+  /* 抽屉内 AI 生成区 */
+  .pb-ai-box { border: 1px solid #c7d2fe; border-radius: var(--radius-lg); background: #fafbff; padding: 16px 18px; margin-top: 16px; }
+  #pb-parsed { display: none; }
+  body:has(#parsed:target) #pb-parsed, body:has(#tested:target) #pb-parsed { display: block; }
+  #pb-tested { display: none; margin-top: 12px; }
+  body:has(#tested:target) #pb-tested { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  body:has(#parsed:target) .pb-mask, body:has(#tested:target) .pb-mask { display: block; }
+  body:has(#parsed:target) .pb-drawer, body:has(#tested:target) .pb-drawer { transform: translateX(0); }
+  .pb-form-row { margin-bottom: 14px; }
+  .pb-form-row > label { display: block; font-size: 12.5px; color: var(--text-sub); margin-bottom: 5px; font-weight: 500; }
+
+  /* 行业包大卡 */
+  .pb-pack-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .pb-pack-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; }
+  .pb-pack-card.live { border-color: #a7f3d0; background: linear-gradient(180deg,#f6fef9,#fff); }
+  .pb-pack-head { display: flex; align-items: center; gap: 10px; }
+  .pb-pack-logo { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .pb-pack-list { list-style: none; font-size: 13px; color: var(--text-sub); display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+  .pb-pack-list li::before { content: '·'; color: var(--primary); font-weight: 700; margin-right: 8px; }
+
+  /* PERSONAL 加锁层 */
+  .pb-lock { position: fixed; inset: 0; z-index: 300; background: rgba(17,24,39,.55); backdrop-filter: blur(3px); display: none; align-items: center; justify-content: center; padding: 24px; }
+  .pb-lock:target { display: flex; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item active" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>审查规则 Playbook</h2>
+      <span class="head-sub">企业空间 · 测试科技有限公司</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- 工具栏 -->
+      <div class="toolbar">
+        <div class="tb-text">
+          <h2>审查规则 Playbook</h2>
+          <p>把公司内部的合规标准变成 AI 的审查口径</p>
+        </div>
+        <div class="tb-right">
+          <a class="small" href="#locked" style="align-self:center">预览 PERSONAL 加锁态</a>
+          <a class="btn btn-ghost" href="#standard-upload"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15h6"/></svg>上传标准合同</a>
+          <a class="btn btn-primary" href="#rule-drawer"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>新建规则</a>
+        </div>
+      </div>
+
+      <!-- 价值 banner -->
+      <div class="pb-banner">
+        <span class="pb-bico"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+        <div>
+          <b>把公司的合规红线、禁止条款与标准合同沉淀在这里</b>，每份合同都会优先按公司口径审查；规则越用越准，团队的审查标准就越离不开 WorkMind。
+          <div class="small muted" style="margin-top:3px">红线命中直接判高风险；偏好口径用于修改建议；标准合同自动抽取规则草稿；行业包一键启用整组规则。</div>
+        </div>
+      </div>
+
+      <!-- 四 tab -->
+      <div class="segmented pb-seg">
+        <a class="on" href="#pb-redline">红线规则</a><a href="#pb-pref">偏好口径</a><a href="#pb-std">标准合同库</a><a href="#pb-pack">行业专项包</a>
+      </div>
+
+      <!-- 面板 1：红线规则 -->
+      <div class="pb-panel panel" id="pb-redline">
+        <div class="panel-head"><h3>红线规则</h3><div class="ph-right"><span class="small muted">命中即判高风险，审批时强制提示</span></div></div>
+        <div class="panel-body flush">
+          <table class="tbl">
+            <thead><tr><th>规则名称</th><th style="width:130px">适用类型</th><th style="width:110px">近 30 天命中</th><th style="width:80px">状态</th><th style="width:130px">操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><b>违约金不得超过合同总额 20%</b><div class="cell-sub">超出部分法律不予支持，命中要求修改后再审批</div></td>
+                <td><span class="tag tag-orange">商务</span> <span class="tag tag-orange">租赁</span></td>
+                <td><b>6 次</b></td>
+                <td><label class="pb-switch"><input type="checkbox" checked><i></i></label></td>
+                <td class="row-actions"><a class="link-btn" href="#rule-drawer">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td><b>不得约定「自动离职视为放弃工资」</b><div class="cell-sub">免除法定责任、排除劳动者权利的无效条款</div></td>
+                <td><span class="tag tag-blue">劳动</span></td>
+                <td><b>4 次</b></td>
+                <td><label class="pb-switch"><input type="checkbox" checked><i></i></label></td>
+                <td class="row-actions"><a class="link-btn" href="#rule-drawer">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td><b>试用期约定必须符合法定上限</b><div class="cell-sub">一年合同不超过 1 个月，三年及无固定期限不超过 6 个月</div></td>
+                <td><span class="tag tag-blue">劳动</span></td>
+                <td><b>3 次</b></td>
+                <td><label class="pb-switch"><input type="checkbox" checked><i></i></label></td>
+                <td class="row-actions"><a class="link-btn" href="#rule-drawer">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td><b>押金不得超过 2 个月租金</b><div class="cell-sub">适用于居住租赁场景，超押提示退还差额</div></td>
+                <td><span class="tag tag-orange">租赁</span></td>
+                <td><b>2 次</b></td>
+                <td><label class="pb-switch"><input type="checkbox" checked><i></i></label></td>
+                <td class="row-actions"><a class="link-btn" href="#rule-drawer">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 面板 2：偏好口径 -->
+      <div class="pb-panel panel" id="pb-pref">
+        <div class="panel-head"><h3>偏好口径</h3><div class="ph-right"><span class="small muted">不违规但希望统一的谈判口径，命中给修改建议</span></div></div>
+        <div class="panel-body flush">
+          <table class="tbl">
+            <thead><tr><th>规则名称</th><th style="width:130px">适用类型</th><th style="width:110px">近 30 天命中</th><th style="width:80px">状态</th><th style="width:130px">操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><b>争议优先约定公司所在地法院管辖</b><div class="cell-sub">避免异地应诉成本；约定仲裁地同样建议为公司所在地</div></td>
+                <td><span class="tag tag-orange">商务</span></td>
+                <td><b>3 次</b></td>
+                <td><label class="pb-switch"><input type="checkbox" checked><i></i></label></td>
+                <td class="row-actions"><a class="link-btn" href="#rule-drawer">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td><b>合同必须写明具体岗位，不得单方调岗</b><div class="cell-sub">岗位明确到岗位名称与汇报线；调岗需协商一致并书面确认</div></td>
+                <td><span class="tag tag-blue">劳动</span></td>
+                <td><b>2 次</b></td>
+                <td><label class="pb-switch"><input type="checkbox" checked><i></i></label></td>
+                <td class="row-actions"><a class="link-btn" href="#rule-drawer">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 面板 3：标准合同库 -->
+      <div class="pb-panel panel" id="pb-std">
+        <div class="panel-head"><h3>标准合同库</h3><div class="ph-right"><a class="btn btn-ghost btn-sm" href="#standard-upload">上传标准合同</a></div></div>
+        <div class="panel-body flush">
+          <table class="tbl">
+            <thead><tr><th>标准文档</th><th style="width:120px">适用类型</th><th style="width:150px">规则抽取</th><th style="width:110px">状态</th><th style="width:120px">操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><b>公司标准劳动合同模板 v3.docx</b><div class="cell-sub">更新于 2026-08 · 法务李娜维护</div></td>
+                <td><span class="tag tag-blue">劳动</span></td>
+                <td>已抽取 12 条规则</td>
+                <td><span class="tag tag-green">已启用</span></td>
+                <td class="row-actions"><a class="link-btn" href="#standard-upload">替换版本</a><button class="link-btn">查看规则</button></td>
+              </tr>
+              <tr>
+                <td><b>办公场地租赁合同（标准版）v2.docx</b><div class="cell-sub">更新于 2026-06 · 行政维护</div></td>
+                <td><span class="tag tag-orange">租赁</span></td>
+                <td>已抽取 8 条规则</td>
+                <td><span class="tag tag-green">已启用</span></td>
+                <td class="row-actions"><a class="link-btn" href="#standard-upload">替换版本</a><button class="link-btn">查看规则</button></td>
+              </tr>
+              <tr>
+                <td><b>保密与竞业限制协议 NDA v1.1.docx</b><div class="cell-sub">更新于 2026-05 · 法务李娜维护</div></td>
+                <td><span class="tag tag-purple">通用</span></td>
+                <td>已抽取 5 条规则</td>
+                <td><span class="tag tag-green">已启用</span></td>
+                <td class="row-actions"><a class="link-btn" href="#standard-upload">替换版本</a><button class="link-btn">查看规则</button></td>
+              </tr>
+              <tr>
+                <td><b>兼职劳务协议（标准版）v1.docx</b><div class="cell-sub">更新于 2026-09 · 待法务确认</div></td>
+                <td><span class="tag tag-blue">劳动</span></td>
+                <td>规则草稿待确认</td>
+                <td><span class="tag tag-gray">草稿</span></td>
+                <td class="row-actions"><a class="link-btn" href="#standard-upload">重新上传</a><button class="link-btn">查看规则</button></td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="padding:14px 18px;border-top:1px solid var(--border-light)"><a class="btn btn-ghost btn-sm" href="#standard-upload"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>上传标准合同，自动抽取规则草稿</a></div>
+        </div>
+      </div>
+
+      <!-- 面板 4：行业专项包 -->
+      <div class="pb-panel pb-pack-grid" id="pb-pack">
+        <div class="pb-pack-card live">
+          <div class="pb-pack-head">
+            <span class="pb-pack-logo" style="background:var(--success-bg);color:var(--success)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1"/></svg></span>
+            <div><b style="font-size:15px">互联网用工风险包</b><div class="small muted">人力资源团队 · 12 条规则</div></div>
+            <span class="tag tag-green" style="margin-left:auto">已启用</span>
+          </div>
+          <div class="small muted">针对互联网公司高频用工场景预置的规则组，启用后自动并入红线 / 偏好规则。</div>
+          <ul class="pb-pack-list">
+            <li>加班费与工时制度（标准 / 综合 / 不定时）</li>
+            <li>试用期录用条件与解除口径</li>
+            <li>竞业限制补偿与违约金平衡</li>
+            <li>灵活用工 / 外包 / 实习的关系认定</li>
+          </ul>
+          <div style="margin-top:auto;display:flex;gap:8px"><a class="btn btn-ghost btn-sm" href="#pb-redline">管理规则</a><span class="tag tag-gray" style="align-self:center">本月命中 18 次</span></div>
+        </div>
+
+        <div class="pb-pack-card">
+          <div class="pb-pack-head">
+            <span class="pb-pack-logo" style="background:#f3f4f6;color:var(--text-sub)"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5M4 20L21 3M21 16v5H3V3h5"/></svg></span>
+            <div><b style="font-size:15px">供应链采购风险包</b><div class="small muted">采购与商务团队 · 10 条规则</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将上线</span>
+          </div>
+          <div class="small muted">面向采购、供应链合同的风险规则组，覆盖账期、交付违约、验收与质量责任。</div>
+          <ul class="pb-pack-list">
+            <li>付款账期与预付款比例上限</li>
+            <li>逾期交付违约金阶梯</li>
+            <li>验收标准与异议期约定</li>
+            <li>质量责任与追偿口径</li>
+          </ul>
+          <div style="margin-top:auto"><button class="btn btn-ghost btn-sm" disabled>即将上线，敬请期待</button></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 上传标准合同 -->
+<div class="mask" id="standard-upload">
+  <div class="modal">
+    <div class="modal-head"><h3>上传标准合同</h3><a class="x" href="#">×</a></div>
+    <div class="modal-body">
+      <div style="border:2px dashed var(--border);border-radius:var(--radius-lg);padding:34px 24px;text-align:center;background:#fafbff">
+        <svg style="width:36px;height:36px;color:var(--primary);margin-bottom:8px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <div style="font-weight:600;margin-bottom:4px">拖拽公司标准合同到此处</div>
+        <div class="small muted">支持 .docx / .pdf，建议使用法务确认的最新版本</div>
+      </div>
+      <div class="info-banner info" style="margin-top:16px">
+        <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>上传后<b>将自动抽取规则草稿（即将上线）</b>，法务确认后即作为公司口径参与每份合同审查。</div>
+      </div>
+      <div style="margin-top:12px"><span class="tag tag-gray">标准合同规则自动抽取 · 即将上线</span></div>
+    </div>
+    <div class="modal-foot">
+      <a class="btn btn-ghost" href="#">取消</a>
+      <button class="btn btn-primary" disabled>上传并抽取（即将上线）</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建 / 编辑规则抽屉 -->
+<a class="drawer-mask pb-mask" id="rule-drawer" href="#"></a>
+<aside class="drawer pb-drawer" style="width:720px">
+  <span id="parsed" hidden></span><span id="tested" hidden></span>
+  <div class="drawer-head">
+    <div><h3 style="font-size:16px">新建规则</h3><div class="small muted">红线规则 · 保存后立即对新发起的审查生效</div></div>
+    <a href="#" class="x" style="margin-left:auto;color:var(--text-muted);font-size:20px">×</a>
+  </div>
+  <div class="drawer-body">
+
+    <div class="pb-form-row">
+      <label>规则名称</label>
+      <input class="input" value="违约金不得超过合同总额 20%">
+    </div>
+
+    <div class="pb-form-row">
+      <label>适用合同类型（多选）</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="pb-chip on">商务</button>
+        <button type="button" class="pb-chip on">租赁</button>
+        <button type="button" class="pb-chip">劳动</button>
+        <button type="button" class="pb-chip">通用</button>
+      </div>
+    </div>
+
+    <div class="pb-form-row">
+      <label>规则描述</label>
+      <textarea class="textarea" placeholder="一句话说明这条规则管什么、命中后应该怎么处理">合同约定的违约金数额不得超过合同总额的 20%，超出部分法律不予支持；命中后建议按 20% 上限修改。</textarea>
+    </div>
+
+    <div class="pb-form-row">
+      <label>自然语言描述</label>
+      <textarea class="textarea" style="min-height:96px">违约金不得超过合同总额的 20%，超出部分不予支持</textarea>
+      <div style="margin-top:8px;display:flex;gap:10px;align-items:center">
+        <a class="btn btn-primary btn-sm" href="#parsed"><span class="tag tag-purple" style="background:rgba(255,255,255,.25);color:#fff">AI</span>&nbsp;AI 转为结构化规则</a>
+        <span class="small muted">AI 生成关键词与匹配条件，可人工修改后再生效</span>
+      </div>
+    </div>
+
+    <!-- AI 生成区 -->
+    <div id="pb-parsed">
+      <div class="pb-ai-box">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <span class="tag tag-purple">AI</span><b style="font-size:14px">生成的结构化规则</b>
+          <span class="small muted" style="margin-left:auto">可编辑，以保存内容为准</span>
+        </div>
+
+        <div class="pb-form-row">
+          <label>关键词（逗号分隔）</label>
+          <input class="input" value="违约金, 20%, 总额, 超过, 不予支持">
+        </div>
+        <div class="pb-form-row">
+          <label>正则 / 匹配条件</label>
+          <input class="input" value="违约金.{0,20}(?&lt;!不)(超过|大于|高于).{0,10}(合同)?(总)?(金额|额).{0,6}(20%|百分之二十)">
+          <div class="small muted" style="margin-top:5px">条件可手写：未配置模型 Key 时也能直接保存并参与规则引擎审查。</div>
+        </div>
+        <div class="pb-form-row">
+          <label>风险等级</label>
+          <select class="select" style="width:160px"><option selected>高风险（红线）</option><option>中风险</option><option>低风险（仅提示）</option></select>
+        </div>
+
+        <div style="border-top:1px dashed var(--border);margin:16px 0"></div>
+
+        <div class="pb-form-row">
+          <label>样例测试（每条一行）</label>
+          <textarea class="textarea" style="min-height:110px">样例①：乙方违约解除的，应向甲方支付违约金，标准超过合同总额的 20%，按 30% 计。
+样例②：违约金数额不超过合同总额的 20%，超出部分不予支持。</textarea>
+        </div>
+        <a class="btn btn-ghost btn-sm" href="#tested"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>测试命中</a>
+        <div id="pb-tested">
+          <span class="tag tag-green">样例①命中 · 高风险（红线）</span>
+          <span class="tag tag-gray">样例②未命中</span>
+          <span class="small muted">样例条款「不超过」被负向条件正确排除</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 无 Key 提示 -->
+    <div class="info-banner warn" style="margin-top:16px">
+      <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      <div>未配置模型 Key 时可直接手写关键词与条件，不影响规则生效；AI 转换仅用于提升配置效率。</div>
+    </div>
+
+  </div>
+  <div class="drawer-foot">
+    <a class="btn btn-ghost" href="#">取消</a>
+    <a class="btn btn-primary" href="#">保存规则</a>
+  </div>
+</aside>
+
+<!-- PERSONAL 加锁付费墙 -->
+<div class="pb-lock mask" id="locked">
+  <div class="modal paywall">
+    <div class="modal-body">
+      <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+      <h3>Playbook 为团队版 / 企业版权益</h3>
+      <p class="muted">个人版（PERSONAL）不支持公司级审查规则配置</p>
+      <ul class="pw-feats">
+        <li><span class="tick">✓</span>红线规则 / 偏好口径 / 标准合同库 / 行业专项包</li>
+        <li><span class="tick">✓</span>负责人 · 法务 · 成员三角色协作审批</li>
+        <li><span class="tick">✓</span>规则命中统计与团队统一审查口径</li>
+      </ul>
+      <a class="btn btn-primary btn-lg btn-block" href="pricing.html">了解团队版 TEAM</a>
+      <div style="margin-top:10px"><a href="#" class="small muted">关闭，继续浏览</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

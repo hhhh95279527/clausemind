@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的套餐 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* 嵌套 :target：成功态锚点出现时保持外层弹窗可见 */
+  body:has(#upgraded:target) #upgrade { display: flex; }
+  body:has(#contacted:target) #contact { display: flex; }
+  #up-ok, #ct-ok { display: none; }
+  body:has(#upgraded:target) #up-form { display: none; }
+  body:has(#upgraded:target) #up-ok { display: block; }
+  body:has(#contacted:target) #ct-form { display: none; }
+  body:has(#contacted:target) #ct-ok { display: block; }
+  .bl-seat { font-size: 40px; font-weight: 800; line-height: 1.1; }
+  .bl-seat small { font-size: 13px; font-weight: 400; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item active" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>我的套餐</h2>
+      <span class="head-sub">企业空间套餐、席位与用量（演示环境为模拟支付，不产生真实扣费）</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- 当前套餐 + 用量 -->
+      <div style="display:grid;grid-template-columns:1.1fr 1fr;gap:16px">
+        <div class="panel">
+          <div class="panel-head"><h3>当前套餐</h3><div class="ph-right"><span class="tag tag-purple">团队版 TEAM</span></div></div>
+          <div class="panel-body">
+            <div style="font-size:30px;font-weight:800">¥99<span style="font-size:13px;font-weight:400;color:var(--text-muted)"> / 席 / 月</span></div>
+            <div class="small muted" style="margin:6px 0 16px">套餐生效中 · 最近变更：2026-09-01（模拟）</div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+              <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;background:#fafbff">
+                <div class="small muted">席位</div>
+                <div class="bl-seat">3 <small>/ 5 席</small></div>
+                <div class="progress" style="margin-top:8px"><i style="width:60%"></i></div>
+              </div>
+              <div style="border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;background:#fafbff">
+                <div class="small muted">本月审查</div>
+                <div class="bl-seat">18 <small>/ 50 份</small></div>
+                <div class="progress" style="margin-top:8px"><i style="width:36%"></i></div>
+              </div>
+            </div>
+
+            <ul class="plan-feats" style="margin:0">
+              <li><span class="tick">✓</span>Playbook 公司规则：红线 / 偏好 / 标准合同 / 行业包</li>
+              <li><span class="tick">✓</span>负责人 · 法务 · 成员三角色协作审批</li>
+              <li><span class="tick">✓</span>合同台账全生命周期、飞书集成与操作审计</li>
+              <li><span class="tick">✓</span>意见书 Word 导出、范本一键采用</li>
+            </ul>
+            <div style="display:flex;gap:10px;margin-top:18px">
+              <a class="btn btn-primary" href="#upgrade">增购席位</a>
+              <a class="btn btn-ghost" href="#contact">升级企业版</a>
+              <a class="btn btn-danger-ghost" href="#downgrade">降级为 FREE</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h3>本月用量明细</h3><div class="ph-right"><span class="small muted">账期 2026-09</span></div></div>
+          <div class="panel-body" style="display:flex;flex-direction:column;gap:18px">
+            <div>
+              <div class="small" style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="muted">智能审查次数</span><b>18 / 50</b></div>
+              <div class="progress"><i style="width:36%"></i></div>
+            </div>
+            <div>
+              <div class="small" style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="muted">团队席位</span><b>3 / 5</b></div>
+              <div class="progress"><i style="width:60%"></i></div>
+            </div>
+            <div>
+              <div class="small" style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="muted">合同台账条目</span><b>24 条 · 不限</b></div>
+              <div class="progress"><i style="width:12%"></i></div>
+            </div>
+            <div>
+              <div class="small" style="display:flex;justify-content:space-between;margin-bottom:6px"><span class="muted">图片 OCR 识别</span><b>2 次 · 不限</b></div>
+              <div class="progress"><i style="width:6%"></i></div>
+            </div>
+            <div class="info-banner info">
+              <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+              <div>额度每月 1 日 0 点重置；审查额度用尽可按 ¥9.9/份购买深度审查券，或增购席位 / 升级套餐。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 增购与升级 -->
+      <h3 style="font-size:15px;margin-top:4px">增购与升级</h3>
+      <div class="plan-grid" style="max-width:none;grid-template-columns:repeat(2,1fr)">
+        <div class="plan-card">
+          <div class="plan-name">增购席位</div>
+          <p class="plan-desc">团队扩大时按月增购席位，与团队版同权，随时可调</p>
+          <div class="plan-price">¥99<small> / 席 / 月</small></div>
+          <ul class="plan-feats">
+            <li><span class="tick">✓</span>新增席位立即获得全部团队版能力</li>
+            <li><span class="tick">✓</span>共享每月 50 份审查额度与公司 Playbook</li>
+            <li><span class="tick">✓</span>按月增购、下月可调整数量（模拟）</li>
+          </ul>
+          <a class="btn btn-primary btn-block" href="#upgrade">选择数量并增购</a>
+        </div>
+        <div class="plan-card featured">
+          <span class="plan-flag">ENTERPRISE</span>
+          <div class="plan-name">升级企业版 ENTERPRISE</div>
+          <p class="plan-desc">面向中大型团队的定制方案，专属顾问 1 对 1 交付</p>
+          <div class="plan-price" style="font-size:26px;padding-top:6px">定制报价</div>
+          <ul class="plan-feats">
+            <li><span class="tick">✓</span>不限席位、不限审查额度</li>
+            <li><span class="tick">✓</span>行业专项规则包、审计存证</li>
+            <li><span class="tick">✓</span>SSO 单点登录与私有化部署</li>
+          </ul>
+          <a class="btn btn-primary btn-block" href="#contact">联系销售顾问</a>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 增购席位 -->
+<div class="mask" id="upgrade">
+  <div class="modal">
+    <span id="upgraded" hidden></span>
+    <div id="up-form">
+      <div class="modal-head"><h3>增购团队席位</h3><a class="x" href="#">×</a></div>
+      <div class="modal-body">
+        <div class="info-banner info" style="margin-bottom:16px">
+          <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <div><b>演示环境：模拟确认，不产生真实扣费。</b>当前 3 / 5 席，增购后套餐席位立即增加。</div>
+        </div>
+        <div class="f-item"><label>增购数量</label><div class="f-control">
+          <select class="select">
+            <option>1 席 · ¥99/月</option><option>2 席 · ¥198/月</option><option>3 席 · ¥297/月</option>
+            <option>4 席 · ¥396/月</option><option>5 席 · ¥495/月</option><option>6 席 · ¥594/月</option>
+            <option>7 席 · ¥693/月</option><option>8 席 · ¥792/月</option><option>9 席 · ¥891/月</option>
+            <option>10 席 · ¥990/月</option>
+          </select>
+        </div></div>
+        <div class="small muted" style="margin:14px 0 0 106px">单价 ¥99 / 席 / 月，与现有套餐同账期按比例结算（模拟）。如需 10 席以上，建议升级 <a href="#contact">企业版 ENTERPRISE</a>。</div>
+      </div>
+      <div class="modal-foot"><a class="btn btn-ghost" href="#">取消</a><a class="btn btn-primary" href="#upgraded">确认增购（模拟）</a></div>
+    </div>
+    <div id="up-ok">
+      <div class="modal-body" style="text-align:center;padding:36px 28px">
+        <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+        <h3>增购请求已提交（模拟）</h3>
+        <p class="muted" style="margin:8px 0 18px">席位已即时生效，当前套餐为 4 / 5 席；可前往「团队席位」邀请新成员。</p>
+        <a class="btn btn-primary" href="team.html">前往团队席位</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 联系销售（企业版） -->
+<div class="mask" id="contact">
+  <div class="modal">
+    <span id="contacted" hidden></span>
+    <div id="ct-form">
+      <div class="modal-head"><h3>升级企业版 ENTERPRISE · 联系销售</h3><a class="x" href="#">×</a></div>
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr">
+          <div class="f-item req"><label>姓名</label><div class="f-control"><input class="input" value="王芳"></div></div>
+          <div class="f-item req"><label>联系电话</label><div class="f-control"><input class="input" placeholder="请输入手机号，销售将与您电话沟通"></div></div>
+          <div class="f-item"><label>公司名称</label><div class="f-control"><input class="input" value="测试科技有限公司"></div></div>
+          <div class="f-item"><label>需求说明</label><div class="f-control"><textarea class="textarea" placeholder="如：预计席位数、行业包需求、SSO / 私有化部署、审计存证等"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-foot"><a class="btn btn-ghost" href="#">取消</a><a class="btn btn-primary" href="#contacted">提交申请</a></div>
+    </div>
+    </div>
+    <div id="ct-ok">
+      <div class="modal-body" style="text-align:center;padding:36px 28px">
+        <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+        <h3>提交成功</h3>
+        <p class="muted" style="margin:8px 0 18px">销售将在 1 个工作日内联系您，请保持电话畅通。</p>
+        <a class="btn btn-primary" href="#">我知道了</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 降级确认 -->
+<div class="mask" id="downgrade">
+  <div class="modal">
+    <div class="modal-head"><h3>确认由团队版 TEAM 降级为 FREE？</h3><a class="x" href="#">×</a></div>
+    <div class="modal-body">
+      <div class="info-banner warn" style="margin-bottom:14px">
+        <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div>降级即时生效，TEAM 团队能力将被限制：</div>
+      </div>
+      <ul class="plan-feats" style="margin:0 0 6px">
+        <li class="off"><span class="tick">✕</span>Playbook 公司规则、标准合同库与行业包停用</li>
+        <li class="off"><span class="tick">✕</span>三角色协作审批、团队席位回收为仅本人使用</li>
+        <li class="off"><span class="tick">✕</span>飞书集成、操作审计不可用</li>
+        <li class="off"><span class="tick">✕</span>本月已用 18 次审查，FREE 额度仅 3 次，再次发起将被拦截（可按 ¥9.9/份购券）</li>
+        <li><span class="tick">✓</span>已有合同、台账数据（24 条）保留，仅新建受 10 条上限约束</li>
+      </ul>
+    </div>
+    <div class="modal-foot"><a class="btn btn-ghost" href="#">再想想</a><a class="btn btn-danger-ghost" href="#">确认降级为 FREE</a></div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

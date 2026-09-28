@@ -4,6 +4,7 @@ import { ArgumentsHost, Catch, ExceptionFilter, HttpException, NotFoundException
 import type { Request, Response } from 'express'
 import { classifyError } from '../utils/errors.js'
 import { QuotaExceededException } from '../observability/quota.service.js'
+import { PlanLimitException } from '../billing/plan-limit.exception.js'
 import { logger } from '../utils/logger.js'
 
 @Catch()
@@ -17,6 +18,18 @@ export class AppExceptionFilter implements ExceptionFilter {
     if (exception instanceof QuotaExceededException) {
       return res.status(429).json({
         error: { code: 'QUOTA_EXCEEDED', message: exception.message, retryable: false },
+      })
+    }
+
+    // 套餐权益拦截：403 PLAN_LIMIT + reason/blocked，前端弹统一付费墙
+    if (exception instanceof PlanLimitException) {
+      return res.status(403).json({
+        error: {
+          code: 'PLAN_LIMIT',
+          reason: exception.reason,
+          blocked: exception.blocked,
+          message: exception.message,
+        },
       })
     }
 

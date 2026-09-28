@@ -20,6 +20,11 @@ export const useAppStore = create((set) => ({
     return { theme }
   }),
 
+  // ── 移动端侧边栏抽屉开合（桌面端不受影响）──────────────────
+  sidebarOpen: false,
+  setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
+
   // ── 全局 Toast 消息（优先使用上下文 message 实例）──────────
   toast: {
     success: (m) => msg().success(m),

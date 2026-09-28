@@ -1,0 +1,231 @@
+/* team.module.css — 团队席位（对齐 docs/prototype/team.html） */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.center {
+  height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.muted { font-size: 13px; color: var(--color-text-muted); }
+
+/* ── 页头 ───────────────────────────────────────────────── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.title { font-size: 20px; font-weight: 700; }
+.subtitle { font-size: 13px; color: var(--color-text-muted); margin-top: 4px; }
+.toolbarRight { display: flex; align-items: center; gap: 10px; }
+
+/* ── 统计卡 ─────────────────────────────────────────────── */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.statCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px 18px;
+}
+.statTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.statNum { font-size: 28px; font-weight: 700; margin: 8px 0 8px; }
+.statUnit { font-size: 13px; font-weight: 400; color: var(--color-text-muted); }
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-fill-secondary, #f0f0f0);
+  overflow: hidden;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed, #a855f7);
+}
+.statFoot {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.statFoot a { color: var(--color-primary); cursor: pointer; }
+.roleSummary { font-size: 16px; font-weight: 700; margin: 12px 0 10px; }
+.roleLine { display: flex; gap: 6px; }
+
+/* ── 面板 ───────────────────────────────────────────────── */
+.panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+.panelHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.panelHead h3 { margin: 0; font-size: 15px; }
+.readonlyHint {
+  padding: 10px 18px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* ── 成员表 ─────────────────────────────────────────────── */
+.nameCell { display: inline-flex; align-items: center; gap: 8px; }
+.meHint { font-size: 12px; color: var(--color-text-muted); }
+.dotTag::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 5px;
+}
+.rowActions { display: inline-flex; gap: 12px; font-size: 13px; }
+.rowActions a { cursor: pointer; }
+.danger { color: var(--color-error, #dc2626); }
+.actionDisabled { color: var(--color-text-disabled, #bfbfbf); cursor: not-allowed; font-size: 13px; }
+
+/* ── 权限对照 ───────────────────────────────────────────── */
+.compareTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.compareTable th, .compareTable td {
+  padding: 12px 18px;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.compareTable th {
+  background: var(--color-fill-quaternary, #fafafa);
+  font-weight: 600;
+  color: var(--color-text-sub);
+}
+.tickCell { color: var(--color-success, #16a34a); font-weight: 700; text-align: center; width: 120px; }
+.crossCell { color: var(--color-text-disabled, #bfbfbf); text-align: center; width: 120px; }
+
+/* ── 即将上线 banner ────────────────────────────────────── */
+.infoBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f9fafb;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 12px 16px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+/* ── 邀请 Modal ─────────────────────────────────────────── */
+.inviteTip {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+.inviteFoot { font-size: 12px; color: var(--color-text-muted); margin-bottom: 14px; }
+.modalActions { display: flex; justify-content: flex-end; gap: 10px; }
+.inviteDone { text-align: center; padding: 12px 4px 0; }
+.doneIcon {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 14px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 26px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.inviteDone h3 { font-size: 17px; margin: 0 0 8px; }
+.credBox {
+  text-align: left;
+  background: var(--color-fill-quaternary, #fafafa);
+  border: 1px solid var(--color-border-light);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.credPw { font-family: ui-monospace, Consolas, monospace; letter-spacing: 1px; }
+.credWarn { font-size: 12px; color: var(--color-warning, #d97706); margin-top: 2px; }
+
+/* ── 个人空间加锁卡 ─────────────────────────────────────── */
+.lockWrap {
+  display: flex;
+  justify-content: center;
+  padding: 48px 16px;
+}
+.lockCard {
+  width: 460px;
+  max-width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 32px 28px;
+  text-align: center;
+}
+.lockIcon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #f3e8ff;
+  color: #7c3aed;
+  font-size: 28px;
+}
+.lockCard h3 { margin: 0 0 8px; font-size: 17px; }
+.lockMuted { font-size: 13px; color: var(--color-text-muted); margin: 0 0 18px; }
+.lockFeats {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 22px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+.tick { color: var(--color-success, #16a34a); margin-right: 8px; font-weight: 700; }
+
+/* ── 窄屏 ───────────────────────────────────────────────── */
+@media (max-width: 1000px) {
+  .statGrid { grid-template-columns: 1fr; }
+}

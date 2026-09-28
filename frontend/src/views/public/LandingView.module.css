@@ -1,0 +1,465 @@
+/* LandingView.module.css —— 落地页（对齐原型 index.html） */
+
+/* ── 通用按钮（营销页用原生 Link 样式，避免和 antd 按钮混用）── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: var(--transition);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btnSm { padding: 6px 14px; font-size: 13px; }
+.btnLg { padding: 12px 26px; font-size: 15px; }
+.btnBlock { width: 100%; }
+
+.btnPrimary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btnPrimary:hover { background: var(--color-primary-light); color: #fff; }
+
+.btnGhost {
+  background: #fff;
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+.btnGhost:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+/* ── Hero ─────────────────────────────────────────── */
+.hero {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 72px 32px 56px;
+  text-align: center;
+}
+
+.heroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 22px;
+}
+
+.heroTitle {
+  font-size: 44px;
+  line-height: 1.25;
+  font-weight: 800;
+  margin: 0 0 18px;
+  color: var(--color-text);
+}
+
+.hl { color: var(--color-primary); }
+
+.heroSub {
+  max-width: 720px;
+  margin: 0 auto 30px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--color-text-sub);
+}
+
+.heroCta {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.heroMicro {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin-bottom: 40px;
+}
+
+/* 示例意见书 */
+.reportCard {
+  max-width: 860px;
+  margin: 0 auto;
+  background: #fff;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  text-align: left;
+}
+
+.reportHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+  background: #fafafa;
+}
+
+.reportHeadHint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.reportBody { padding: 8px 20px 16px; }
+
+.reportRow {
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px dashed var(--color-border-light);
+}
+.reportRow:last-child { border-bottom: none; }
+
+.reportRow b { font-size: 14px; }
+
+.reportPlain {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--color-text-sub);
+}
+
+.tag {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.tagRed    { background: #fef2f2; color: #dc2626; }
+.tagOrange { background: #fff7ed; color: #ea580c; }
+.tagBlue   { background: #eff6ff; color: #2563eb; }
+
+/* ── 区块通用 ─────────────────────────────────────── */
+.section {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 32px;
+}
+
+.sectionTight { padding-top: 0; }
+
+.sectionTitle {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 12px;
+}
+
+.sectionSub {
+  text-align: center;
+  font-size: 14.5px;
+  color: var(--color-text-sub);
+  margin: 0 0 36px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.cardFlat {
+  background: #fff;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px;
+  box-shadow: var(--shadow-sm);
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cardFlat h3 {
+  font-size: 16px;
+  margin: 14px 0 8px;
+}
+
+.cardFlat p {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--color-text-sub);
+  margin: 0;
+}
+
+.cardIcon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+}
+
+.freeNote {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  margin: 22px 0 0;
+}
+
+/* 场景卡可点 */
+.sceneCard { transition: var(--transition); }
+.sceneCard:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.sceneMore {
+  font-size: 12.5px;
+  color: var(--color-primary);
+  margin-top: 10px;
+  display: inline-block;
+}
+
+/* ── 能力区（通栏白底）────────────────────────────── */
+.bandSection {
+  background: #fff;
+  border-top: 1px solid var(--color-border-light);
+  border-bottom: 1px solid var(--color-border-light);
+}
+.bandInner { max-width: 1080px; margin: 0 auto; padding: 64px 32px; }
+
+/* ── 双曲线 ───────────────────────────────────────── */
+.trackSec {
+  max-width: none;
+  background: #fff;
+  border-top: 1px solid var(--color-border-light);
+  border-bottom: 1px solid var(--color-border-light);
+}
+.trackInner { max-width: 1080px; margin: 0 auto; }
+
+.trackGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+.trackCard {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: 32px 30px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.trackCardEnt {
+  background: linear-gradient(150deg, #1f2937, #312e81);
+  color: #fff;
+  border-color: transparent;
+}
+
+.trackHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.trackHead b { font-size: 20px; }
+
+.trackIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex: none;
+}
+
+.trackCardEnt .trackIcon {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.trackCard > p {
+  color: var(--color-text-sub);
+  font-size: 14px;
+  line-height: 1.75;
+  margin: 0 0 16px;
+}
+.trackCardEnt > p { color: #c7d2fe; }
+
+.trackCard ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.tick {
+  color: var(--color-success);
+  margin-right: 9px;
+}
+.trackCardEnt .tick { color: #6ee7b7; }
+
+.trackPrice {
+  font-size: 26px;
+  font-weight: 800;
+  margin-bottom: 18px;
+}
+.trackPrice span {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-sub);
+  margin-left: 4px;
+}
+.trackCardEnt .trackPrice span { color: #a5b4fc; }
+
+.trackActions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  flex-wrap: wrap;
+}
+.trackCardEnt .btnGhost {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+.trackCardEnt .btnGhost:hover { border-color: #fff; color: #fff; }
+.trackCardEnt .btnPrimary { background: #fff; color: var(--color-primary); }
+.trackCardEnt .btnPrimary:hover { background: #f3f4f6; color: var(--color-primary); }
+
+/* ── 定价预览 ─────────────────────────────────────── */
+.priceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.priceCard {
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+}
+
+.priceName {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-sub);
+}
+
+.pricePrice {
+  font-size: 26px;
+  font-weight: 800;
+  margin: 10px 0 4px;
+}
+.pricePrice small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-text-sub);
+}
+
+.priceDesc {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--color-text-muted);
+  flex: 1;
+  margin-bottom: 14px;
+}
+
+.coupon {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(100deg, #fffbeb, #fff7ed);
+  border: 1px dashed #f59e0b;
+  border-radius: var(--radius-lg);
+  padding: 16px 22px;
+}
+
+.couponIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #b45309;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex: none;
+}
+
+.coupon b { font-size: 14.5px; }
+.coupon p { font-size: 12.5px; color: #92400e; margin: 4px 0 0; }
+.coupon .btn { margin-left: auto; flex: none; }
+
+/* ── 结尾 CTA band ────────────────────────────────── */
+.ctaBand {
+  background: linear-gradient(100deg, #4f46e5, #7c3aed);
+  border-radius: var(--radius-xl);
+  padding: 56px 32px;
+  text-align: center;
+  color: #fff;
+}
+
+.ctaBand h2 {
+  color: #fff;
+  font-size: 28px;
+  margin: 0 0 10px;
+}
+
+.ctaBand p {
+  color: #e0e7ff;
+  font-size: 15px;
+  margin: 0 0 26px;
+}
+
+.btnBandPrimary { background: #fff; color: var(--color-primary); }
+.btnBandPrimary:hover { background: #f3f4f6; color: var(--color-primary); }
+.btnBandGhost {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+.btnBandGhost:hover { background: rgba(255, 255, 255, 0.18); color: #fff; }
+
+@media (max-width: 1100px) {
+  .grid3, .grid4, .priceGrid { grid-template-columns: repeat(2, 1fr); }
+  .trackGrid { grid-template-columns: 1fr; }
+}
+
+/* 手机：定价卡单列（含价格/CTA，需要足够宽度）；特性卡保持 2 列 */
+@media (max-width: 768px) {
+  .priceGrid { grid-template-columns: 1fr; }
+}

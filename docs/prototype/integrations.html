@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>集成中心 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ── ig- 集成中心专属 ── */
+  .ig-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .ig-card { background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; gap: 10px; }
+  .ig-card.live { border-color: #a7f3d0; background: linear-gradient(180deg,#f6fef9,#fff); }
+  .ig-head { display: flex; align-items: center; gap: 10px; }
+  .ig-logo { width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; color: #fff; flex: none; }
+  .ig-feat { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-sub); }
+  .ig-feat .tag { margin-top: 1px; flex: none; }
+  .ig-actions { margin-top: auto; padding-top: 8px; display: flex; gap: 8px; }
+  .ig-secure { background: #f9fafb; border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 16px; font-size: 12.5px; color: var(--text-muted); display: flex; gap: 10px; align-items: flex-start; }
+
+  /* 嵌套 :target 成功态 */
+  body:has(#sent:target) #feishu { display: flex; }
+  #ig-sent { display: none; }
+  body:has(#sent:target) #ig-sent { display: flex; }
+  body:has(#contacted:target) #contact { display: flex; }
+  #ig-ok { display: none; }
+  body:has(#contacted:target) #ig-form { display: none; }
+  body:has(#contacted:target) #ig-ok { display: block; }
+
+  .ig-step { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border-light); }
+  .ig-step:last-child { border-bottom: none; }
+  .ig-step .num { width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item active" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>集成中心</h2>
+      <span class="head-sub">让审查结果进入团队现有的办公流程</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <div class="ig-grid">
+
+        <!-- 飞书（已配置） -->
+        <div class="ig-card live">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#3370ff">飞</span>
+            <div><b style="font-size:15px">飞书</b><div class="small muted">群机器人 + MCP Agent</div></div>
+            <span class="tag tag-green" style="margin-left:auto">已配置</span>
+          </div>
+          <div class="ig-feat"><span class="tag tag-green">可用</span><div><b style="color:var(--text)">群机器人通知</b><br>审查完成、合同到期 digest、额度 80% 自动推送</div></div>
+          <div class="ig-feat"><span class="tag tag-gray">未配置</span><div><b style="color:var(--text)">MCP Agent 工具</b><br>发送审查结果卡片、同步合同多维表记录</div></div>
+          <div class="ig-actions"><a class="btn btn-primary btn-sm" href="#feishu">配置</a><a class="btn btn-ghost btn-sm" href="#contact">问题反馈</a></div>
+        </div>
+
+        <!-- 钉钉 -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">钉</span>
+            <div><b style="font-size:15px">钉钉</b><div class="small muted">工作通知与审批</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>审查完成、到期提醒推送到钉钉群与工作通知，支持发起钉钉审批。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- 企业微信 -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">微</span>
+            <div><b style="font-size:15px">企业微信</b><div class="small muted">应用消息同步</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>通过企微应用推送审查卡片与台账提醒，客户 / 外部联系人场景适用。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- 电子签 -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">签</span>
+            <div><b style="font-size:15px">电子签</b><div class="small muted">审查通过即发起签署</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>终审通过的合同一键发起电子签署，签署完成回写合同台账状态。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- OA 审批 -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">OA</span>
+            <div><b style="font-size:15px">OA 审批</b><div class="small muted">对接企业现有审批流</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>审查意见书与用印申请联动 OA，按金额 / 部门走既有审批链路。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- SSO -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">S</span>
+            <div><b style="font-size:15px">SSO 单点登录</b><div class="small muted">企业统一身份</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>支持 OIDC / SAML 对接企业 IdP，成员入职自动开通、离职自动回收。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- Open API -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">{ }</span>
+            <div><b style="font-size:15px">Open API</b><div class="small muted">审查能力接入自有系统</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>提供合同上传、审查结果查询、台账同步 REST API 与 Webhook 回调。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- Word 插件 -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">W</span>
+            <div><b style="font-size:15px">Word 插件</b><div class="small muted">在文档内直接审查</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>不离开 Word 即可发起审查、查看风险批注并一键采纳修改建议。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+        <!-- 私有化部署 -->
+        <div class="ig-card">
+          <div class="ig-head">
+            <span class="ig-logo" style="background:#9ca3af">私</span>
+            <div><b style="font-size:15px">私有化部署</b><div class="small muted">ENTERPRISE 专属</div></div>
+            <span class="tag tag-gray" style="margin-left:auto">即将推出</span>
+          </div>
+          <div class="ig-feat"><div>模型与数据部署在企业自有环境，审计存证、权限隔离与等标合规。</div></div>
+          <div class="ig-actions"><a class="btn btn-ghost btn-sm" href="#contact">联系开通</a></div>
+        </div>
+
+      </div>
+
+      <!-- 安全小灰条 -->
+      <div class="ig-secure">
+        <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <div>所有集成凭证均加密存储、脱敏展示；通知与数据仅向你显式配置的官方域名发送，WorkMind 不会向第三方共享合同内容。</div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 飞书配置 -->
+<div class="mask" id="feishu">
+  <div class="modal wide">
+    <span id="sent" hidden></span>
+    <div class="modal-head"><h3>配置飞书集成</h3><a class="x" href="#">×</a></div>
+    <div class="modal-body">
+
+      <!-- 群机器人 -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="ig-logo" style="width:30px;height:30px;border-radius:8px;background:#3370ff;font-size:13px">飞</span>
+        <b style="font-size:14.5px">群机器人通知</b>
+        <span class="tag tag-green" style="margin-left:auto">可用</span>
+      </div>
+      <div class="f-item"><label>Webhook URL</label><div class="f-control">
+        <input class="input" value="https://open.feishu.cn/open-apis/bot/v2/hook/****demo****" readonly style="background:#fafbff;font-family:monospace;font-size:12.5px">
+      </div></div>
+      <div class="small muted" style="margin:8px 0 0 106px">在飞书群「设置 → 群机器人 → 添加自定义机器人」获取，页面仅脱敏展示。</div>
+      <div style="margin:12px 0 0 106px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <a class="btn btn-primary btn-sm" href="#sent">发送测试通知</a>
+        <span id="ig-sent" class="tag tag-green" style="padding:5px 12px">测试卡片已发送，请查看飞书群</span>
+      </div>
+
+      <div style="border-top:1px solid var(--border-light);margin:20px 0"></div>
+
+      <!-- MCP Agent -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span class="ig-logo" style="width:30px;height:30px;border-radius:8px;background:#9ca3af;font-size:11px">MCP</span>
+        <b style="font-size:14.5px">MCP Agent 工具</b>
+        <span class="tag tag-gray" style="margin-left:auto">未配置</span>
+      </div>
+      <div class="info-banner info">
+        <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <div>需要飞书自建应用的 App ID / App Secret，由管理员在服务端配置（.env）。配置后 Agent 将获得两个工具：<b>发送审查结果卡片</b>、<b>同步多维表记录</b>。</div>
+      </div>
+      <div style="margin-top:12px;margin-left:2px"><a class="btn btn-ghost btn-sm" href="#mcp-help">查看配置指引</a></div>
+
+    </div>
+    <div class="modal-foot"><a class="btn btn-ghost" href="#">关闭</a><button class="btn btn-primary" disabled>保存（演示态）</button></div>
+  </div>
+</div>
+
+<!-- MCP 配置指引 -->
+<div class="mask" id="mcp-help">
+  <div class="modal">
+    <div class="modal-head"><h3>MCP Agent 配置指引（飞书自建应用）</h3><a class="x" href="#">×</a></div>
+    <div class="modal-body">
+      <div class="ig-step"><span class="num">1</span><div><b>创建企业自建应用</b><div class="small muted">在飞书开放平台（open.feishu.cn）的企业管理后台创建一个企业自建应用，获取应用的 App ID 与 App Secret。</div></div></div>
+      <div class="ig-step"><span class="num">2</span><div><b>开通机器人能力与权限</b><div class="small muted">为应用开通机器人能力，并开通发送消息、读写多维表（Bitable）相关权限，发布应用版本并由管理员审批通过。</div></div></div>
+      <div class="ig-step"><span class="num">3</span><div><b>在服务端填入凭证</b><div class="small muted">由管理员将 App ID / App Secret 写入服务端环境变量（.env）并重启服务，Agent 自动获得「发送审查结果卡片」「同步多维表记录」两个工具。</div></div></div>
+    </div>
+    <div class="modal-foot"><a class="btn btn-primary" href="#feishu">返回飞书配置</a></div>
+  </div>
+</div>
+
+<!-- 联系开通（共用留资） -->
+<div class="mask" id="contact">
+  <div class="modal">
+    <span id="contacted" hidden></span>
+    <div id="ig-form">
+      <div class="modal-head"><h3>联系开通集成</h3><a class="x" href="#">×</a></div>
+      <div class="modal-body">
+        <div class="form-grid" style="grid-template-columns:1fr">
+          <div class="f-item req"><label>姓名</label><div class="f-control"><input class="input" value="王芳"></div></div>
+          <div class="f-item req"><label>联系电话</label><div class="f-control"><input class="input" placeholder="请输入手机号，顾问将与您电话沟通"></div></div>
+          <div class="f-item"><label>需求备注</label><div class="f-control"><textarea class="textarea" placeholder="如：希望开通钉钉集成，团队 20 人，主要需要到期提醒推送"></textarea></div></div>
+        </div>
+      </div>
+      <div class="modal-foot"><a class="btn btn-ghost" href="#">取消</a><a class="btn btn-primary" href="#contacted">提交</a></div>
+    </div>
+    <div id="ig-ok">
+      <div class="modal-body" style="text-align:center;padding:36px 28px">
+        <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg></div>
+        <h3>提交成功</h3>
+        <p class="muted" style="margin:8px 0 18px">销售将在 1 个工作日内联系您，请保持电话畅通。</p>
+        <a class="btn btn-primary" href="#">我知道了</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

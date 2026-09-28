@@ -60,6 +60,15 @@ services:
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-7d}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-workmind-refresh-secret-change-in-production}
       - JWT_REFRESH_EXPIRES_IN=${JWT_REFRESH_EXPIRES_IN:-30d}
+      # 生产默认关闭控制台固定码通道；如需 SMTP 在 .env 配置 SMTP_* 变量
+      - MAILER_CONSOLE=${MAILER_CONSOLE:-false}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-465}
+      - SMTP_SECURE=${SMTP_SECURE:-true}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-WorkMind <no-reply@workmind.example>}
+      - INTEGRATION_SECRET=${INTEGRATION_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy

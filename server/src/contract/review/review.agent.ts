@@ -16,8 +16,10 @@ import { createChatModel } from '../../services/model.js'
 import { config as appConfig, isValidAiKey } from '../../config/index.js'
 import { legalSearchTool, calculateTool, setToolsDatabase } from '../../services/agent/tools.js'
 import { runRuleEngine } from '../rules/rule.engine.js'
+import type { EngineRule } from '../rules/rule.engine.js'
 import { getCheckpointer } from './checkpointer.js'
 import { buildOpinionMarkdown } from './report.js'
+import { getFeishuMcpTools } from '../../services/feishu/mcp-client.js'
 import { logger } from '../../utils/logger.js'
 
 let db: DatabaseService | null = null
@@ -42,6 +44,8 @@ interface ReviewState {
   contractId: string
   tenantId: string
   reviewerId: string | null
+  /** 本次审查是否解锁 Agent 深度轨（深度套餐 / 深度券）；false=仅规则轨（FR-6/12） */
+  deep: boolean
   clauses: ClauseSnapshot[]
   decisions: Record<string, { status: RiskStatus; comment: string | null }>
   finalDecision: 'APPROVED' | 'REJECTED' | null
@@ -52,6 +56,7 @@ const State = Annotation.Root({
   contractId: Annotation<string>({ reducer: (_: string, n: string) => n, default: () => '' }),
   tenantId: Annotation<string>({ reducer: (_: string, n: string) => n, default: () => '' }),
   reviewerId: Annotation<string | null>({ reducer: (_: unknown, n: string | null) => n, default: () => null }),
+  deep: Annotation<boolean>({ reducer: (_: boolean, n: boolean) => n, default: () => false }),
   clauses: Annotation<ClauseSnapshot[]>({ reducer: (_: unknown, n: ClauseSnapshot[]) => n, default: () => [] }),
   decisions: Annotation<Record<string, { status: RiskStatus; comment: string | null }>>({
     reducer: (_: unknown, n: Record<string, { status: RiskStatus; comment: string | null }>) => n,
@@ -66,6 +71,16 @@ const State = Annotation.Root({
 const BATCH_SIZE = 6
 const REVIEW_TOOLS = [legalSearchTool, calculateTool]
 const reviewToolNode = new ToolNode(REVIEW_TOOLS)
+
+// 确定性风险评分辅助（个人结果页评分卡，FR-7）
+function clampScore(n: number): number {
+  return Math.max(0, Math.min(100, Math.round(n)))
+}
+function scoreLevel(score: number): string {
+  if (score >= 85) return '风险较低'
+  if (score >= 75) return '存在风险'
+  return '风险较高'
+}
 
 function emit(cfg: any, type: string, data: unknown) {
   cfg.configurable?.onEvent?.(type, data)
@@ -90,9 +105,11 @@ async function loadClauses(state: ReviewState) {
 const LABOR_MARKER = /劳动合同|用人单位|劳动者|试用期|竞业限制|社会保险|社保|解除劳动合同|实习生?|员工入职|工资/
 
 async function ruleScan(state: ReviewState, cfg: any) {
-  const [rules, contract] = await Promise.all([
+  const [rules, contract, playbookRules] = await Promise.all([
     db!.reviewRule.findMany({ where: { enabled: true } }),
-    db!.contract.findUniqueOrThrow({ where: { id: state.contractId }, select: { title: true } }),
+    db!.contract.findUniqueOrThrow({ where: { id: state.contractId }, select: { title: true, scene: true, tenantId: true } }),
+    // Playbook 规则严格租户隔离；仅规则拥有方租户的合同受其约束
+    db!.playbookRule.findMany({ where: { tenantId: state.tenantId, enabled: true } }),
   ])
   const haystack = contract.title + state.clauses.map((c) => c.title + c.content).join('')
   const labor = LABOR_MARKER.test(haystack)
@@ -101,6 +118,41 @@ async function ruleScan(state: ReviewState, cfg: any) {
     rules,
     { labor },
   )
+
+  // ── Playbook 公司红线/偏好规则并行扫描（FR-17）─────────────────────
+  // 合同场景过滤：contractTypes 为空=全类型；'ALL' 通用；否则须包含合同 scene
+  const scene = contract.scene || 'LABOR'
+  const pbApplicable = playbookRules.filter(
+    (r) => !r.contractTypes.length || r.contractTypes.includes('ALL') || r.contractTypes.includes(scene),
+  )
+  const pbEngineRules: EngineRule[] = pbApplicable.map((r) => {
+    const p = (r.pattern ?? {}) as {
+      keywords?: string[]; regex?: string | null; severity?: Severity; suggestion?: string
+    }
+    return {
+      id: r.id,
+      code: `PB_${r.kind}`,
+      name: r.title,
+      severity: p.severity ?? (r.kind === 'FORBIDDEN' ? 'HIGH' : 'LOW'),
+      category: r.kind === 'FORBIDDEN' ? '公司红线' : '偏好口径',
+      description: r.description || r.title,
+      suggestion: p.suggestion ?? null,
+      legalBasis: null,
+      pattern: p.regex ?? null,
+      keywords: p.keywords ?? [],
+      scope: null,
+      sortOrder: 0,
+      enabled: true,
+    }
+  })
+  const pbFindings = runRuleEngine(
+    state.clauses.map((c) => ({ id: c.id, indexNo: c.indexNo, title: c.title, content: c.content })),
+    pbEngineRules,
+    { labor: true },
+    'PLAYBOOK',
+  )
+  // 同一规则本次审查命中多条条款，hitCount 只 +1
+  const pbHitRuleIds = [...new Set(pbFindings.map((f) => f.ruleId))]
 
   // 幂等：同一任务重跑时先清旧风险
   await db!.risk.deleteMany({ where: { reviewTaskId: state.reviewTaskId } })
@@ -124,8 +176,34 @@ async function ruleScan(state: ReviewState, cfg: any) {
       })),
     })
   }
-  emit(cfg, 'stage', { stage: 'rule_scan', message: `规则引擎扫描完成，命中 ${findings.length} 项确定性风险` })
-  logger.info('review: rule scan done', { taskId: state.reviewTaskId, findings: findings.length })
+  if (pbFindings.length) {
+    await db!.risk.createMany({
+      data: pbFindings.map((f) => ({
+        reviewTaskId: state.reviewTaskId,
+        contractId: state.contractId,
+        clauseId: f.clauseId,
+        clauseTitle: f.clauseTitle,
+        quote: f.quote,
+        severity: f.severity,
+        category: f.category,
+        title: f.title,
+        analysis: f.analysis,
+        suggestion: f.suggestion,
+        legalBasis: null,
+        detectedBy: 'PLAYBOOK' as const,
+        ruleId: f.ruleId,
+        confidence: 0.95,
+      })),
+    })
+    // 命中次数累计（每条规则每次审查 +1，与命中条款数无关）
+    await Promise.all(
+      pbHitRuleIds.map((id) => db!.playbookRule.updateMany({ where: { id, tenantId: state.tenantId }, data: { hitCount: { increment: 1 } } })),
+    )
+  }
+  emit(cfg, 'stage', { stage: 'rule_scan', message: `规则引擎扫描完成，通用规则命中 ${findings.length} 项、公司红线规则命中 ${pbFindings.length} 项` })
+  logger.info('review: rule scan done', {
+    taskId: state.reviewTaskId, findings: findings.length, playbookFindings: pbFindings.length,
+  })
   return {}
 }
 
@@ -177,6 +255,15 @@ function extractVerifiedQuote(original: string, rawQuote: string): string | null
 }
 
 async function agentReview(state: ReviewState, cfg: any) {
+  // FREE 未解锁深度：只跑规则轨，不调用模型（不伪造 AI 结论；FR-6/12）
+  if (!state.deep) {
+    emit(cfg, 'stage', {
+      stage: 'agent_skip',
+      message: '免费版本次仅运行规则引擎审查；AI 语义审查、法条依据与逐条改稿为个人版/深度券权益',
+    })
+    return {}
+  }
+
   if (!isValidAiKey(appConfig.ai.deepseekKey)) {
     emit(cfg, 'stage', { stage: 'agent_skip', message: '未配置有效的 DEEPSEEK_API_KEY，本次仅输出规则引擎审查结果（规则轨不受影响）' })
     return {}
@@ -189,6 +276,11 @@ async function agentReview(state: ReviewState, cfg: any) {
   const model = createChatModel({ temperature: 0.1, streaming: false })
   const structuredModel = model.withStructuredOutput(FindingsSchema, { name: 'contract_risks' })
   const callbacks: BaseCallbackHandler[] = cfg.configurable?.traceCallbacks ?? []
+
+  // 飞书 P1 MCP 工具：无凭证/加载失败返回 []，不影响审查主链路
+  const feishuTools = await getFeishuMcpTools()
+  const runTools = [...REVIEW_TOOLS, ...feishuTools]
+  const runToolNode = new ToolNode(runTools)
 
   const systemPrompt = `你是中国执业律师视角的合同风险审查专家。你的输出将用于商业决策，必须极度保守、杜绝编造。
 
@@ -224,10 +316,10 @@ ${ruleHints}
         new HumanMessage(`请审查以下合同条款，需要法条依据时先检索：\n\n${batchText}`),
       ]
       for (let round = 0; round < 3; round++) {
-        const aiMsg = await model.bindTools(REVIEW_TOOLS).invoke(messages, { callbacks })
+        const aiMsg = await model.bindTools(runTools).invoke(messages, { callbacks })
         messages.push(aiMsg)
         if (!(aiMsg as any).tool_calls?.length) break
-        const toolResult = await reviewToolNode.invoke({ messages: [aiMsg] }, { callbacks })
+        const toolResult = await runToolNode.invoke({ messages: [aiMsg] }, { callbacks })
         messages.push(...toolResult.messages)
       }
 
@@ -320,6 +412,18 @@ async function aggregate(state: ReviewState, cfg: any) {
     rule: risks.filter((r) => r.detectedBy === 'RULE').length,
     agent: risks.filter((r) => r.detectedBy === 'AGENT').length,
     both: risks.filter((r) => r.detectedBy === 'BOTH').length,
+    // 确定性风险评分（无模型成本，FREE 可看）：HIGH 扣 14 / MED 扣 8 / LOW 扣 4
+    score: clampScore(100 - risks.reduce((s, r) => s + (r.severity === 'HIGH' ? 14 : r.severity === 'MED' ? 8 : 4), 0)),
+    scoreLevel: scoreLevel(
+      clampScore(100 - risks.reduce((s, r) => s + (r.severity === 'HIGH' ? 14 : r.severity === 'MED' ? 8 : 4), 0)),
+    ),
+    // 大白话摘要：取高→中最多 3 条，标题 + 规则分析（确定性，不调模型）
+    summary: risks
+      .slice()
+      .sort((a, b) => (a.severity === b.severity ? 0 : a.severity === 'HIGH' ? -1 : a.severity === 'MED' && b.severity !== 'HIGH' ? -1 : 1))
+      .slice(0, 3)
+      .map((r) => ({ title: r.title, text: r.analysis, severity: r.severity })),
+    deep: state.deep,
   }
   await db!.reviewTask.update({ where: { id: state.reviewTaskId }, data: { stats: stats as any } })
   await db!.contract.update({ where: { id: state.contractId }, data: { status: 'WAITING_REVIEW' } })
@@ -403,6 +507,8 @@ function getGraph() {
 export interface StartReviewParams {
   contract: Contract
   reviewTask: ReviewTask
+  /** 是否走 Agent 深度轨（FREE 未解锁时 false→仅规则轨） */
+  deep?: boolean
   traceCallbacks?: BaseCallbackHandler[]
   onEvent?: ReviewEventFn
 }
@@ -420,6 +526,7 @@ export async function startReview(params: StartReviewParams): Promise<void> {
       reviewTaskId: reviewTask.id,
       contractId: contract.id,
       tenantId: contract.tenantId,
+      deep: params.deep ?? reviewTask.isDeep,
     },
     {
       configurable: {
@@ -486,6 +593,8 @@ export function serializeRisk(r: Risk) {
     analysis: r.analysis,
     suggestion: r.suggestion,
     legalBasis: r.legalBasis,
+    rewritten: r.rewritten,
+    revisionStatus: r.revisionStatus,
     detectedBy: r.detectedBy,
     confidence: r.confidence,
     status: r.status,

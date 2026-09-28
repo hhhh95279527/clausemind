@@ -22,6 +22,28 @@ export interface RuleFinding {
   analysis: string
   suggestion: string | null
   legalBasis: string | null
+  /** GENERAL=平台通用规则；PLAYBOOK=租户公司红线/偏好（FR-17） */
+  source: 'GENERAL' | 'PLAYBOOK'
+}
+
+/**
+ * 声明式扫描所需的最小规则结构（ReviewRule 天然满足；
+ * Playbook 规则由适配层把 pattern JSON 摊平成该形状后并行入引擎）。
+ */
+export interface EngineRule {
+  id: string
+  code: string
+  name: string
+  severity: Severity
+  category: string
+  description?: string | null
+  suggestion?: string | null
+  legalBasis?: string | null
+  pattern?: string | null
+  keywords?: string[] | null
+  scope?: string | null
+  sortOrder?: number
+  enabled: boolean
 }
 
 const MAX_QUOTE = 220
@@ -128,15 +150,20 @@ export function tryRuleOnText(
   return result
 }
 
-export function runRuleEngine(clauses: EngineClause[], rules: ReviewRule[], opts: EngineOptions = {}): RuleFinding[] {
+export function runRuleEngine(
+  clauses: EngineClause[],
+  rules: EngineRule[],
+  opts: EngineOptions = {},
+  source: 'GENERAL' | 'PLAYBOOK' = 'GENERAL',
+): RuleFinding[] {
   const findings: RuleFinding[] = []
   const enabled = rules
     .filter((r) => r.enabled && (r.scope !== 'LABOR' || opts.labor))
-    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
   for (const clause of clauses) {
     for (const rule of enabled) {
-      const idx = ruleHits(rule, clause.content)
+      const idx = ruleHits(rule as ReviewRule, clause.content)
       if (idx < 0) continue
 
       findings.push({
@@ -149,8 +176,9 @@ export function runRuleEngine(clauses: EngineClause[], rules: ReviewRule[], opts
         clauseTitle: clause.title,
         quote: quoteSentence(clause.content, idx),
         analysis: rule.description || rule.name,
-        suggestion: rule.suggestion,
-        legalBasis: rule.legalBasis,
+        suggestion: rule.suggestion ?? null,
+        legalBasis: rule.legalBasis ?? null,
+        source,
       })
     }
   }

@@ -3,9 +3,10 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { WarningOutlined, LogoutOutlined, UserOutlined } from '@ant-design/icons'
 import { Dropdown } from 'antd'
-import { pageMeta, fallbackMeta } from '@/config/navigation.jsx'
+import { resolvePageMeta } from '@/config/navigation.jsx'
 import { useMonitorStore } from '@/stores/monitor.js'
 import { useAuthStore } from '@/stores/auth.js'
+import NotificationBell from './NotificationBell.jsx'
 import styles from './AppHeader.module.css'
 
 export default function AppHeader() {
@@ -16,10 +17,7 @@ export default function AppHeader() {
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
 
-  const currentMeta =
-    pageMeta[location.pathname] ||
-    pageMeta[Object.keys(pageMeta).find((k) => location.pathname.startsWith(k))] ||
-    fallbackMeta
+  const currentMeta = resolvePageMeta(location.pathname)
   const PageIcon = currentMeta.icon
 
   const displayName = user?.displayName || user?.username || '用户'
@@ -58,6 +56,9 @@ export default function AppHeader() {
             <WarningOutlined /> 今日用量已达 {budgetAlert}，请注意控制
           </div>
         )}
+
+        {/* 站内通知铃铛 */}
+        <NotificationBell />
 
         {/* 用户菜单 */}
         <Dropdown menu={userMenu} placement="bottomRight">

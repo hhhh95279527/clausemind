@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>审查结果 · 房屋租赁合同-张某 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* ══ 三态切换：默认免费态 / #state-personal 个人版 / #state-enterprise 企业态 ══ */
+  .rv-paid { display: none; }
+  body:has(#state-personal:target) .rv-paid,
+  body:has(#state-enterprise:target) .rv-paid { display: block; }
+  body:has(#state-personal:target) .rv-paid.rv-flex,
+  body:has(#state-enterprise:target) .rv-paid.rv-flex { display: flex; }
+  body:has(#state-personal:target) .rv-paid.rv-inline,
+  body:has(#state-enterprise:target) .rv-paid.rv-inline { display: inline; }
+  body:has(#state-personal:target) .rv-paid.rv-iflex,
+  body:has(#state-enterprise:target) .rv-paid.rv-iflex { display: inline-flex; }
+
+  .rv-ent { display: none; }
+  body:has(#state-enterprise:target) .rv-ent { display: block; }
+  body:has(#state-enterprise:target) .rv-ent.rv-flex { display: flex; }
+  body:has(#state-enterprise:target) .rv-ent.rv-inline { display: inline; }
+  body:has(#state-enterprise:target) .rv-ent.rv-iflex { display: inline-flex; }
+
+  body:has(#state-personal:target) .rv-free,
+  body:has(#state-enterprise:target) .rv-free { display: none !important; }
+
+  /* 深度分析加锁块 */
+  .rv-lock { position: relative; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .rv-lockrows { display: flex; flex-direction: column; gap: 7px; }
+  .rv-lockrows > div {
+    filter: blur(5px); user-select: none; pointer-events: none;
+    font-size: 12.5px; color: var(--text-sub); line-height: 1.7;
+  }
+  .rv-lockover {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 7px;
+    background: rgba(255,255,255,.78); border-radius: 8px; text-align: center; padding: 8px;
+  }
+  .rv-lockover .rv-lock-ic {
+    width: 34px; height: 34px; border-radius: 50%; background: var(--primary-bg);
+    color: var(--primary); display: flex; align-items: center; justify-content: center;
+  }
+  .rv-lockover div.txt { font-size: 12.5px; color: var(--primary-dark); font-weight: 600; }
+  body:has(#state-personal:target) .rv-lockrows > div,
+  body:has(#state-enterprise:target) .rv-lockrows > div { filter: none; user-select: auto; pointer-events: auto; }
+  body:has(#state-personal:target) .rv-lockover,
+  body:has(#state-enterprise:target) .rv-lockover { display: none; }
+  .rv-locktag { margin-right: 6px; }
+
+  /* 右栏 tab */
+  #rv-pane-assistant { display: none; }
+  body:has(#rv-assistant:target) #rv-pane-info { display: none; }
+  body:has(#rv-assistant:target) #rv-pane-assistant { display: flex; }
+
+  /* 评分摘要 */
+  .rv-scorebox { display: flex; gap: 20px; align-items: center; }
+  .rv-score {
+    font-size: 46px; font-weight: 800; color: #b45309; line-height: 1;
+    width: 92px; flex: none; text-align: center; padding: 4px 0;
+    border-right: 1px solid var(--border-light);
+  }
+  .rv-score small { display: block; font-size: 12px; font-weight: 500; color: var(--text-muted); margin-top: 6px; }
+  .rv-sum { list-style: none; margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .rv-sum li { font-size: 13px; color: var(--text-sub); }
+  .rv-sum li::before { content: '·'; margin-right: 8px; color: var(--warning); font-weight: 700; font-size: 16px; }
+
+  /* 助手加锁条 */
+  .rv-minilock {
+    display: flex; align-items: center; gap: 8px; margin: 0 10px;
+    background: var(--primary-bg); border: 1px dashed #c7d2fe; color: var(--primary-dark);
+    border-radius: var(--radius-md); padding: 8px 12px; font-size: 12.5px;
+  }
+  .rv-minilock a { margin-left: auto; flex: none; }
+  .rv-aibuttons { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid var(--border-light); flex-wrap: wrap; }
+
+  .rv-saved { background: var(--success-bg); color: #065f46; border: 1px solid #a7f3d0; }
+  .rv-approve { align-items: center; gap: 10px; }
+
+  /* 结构化信息 */
+  .rv-struct td:first-child { width: 110px; color: var(--text-sub); }
+
+  /* 铃铛 / 通知 */
+  .rv-bell { position: relative; color: var(--text-sub); display: inline-flex; }
+  .rv-bell:hover { color: var(--primary); }
+  .rv-bell .rv-dot { position: absolute; top: -1px; right: -1px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); border: 1.5px solid #fff; }
+  .rv-note { display: flex; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+  .rv-note:last-child { border-bottom: none; }
+  .rv-note .rv-n-icon { width: 30px; height: 30px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; flex: none; }
+  .rv-note .small { color: var(--text-muted); }
+
+  .rv-statechip {
+    position: fixed; left: 14px; bottom: 14px; z-index: 200;
+    background: #fff; border: 1px solid var(--border); border-radius: 99px;
+    padding: 6px 8px 6px 14px; font-size: 11.5px; display: flex; gap: 6px; align-items: center;
+    box-shadow: var(--shadow-md);
+  }
+  .rv-statechip b { color: var(--text); }
+  .rv-statechip a { padding: 2px 10px; border-radius: 99px; color: var(--text-sub); }
+  .rv-statechip a.rv-on { background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+  body:has(#state-personal:target) .rv-statechip a.rv-on { background: none; color: var(--text-sub); font-weight: 400; }
+  body:has(#state-personal:target) .rv-statechip a[href="#state-personal"] { background: var(--success-bg); color: #047857; font-weight: 600; }
+  body:has(#state-enterprise:target) .rv-statechip a.rv-on { background: none; color: var(--text-sub); font-weight: 400; }
+  body:has(#state-enterprise:target) .rv-statechip a[href="#state-enterprise"] { background: var(--primary-bg); color: var(--primary-dark); font-weight: 600; }
+</style>
+</head>
+<body>
+<span id="state-personal"></span><span id="state-enterprise"></span><span id="rv-info"></span><span id="rv-assistant"></span>
+<div class="app-shell" id="top">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="home.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>工作台</a>
+      <a class="nav-item active" href="new-review.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 12v6M9 15h6"/></svg>审合同</a>
+      <a class="nav-item" href="my-contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9"/><path d="M10 13h4"/></svg>我的合同</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="personal-billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的订阅</a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">李</span><div><div style="color:#fff">李小白</div><div style="font-size:11px;color:#6b7280">个人空间</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <a href="my-contracts.html" class="small" style="display:flex;align-items:center;gap:4px"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>我的合同</a>
+      <h2 style="font-size:16px">审查结果</h2>
+      <span class="tag tag-orange tag-dot">3 条风险</span>
+      <div class="head-right">
+        <a class="rv-bell" href="#notify" aria-label="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+          <span class="rv-dot"></span>
+        </a>
+        <span class="plan-chip rv-free">免费版 FREE</span>
+        <span class="plan-chip rv-paid rv-inline" style="background:var(--success-bg);color:#047857">个人版 PERSONAL</span>
+        <span class="plan-chip rv-ent rv-inline" style="background:var(--primary-bg);color:var(--primary-dark)">企业版 ENTERPRISE</span>
+        <span class="avatar">李</span>
+      </div>
+    </header>
+
+    <main class="page" style="gap:14px">
+
+      <!-- 企业态：审批操作条 -->
+      <div class="panel rv-ent rv-flex rv-approve">
+        <div class="panel-body" style="display:flex;align-items:center;gap:10px;width:100%;padding:12px 18px">
+          <svg class="icon" style="color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <b style="font-size:13.5px">企业审批流</b>
+          <span class="small muted">命中公司租赁 Playbook 红线 1 条，法务终审前请处理</span>
+          <span class="tag tag-purple rv-ent rv-inline" style="margin-left:8px">Playbook 命中 1 条</span>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-primary btn-sm">通过</button>
+            <button class="btn btn-danger-ghost btn-sm">驳回</button>
+            <button class="btn btn-ghost btn-sm">评论</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="review-grid">
+
+        <!-- 左：条款列 -->
+        <div class="panel clause-list">
+          <div class="panel-head"><h3>合同条款</h3><div class="ph-right"><span class="small muted">11 条 · 2,460 字</span></div></div>
+          <div class="clause"><div class="ct">第一条 租赁双方与房屋</div><div class="cc">甲方张某将位于某市某区的房屋出租给乙方…</div></div>
+          <div class="clause"><div class="ct">第二条 租赁期限</div><div class="cc">租期壹年，自 2026 年 10 月 1 日起…</div></div>
+          <div class="clause"><div class="ct">第三条 租金及支付方式</div><div class="cc">月租金 2,600 元，按季度支付…</div></div>
+          <div class="clause on"><div class="ct">第四条 押金 <span class="tag tag-red" style="margin-left:4px">高风险</span></div><div class="cc">乙方于签约时支付押金 8,000 元…</div></div>
+          <div class="clause"><div class="ct">第五条 房屋使用</div><div class="cc">乙方不得擅自转租、改变房屋用途…</div></div>
+          <div class="clause on"><div class="ct">第六条 维修义务 <span class="tag tag-blue" style="margin-left:4px">低风险</span></div><div class="cc">租赁期间一切维修均由乙方负责…</div></div>
+          <div class="clause on"><div class="ct">第七条 提前退租与违约金 <span class="tag tag-orange" style="margin-left:4px">中风险</span></div><div class="cc">乙方提前退租的，应支付 2 个月租金…</div></div>
+          <div class="clause"><div class="ct">第八条 续租与到期</div><div class="cc">到期同等条件下乙方有优先承租权…</div></div>
+          <div class="clause"><div class="ct">第九条 水电与杂费</div><div class="cc">水、电、燃气、网络费由乙方承担…</div></div>
+          <div class="clause"><div class="ct">第十条 争议解决</div><div class="cc">协商不成的，向甲方所在地法院起诉…</div></div>
+          <div class="clause"><div class="ct">第十一条 其他约定</div><div class="cc">本合同一式两份，双方各执一份…</div></div>
+        </div>
+
+        <!-- 中：评分 + 风险卡 -->
+        <div>
+
+          <!-- 合同名 + 标签 -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+            <h2 style="font-size:17px">房屋租赁合同-张某.txt</h2>
+            <span class="tag tag-orange">3 条风险</span>
+            <span class="tag tag-blue">租赁</span>
+            <span class="tag tag-purple rv-ent rv-inline">Playbook 命中 1 条</span>
+          </div>
+
+          <!-- 评分摘要 -->
+          <div class="panel" style="margin-bottom:12px">
+            <div class="panel-body rv-scorebox">
+              <div class="rv-score">72<small>风险较高</small></div>
+              <div>
+                <b style="font-size:14px">大白话摘要</b>
+                <ul class="rv-sum">
+                  <li><b>押金过高：</b>押 3 付 1 还约定「小划痕不退押金」，退租时大概率拿不回钱。</li>
+                  <li><b>维修义务不对等：</b>水管老化、墙面脱落也全要你修，房东当起了甩手掌柜。</li>
+                  <li><b>提前退租违约金过重：</b>没住满 1 年直接赔 2 个月租金，比房东实际损失高不少。</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- 存档提示 -->
+          <div class="info-banner warn rv-free" style="margin-bottom:12px">
+            <svg class="icon" style="flex:none;margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            <div>免费审查记录保留 7 天，<b>2026 年 9 月 27 日自动清除</b>；升级个人版后永久存档。</div>
+          </div>
+          <div class="info-banner rv-saved rv-paid" style="margin-bottom:12px">
+            <svg class="icon" style="flex:none;margin-top:2px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            <div><b>个人版 · 永久存档。</b>该份审查与改稿记录将长期保留，可随时导出 Word 修订稿。</div>
+          </div>
+
+          <!-- 风险卡 1：高 -->
+          <div class="risk-card rc-high">
+            <div class="risk-head">
+              <span class="tag tag-red">高风险</span>
+              <b>押金相当于 3 个月租金，退还条件过于苛刻</b>
+              <span class="tag tag-purple rv-ent rv-inline" style="margin-left:auto">公司红线</span>
+            </div>
+            <div class="risk-quote">原文：「乙方于签约时支付押金 8,000 元。租赁期满，墙面、地面有任何划痕或设施有任何损耗的，押金不予退还。」</div>
+            <div class="small">押金 8,000 元相当于 3 个月租金，且约定正常损耗也可没收押金，双方担保义务明显不对等。</div>
+
+            <div class="rv-lock">
+              <div class="rv-lockrows">
+                <div><span class="tag tag-gray rv-locktag">法条依据</span>多地住房租赁条例明确租房押金一般不超过 1 个月租金；依《民法典》第六条公平原则及第七百零三条租赁合同规定，正常使用产生的损耗不构成承租方赔偿责任，约定「任何划痕不退押金」大概率被认定无效。</div>
+                <div><span class="tag tag-gray rv-locktag">修改建议</span>押金降至 1 个月租金（2,600 元）；区分「正常损耗」与「人为损坏」，并约定退还期限与逾期利息。</div>
+                <div><span class="tag tag-gray rv-locktag">替代措辞</span>「甲方收取押金人民币贰仟陆佰元整。租赁期满或合同解除后，在乙方结清应承担费用、房屋无人为损坏的 3 个工作日内，甲方将押金无息退还乙方。」</div>
+              </div>
+              <div class="rv-lockover">
+                <span class="rv-lock-ic"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                <div class="txt">开通个人版查看：法条依据 · 修改建议 · 替代措辞</div>
+                <a class="btn btn-primary btn-sm" href="personal-billing.html">开通个人版</a>
+                <a class="small" href="#paywall">或用 1 张深度券解锁（¥9.9）</a>
+              </div>
+            </div>
+            <div class="risk-meta">命中条款：第四条 押金 · 规则引擎命中</div>
+          </div>
+
+          <!-- 风险卡 2：中 -->
+          <div class="risk-card rc-med">
+            <div class="risk-head">
+              <span class="tag tag-orange">中风险</span>
+              <b>提前退租一律赔 2 个月租金，可能被法院调减</b>
+            </div>
+            <div class="risk-quote">原文：「租赁期内乙方提前退租的，应向甲方支付相当于 2 个月租金的违约金，且已付租金不予退还。」</div>
+            <div class="small">不区分提前通知时间与房屋空置损失，「违约金 + 不退租金」叠加，金额明显偏高。</div>
+
+            <div class="rv-lock">
+              <div class="rv-lockrows">
+                <div><span class="tag tag-gray rv-locktag">法条依据</span>《民法典》第五百八十五条：约定违约金过分高于造成损失的，法院或仲裁机构可根据请求予以适当减少（司法实践一般以超过实际损失 30% 为参考）。</div>
+                <div><span class="tag tag-gray rv-locktag">修改建议</span>违约金以 1 个月租金为限，同时要求出租方及时招租以减少损失；删除「已付租金不予退还」。</div>
+                <div><span class="tag tag-gray rv-locktag">替代措辞</span>「乙方提前退租应提前 30 日书面通知甲方，并支付相当于 1 个月租金的违约金；甲方应积极重新招租，乙方不再承担其他赔偿。」</div>
+              </div>
+              <div class="rv-lockover">
+                <span class="rv-lock-ic"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                <div class="txt">开通个人版查看：法条依据 · 修改建议 · 替代措辞</div>
+                <a class="btn btn-primary btn-sm" href="personal-billing.html">开通个人版</a>
+                <a class="small" href="#paywall">或用 1 张深度券解锁（¥9.9）</a>
+              </div>
+            </div>
+            <div class="risk-meta">命中条款：第七条 提前退租与违约金 · 规则引擎命中</div>
+          </div>
+
+          <!-- 风险卡 3：低 -->
+          <div class="risk-card rc-low">
+            <div class="risk-head">
+              <span class="tag tag-blue">低风险</span>
+              <b>维修义务全部转嫁承租方，与法定责任相反</b>
+            </div>
+            <div class="risk-quote">原文：「租赁期间，房屋及设施的一切维修均由乙方负责并承担费用，与甲方无关。」</div>
+            <div class="small">「一切维修」把房屋主体、管线老化等出租方责任也一并转走，条款明显失衡。</div>
+
+            <div class="rv-lock">
+              <div class="rv-lockrows">
+                <div><span class="tag tag-gray rv-locktag">法条依据</span>《民法典》第七百一十二条：出租人应当履行租赁物的维修义务，但当事人另有约定的除外；第七百一十三条：出租人未履行维修义务的，承租人可自行维修，费用由出租人负担。自然损耗与主体结构维修不能通过格式条款一律转嫁。</div>
+                <div><span class="tag tag-gray rv-locktag">修改建议</span>按「自然损耗 / 人为损坏」划分责任，列明水管、电路、墙面脱落等由出租方承担。</div>
+                <div><span class="tag tag-gray rv-locktag">替代措辞</span>「房屋主体结构及水电管线因自然老化产生的维修由甲方负责并承担费用；因乙方使用不当造成的损坏由乙方负责维修或照价赔偿。」</div>
+              </div>
+              <div class="rv-lockover">
+                <span class="rv-lock-ic"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                <div class="txt">开通个人版查看：法条依据 · 修改建议 · 替代措辞</div>
+                <a class="btn btn-primary btn-sm" href="personal-billing.html">开通个人版</a>
+                <a class="small" href="#paywall">或用 1 张深度券解锁（¥9.9）</a>
+              </div>
+            </div>
+            <div class="risk-meta">命中条款：第六条 维修义务 · 规则引擎命中</div>
+          </div>
+
+          <!-- 企业态：结构化信息 -->
+          <div class="panel rv-ent" style="margin-top:14px">
+            <div class="panel-head"><h3>结构化信息</h3><div class="ph-right"><span class="tag tag-purple">AI 抽取</span></div></div>
+            <table class="tbl rv-struct">
+              <tr><td>月租金</td><td>¥2,600 / 月（押三付一，按季支付）</td></tr>
+              <tr><td>押金</td><td><b style="color:var(--danger)">¥8,000（相当于 3 个月租金，红线）</b></td></tr>
+              <tr><td>租期</td><td>12 个月（2026-10-01 至 2027-09-30）</td></tr>
+              <tr><td>付款节点</td><td>每季度首月 5 日前支付该季度租金</td></tr>
+              <tr><td>关键义务</td><td>维修全部由承租方承担；提前退租赔 2 个月租金且不退已付租金</td></tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- 右：概览 / 合同助手 -->
+        <div class="panel" style="overflow:hidden">
+          <div class="chat-tabs">
+            <a href="#rv-info" style="padding:10px 16px;font-size:13px;color:var(--primary);border-bottom:2px solid var(--primary);font-weight:600;text-decoration:none">审查概览</a>
+            <a href="#rv-assistant" style="padding:10px 16px;font-size:13px;color:var(--text-sub);text-decoration:none">合同助手</a>
+          </div>
+
+          <!-- 概览 -->
+          <div id="rv-pane-info" style="flex-direction:column">
+            <div class="panel-body">
+              <div style="display:flex;gap:8px;margin-bottom:14px">
+                <span class="tag tag-red">高 1</span><span class="tag tag-orange">中 1</span><span class="tag tag-blue">低 1</span>
+                <span class="tag tag-purple rv-ent rv-inline" style="margin-left:auto">Playbook 1</span>
+              </div>
+              <div class="stage-line">
+                <div class="stage-item done"><span class="dot">✓</span><div><b>文件解析</b><div class="small muted">11 条条款 · 2,460 字 · 0.9 秒</div></div></div>
+                <div class="stage-item done"><span class="dot">✓</span><div><b>规则审查</b><div class="small muted">命中 3 条租赁风险规则</div></div></div>
+                <div class="stage-item done"><span class="dot">✓</span><div><b>人工确认</b><div class="small muted">风险清单已生成</div></div></div>
+                <div class="stage-item wait rv-free">
+                  <span class="dot"><svg style="width:10px;height:10px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  <div><b>AI 语义审查</b>
+                    <div class="small muted" style="margin:2px 0 5px">法条依据、修改建议、替代措辞</div>
+                    <a class="btn btn-primary btn-sm" href="personal-billing.html">个人版权益</a>
+                  </div>
+                </div>
+                <div class="stage-item done rv-paid rv-flex"><span class="dot">✓</span><div><b>AI 语义审查</b><div class="small muted">检索法规 8 段，生成修改建议与替代措辞</div></div></div>
+              </div>
+              <div style="border-top:1px solid var(--border-light);margin:16px 0"></div>
+              <div class="small muted" style="line-height:2">
+                审查方式：规则引擎（免费）<span class="rv-paid rv-inline">+ AI 语义审查（个人版）</span><br>
+                审查时间：2026-09-20 14:08<br>
+                法规库版本：2026-09
+              </div>
+            </div>
+          </div>
+
+          <!-- 合同助手 -->
+          <div id="rv-pane-assistant" style="flex-direction:column;height:600px">
+            <div class="chat-stream" style="flex:1">
+              <div class="bubble ai">你好，我是这份《房屋租赁合同-张某》的合同助手。可以基于合同内容免费追问 1 次，比如：押金一般交几个月？这条违约金合法吗？</div>
+              <div class="bubble human">押金一般最多交几个月？这份让我交 8000。</div>
+              <div class="bubble ai">法律没有统一的全国上限，但《北京市住房租赁条例》等多地规定押金一般不超过 <b>1 个月租金</b>。这份月租金 2,600 元却收 8,000 元（约 3 个月），明显偏高，建议按 1 个月协商下调。</div>
+
+              <!-- 第二轮：免费加锁 -->
+              <div class="rv-minilock rv-free">
+                <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>继续追问 / 帮我改这条 / 模拟反驳：个人版权益</span>
+                <a class="btn btn-primary btn-sm" href="#paywall">解锁</a>
+              </div>
+
+              <!-- 付费态：第二轮示例 -->
+              <div class="bubble human rv-paid rv-inline">那我该怎么和房东谈押金？</div>
+              <div class="bubble ai rv-paid rv-inline">建议三步：① 援引当地租赁条例「押金一般不超过 1 个月租金」；② 指出正常损耗依法不赔；③ 主动提出接受交房视频验房，打消房东顾虑。需要的话我可以直接把第四条改成对双方都公平的版本。</div>
+            </div>
+
+            <!-- 付费态动作按钮 -->
+            <div class="rv-aibuttons rv-paid">
+              <button class="btn btn-ghost btn-sm">帮我改这条</button>
+              <button class="btn btn-ghost btn-sm">模拟对方反驳</button>
+              <a class="btn btn-primary btn-sm" href="draft.html" style="margin-left:auto">一键生成修订稿</a>
+            </div>
+
+            <div class="chat-input">
+              <input class="input" placeholder="就这份合同继续提问…">
+              <button class="btn btn-primary">发送</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 底部操作条：免费态 -->
+      <div class="panel rv-free">
+        <div class="panel-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+            导出水印摘要 PDF
+          </button>
+          <a class="btn btn-ghost disabled" href="#paywall">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Word 红划线导出
+          </a>
+          <a class="btn btn-ghost" href="#paywall">一键生成修订稿</a>
+          <span class="small muted" style="margin-left:auto">免费 PDF 含水印与「不构成法律意见」免责声明；深度导出为个人版权益</span>
+        </div>
+      </div>
+
+      <!-- 底部操作条：付费态 -->
+      <div class="panel rv-paid">
+        <div class="panel-body" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>
+            导出审查摘要 PDF
+          </button>
+          <button class="btn btn-ghost">
+            <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+            Word 红划线导出 .docx
+          </button>
+          <a class="btn btn-primary" href="draft.html">一键生成修订稿</a>
+          <span class="small muted" style="margin-left:auto">修订记录与本份报告将永久存档</span>
+        </div>
+      </div>
+
+      <div class="small muted" style="text-align:center">AI 仅做风险提示，不构成法律意见，重大合同建议咨询执业律师。</div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 统一付费墙 -->
+<div class="mask" id="paywall">
+  <div class="modal paywall" style="position:relative">
+    <a class="x" href="#" aria-label="关闭" style="position:absolute;top:14px;right:18px;color:var(--text-muted);font-size:20px">×</a>
+    <div class="modal-body">
+      <div class="pw-icon"><svg class="icon" style="width:28px;height:28px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+      <h3>解锁完整深度审查</h3>
+      <p class="muted">免费版已给出风险点、摘要与评分；深度内容让你知道<strong>依据是什么、具体怎么改</strong>。</p>
+      <ul class="pw-feats">
+        <li><span class="tick">✓</span>AI 语义审查 + 法条依据，置信度透明</li>
+        <li><span class="tick">✓</span>逐条修改建议与可直接替换的措辞</li>
+        <li><span class="tick">✓</span>合同助手多轮追问与 AI 改稿</li>
+        <li><span class="tick">✓</span>Word 红划线导出与永久存档</li>
+      </ul>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <a class="btn btn-primary btn-lg btn-block" href="#state-personal">使用 1 张深度券（余额 1 张）</a>
+        <a class="btn btn-ghost btn-block" href="checkout.html">开通个人版 ¥19/月</a>
+        <a class="btn btn-block" href="checkout.html#yearly" style="color:var(--primary)">年付 ¥99，省 48% →</a>
+      </div>
+      <div style="margin-top:12px"><a href="#" class="small muted">暂不解锁，继续看免费结果</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- 通知弹层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:380px">
+    <div class="modal-head"><h3>通知</h3><a class="x" href="#" aria-label="关闭">×</a></div>
+    <div class="modal-body" style="padding-top:4px;padding-bottom:4px">
+      <div class="rv-note">
+        <span class="rv-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+        <div><div>本份免费报告将于 9 月 27 日自动清除</div><div class="small">升级个人版或使用深度券可永久存档</div></div>
+      </div>
+      <div class="rv-note">
+        <span class="rv-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <div><div>深度分析、AI 改稿当前为加锁状态</div><div class="small">1 张深度券（¥9.9）即可解锁本份全部内容</div></div>
+      </div>
+      <div class="rv-note">
+        <span class="rv-n-icon"><svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+        <div><div>法规问答：租房押金专题已更新</div><div class="small">可前往「法规问答」查看各地押金上限</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="rv-statechip"><b>结果三态</b><a class="rv-on" href="#top">免费态</a><a href="#state-personal">个人版</a><a href="#state-enterprise">企业态</a></div>
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="new-review.html">审合同</a> · <a href="review.html">结果三态</a> · <a href="draft.html">AI改稿</a> · <a href="personal-billing.html">我的订阅</a> · <a href="dashboard.html">企业工作台→</a></div>
+</body>
+</html>

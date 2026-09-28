@@ -2,7 +2,7 @@
 // 单条风险卡片：严重度/来源/原文引用/分析/建议/法条 + 终审处置操作
 import { Tag, Button, Input, Tooltip } from 'antd'
 import {
-  CheckOutlined, CloseOutlined, RobotOutlined, FilterOutlined, ApiOutlined,
+  CheckOutlined, CloseOutlined, RobotOutlined, FilterOutlined, ApiOutlined, SafetyCertificateFilled,
 } from '@ant-design/icons'
 import {
   SEVERITY_COLOR, SEVERITY_TEXT, RISK_STATUS_META,
@@ -10,16 +10,21 @@ import {
 import styles from './RiskCard.module.css'
 
 const SOURCE_META = {
-  RULE:  { color: 'blue',    text: '规则引擎', icon: <FilterOutlined /> },
-  AGENT: { color: 'purple',  text: 'AI 语义', icon: <RobotOutlined /> },
-  BOTH:  { color: 'geekblue',text: '双轨确认', icon: <ApiOutlined /> },
+  RULE:     { color: 'blue',     text: '规则引擎', icon: <FilterOutlined /> },
+  AGENT:    { color: 'purple',   text: 'AI 语义', icon: <RobotOutlined /> },
+  BOTH:     { color: 'geekblue', text: '双轨确认', icon: <ApiOutlined /> },
+  PLAYBOOK: { color: 'red',      text: '公司红线', icon: <SafetyCertificateFilled /> },
 }
 
 export default function RiskCard({
   risk, active, reviewOpen, decision, onSelectClause, onDecision,
 }) {
   const sevColor = SEVERITY_COLOR[risk.severity] || SEVERITY_COLOR.MED
-  const source = SOURCE_META[risk.detectedBy] || SOURCE_META.RULE
+  const baseSource = SOURCE_META[risk.detectedBy] || SOURCE_META.RULE
+  // Playbook 偏好口径规则与红线规则区分标签文案
+  const source = risk.detectedBy === 'PLAYBOOK' && risk.category === '偏好口径'
+    ? { ...baseSource, text: '公司偏好' }
+    : baseSource
   const chosen = decision?.status
   const finalized = risk.status && risk.status !== 'PENDING'
 

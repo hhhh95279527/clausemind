@@ -1,20 +1,42 @@
 // server/src/auth/auth.service.ts
-// 认证服务：注册（自动开通租户）、登录、Token 刷新、密码管理
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common'
+// 认证服务：注册（个人/企业分流）、密码登录、邮箱验证码登录、Token 刷新、密码管理
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomUUID, randomBytes } from 'node:crypto'
 import { DatabaseService } from '../database/database.service'
 import { config } from '../config/index.js'
 import { logger } from '../utils/logger.js'
-import type { UserRole } from '@prisma/client'
+import type { UserRole, WorkspaceType, TenantPlan } from '@prisma/client'
+import { VerificationCodeService } from './verification-code.service.js'
+
+export type RegisterPersona = 'PERSONAL' | 'TEAM'
 
 interface RegisterDto {
-  username: string
+  persona: RegisterPersona
   email: string
+  emailCode: string
   password: string
   displayName?: string
+  // 企业流
   orgName?: string
+  companySize?: string
+  position?: string
+}
+
+/** 返回给前端的用户体：携带套餐与空间类型，供 persona 路由与权益展示 */
+export interface AuthUserPayload {
+  id: string
+  username: string
+  email: string | null
+  displayName: string | null
+  role: UserRole
+  tenantId: string
+  plan: TenantPlan
+  workspaceType: WorkspaceType
+  couponBalance: number
+  onboardingCompleted: boolean
+  emailVerified: boolean
 }
 
 /** 签发 refresh token 时记录的客户端信息（用于审计与异常排查） */
@@ -41,44 +63,153 @@ export class AuthService {
   constructor(
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
+    private readonly verificationCodes: VerificationCodeService,
   ) {}
 
-  // ── 注册：同时开通一个租户（工作空间），注册者为租户管理员 ──────
+  // ── 注册：个人 / 企业双路径分流（FR-3）────────────────────────
+  // PERSONAL → FREE 个人空间；TEAM → TEAM 团队版演示空间（原型确认：默认含 5 席演示）
   async register(dto: RegisterDto, meta: TokenMeta = {}) {
-    const existing = await this.db.user.findFirst({
-      where: { OR: [{ username: dto.username }, { email: dto.email }] },
-    })
-    if (existing) {
-      throw new ConflictException('用户名或邮箱已存在')
+    const email = (dto.email || '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException('邮箱格式不正确')
+    }
+    if (!dto.password || dto.password.length < 8) {
+      throw new BadRequestException('密码至少 8 位')
+    }
+    if (dto.persona !== 'PERSONAL' && dto.persona !== 'TEAM') {
+      throw new BadRequestException('请选择注册身份（个人 / 企业）')
+    }
+    if (dto.persona === 'TEAM' && !(dto.orgName || '').trim()) {
+      throw new BadRequestException('请填写企业名称')
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 12)
-    const displayName = dto.displayName || dto.username
+    const existingEmail = await this.db.user.findUnique({ where: { email } })
+    if (existingEmail) {
+      throw new ConflictException('该邮箱已注册，请直接登录')
+    }
+    // 注册必须验证码通过（dev 控制台码 / 固定码 123456）
+    await this.verificationCodes.verifyCode(email, dto.emailCode)
 
-    // 租户 + 用户 + 画像在一个事务里创建
-    const user = await this.db.$transaction(async (tx) => {
+    const passwordHash = await bcrypt.hash(dto.password, 12)
+    const displayName = (dto.displayName || '').trim() || email.split('@')[0]
+
+    const isTeam = dto.persona === 'TEAM'
+    // 租户 + 用户在一个事务里创建（UserProfile 已下线，不再创建）
+    const created = await this.db.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
-        data: { name: dto.orgName || `${displayName} 的工作空间` },
+        data: isTeam
+          ? {
+              name: dto.orgName!.trim(),
+              plan: 'TEAM' as TenantPlan,
+              workspaceType: 'TEAM' as WorkspaceType,
+              planUpdatedAt: new Date(),
+            }
+          : {
+              name: `${displayName} 的个人空间`,
+              plan: 'FREE' as TenantPlan,
+              workspaceType: 'PERSONAL' as WorkspaceType,
+            },
       })
 
-      const created = await tx.user.create({
+      return tx.user.create({
         data: {
-          username: dto.username,
-          email: dto.email,
+          username: await this.uniqueUsername(tx, email),
+          email,
           passwordHash,
           displayName,
-          role: 'ADMIN' as UserRole, // 租户管理员
+          role: 'ADMIN' as UserRole, // 空间创建者=租户管理员（团队管理/席位需要）
           tenantId: tenant.id,
+          emailVerified: true,
+          metadata: isTeam
+            ? { companySize: dto.companySize ?? null, position: dto.position ?? null }
+            : undefined,
         },
-        select: { id: true, username: true, email: true, displayName: true, role: true, tenantId: true },
       })
-
-      await tx.userProfile.create({ data: { userId: created.id } })
-      return created
     })
 
+    const user = await this.buildUserPayload(created.id)
     const tokens = await this.issueTokens(user, meta)
     return { user, ...tokens }
+  }
+
+  // ── 邮箱验证码登录：未注册邮箱自动开通 FREE 个人空间（FR-4）──────
+  async loginByCode(email: string, code: string, meta: TokenMeta = {}) {
+    const normalized = (email || '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      throw new BadRequestException('邮箱格式不正确')
+    }
+    await this.verificationCodes.verifyCode(normalized, code)
+
+    let user = await this.db.user.findUnique({ where: { email: normalized } })
+
+    // 未注册：自动开户 FREE 个人空间（P0 直接开户，P1 强校验设置密码）
+    if (!user) {
+      const randomPasswordHash = await bcrypt.hash(randomBytes(24).toString('hex'), 12)
+      const created = await this.db.$transaction(async (tx) => {
+        const tenant = await tx.tenant.create({
+          data: {
+            name: `${normalized.split('@')[0]} 的个人空间`,
+            plan: 'FREE' as TenantPlan,
+            workspaceType: 'PERSONAL' as WorkspaceType,
+          },
+        })
+        return tx.user.create({
+          data: {
+            username: await this.uniqueUsername(tx, normalized),
+            email: normalized,
+            passwordHash: randomPasswordHash,
+            displayName: normalized.split('@')[0],
+            role: 'USER' as UserRole,
+            tenantId: tenant.id,
+            emailVerified: true,
+          },
+        })
+      })
+      logger.info('auth: auto signup via email code', { userId: created.id })
+      user = created
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('账号已被禁用')
+    }
+    if (!user.emailVerified) {
+      await this.db.user.update({ where: { id: user.id }, data: { emailVerified: true } })
+    }
+    return this.login(user, meta)
+  }
+
+  /** 由邮箱生成唯一用户名（个人流无用户名字段；username 列 VarChar(50) 唯一非空） */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async uniqueUsername(tx: any, email: string): Promise<string> {
+    const base = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').slice(0, 32) || 'user'
+    let candidate = base
+    for (let i = 0; i < 20; i++) {
+      const exists = await tx.user.findUnique({ where: { username: candidate } })
+      if (!exists) return candidate
+      candidate = `${base}${randomBytes(2).toString('hex')}`
+    }
+    return `${base}${randomBytes(4).toString('hex')}`
+  }
+
+  /** 组装前端用户体（联查租户套餐/空间类型） */
+  private async buildUserPayload(userId: string): Promise<AuthUserPayload> {
+    const user = await this.db.user.findUniqueOrThrow({
+      where: { id: userId },
+      include: { tenant: true },
+    })
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      tenantId: user.tenantId,
+      plan: user.tenant.plan,
+      workspaceType: user.tenant.workspaceType,
+      couponBalance: user.tenant.couponBalance,
+      onboardingCompleted: user.onboardingCompleted,
+      emailVerified: user.emailVerified,
+    }
   }
 
   // ── 登录（validateUser 被 LocalStrategy 调用）────────────────
@@ -96,27 +227,18 @@ export class AuthService {
     return result
   }
 
-  // ── 登录并返回 Token ─────────────────────────────────────────
+  // ── 登录并返回 Token（user 体携带套餐/空间类型，供前端 persona 路由）──
   async login(user: any, meta: TokenMeta = {}) {
     await this.db.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date(), ...(meta.ip ? { lastLoginIp: meta.ip.slice(0, 45) } : {}) },
     })
+    const payload = await this.buildUserPayload(user.id)
     const tokens = await this.issueTokens(
-      { id: user.id, username: user.username, role: user.role, tenantId: user.tenantId },
+      { id: payload.id, username: payload.username, role: payload.role, tenantId: payload.tenantId },
       meta,
     )
-    return {
-      user: {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        displayName: user.displayName,
-        role: user.role,
-        tenantId: user.tenantId,
-      },
-      ...tokens,
-    }
+    return { user: payload, ...tokens }
   }
 
   // ── 刷新 Token：一次性轮转 + 重用检测 ─────────────────────────
@@ -189,17 +311,22 @@ export class AuthService {
     })
   }
 
-  // ── 获取当前用户信息 ─────────────────────────────────────────
+  // ── 获取当前用户信息（含套餐/空间类型/引导状态）────────────────
   async getProfile(userId: string) {
-    const user = await this.db.user.findUnique({
+    try {
+      return await this.buildUserPayload(userId)
+    } catch {
+      throw new UnauthorizedException('用户不存在')
+    }
+  }
+
+  // ── 完成新手引导（3 步欢迎引导结束/跳过后持久化，FR-3）─────────
+  async completeOnboarding(userId: string) {
+    await this.db.user.update({
       where: { id: userId },
-      select: {
-        id: true, username: true, email: true, displayName: true,
-        avatar: true, role: true, tenantId: true, createdAt: true,
-      },
+      data: { onboardingCompleted: true },
     })
-    if (!user) throw new UnauthorizedException('用户不存在')
-    return user
+    return this.buildUserPayload(userId)
   }
 
   // ── 修改密码 ─────────────────────────────────────────────────

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* 登录页专属样式（lg- 前缀） */
+  .lg-title { text-align:center; font-size:20px; margin-bottom:4px; }
+  .lg-subtitle { text-align:center; font-size:13px; color:var(--text-sub); margin-bottom:22px; }
+
+  .lg-tabs a { flex:1; text-align:center; padding:7px 0; border-radius:6px; font-size:14px; color:var(--text-sub); text-decoration:none; }
+  .lg-tabs a.lg-on { background:#fff; color:var(--text); font-weight:600; box-shadow:var(--shadow-sm); }
+  body:has(#tab-code:target) .lg-tabs a[href="#tab-pwd"] { color:var(--text-sub); background:none; box-shadow:none; font-weight:400; }
+  body:has(#tab-code:target) .lg-tabs a[href="#tab-code"] { background:#fff; color:var(--text); font-weight:600; box-shadow:var(--shadow-sm); }
+
+  #lg-form-code { display:none; }
+  body:has(#tab-code:target) #lg-form-pwd { display:none; }
+  body:has(#tab-code:target) #lg-form-code { display:block; }
+
+  .lg-field { margin-bottom:14px; }
+  .lg-field > label { display:block; font-size:13px; color:var(--text-sub); margin-bottom:6px; }
+  .lg-code-row { display:flex; gap:10px; }
+  .lg-code-row .input { flex:1; min-width:0; }
+  .lg-code-row .btn { flex:none; }
+  .lg-agree { display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--text-sub); margin:16px 0 2px; }
+  .lg-agree input { margin-top:3px; flex:none; }
+  .lg-links { display:flex; justify-content:space-between; align-items:center; margin-top:18px; font-size:13px; }
+  .lg-demo { margin-top:14px; padding:10px 12px; background:var(--bg); border:1px solid var(--border-light); border-radius:var(--radius-md); font-size:12px; color:var(--text-muted); line-height:1.8; }
+  .lg-demo code { background:#f3f4f6; padding:0 5px; border-radius:4px; color:var(--text-sub); }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap" id="top">
+  <div class="auth-card">
+    <a class="brand" href="index.html">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </a>
+    <h1 class="lg-title">登录 WorkMind</h1>
+    <p class="lg-subtitle">签合同前，先让 AI 帮你排雷</p>
+
+    <div class="auth-tabs lg-tabs">
+      <a id="tab-pwd" class="lg-on" href="#tab-pwd">密码登录</a>
+      <a id="tab-code" href="#tab-code">邮箱验证码</a>
+    </div>
+
+    <!-- 密码登录 -->
+    <form id="lg-form-pwd" action="home.html">
+      <div class="lg-field">
+        <label>用户名或邮箱</label>
+        <input class="input" placeholder="请输入用户名 / 邮箱" value="testboss">
+      </div>
+      <div class="lg-field">
+        <label>密码</label>
+        <input class="input" type="password" placeholder="请输入密码" value="Test1234">
+      </div>
+
+      <label class="lg-agree">
+        <input type="checkbox" checked>
+        <span>我已阅读并同意<a href="terms.html">《用户协议》</a>与<a href="privacy.html">《隐私政策》</a></span>
+      </label>
+
+      <button class="btn btn-primary btn-block btn-lg" style="margin-top:14px" type="submit">登 录</button>
+
+      <div class="lg-links">
+        <a href="register.html">注册新账号</a>
+        <span class="small muted"><a href="#top" style="color:var(--text-muted)">忘记密码？</a>（即将上线）</span>
+      </div>
+
+      <div class="lg-demo">
+        演示账号：<br>
+        企业演示 <code>testboss / Test1234</code><br>
+        个人演示 <code>demo_personal / Test1234</code>
+      </div>
+    </form>
+
+    <!-- 邮箱验证码登录 / 注册 -->
+    <form id="lg-form-code" action="home.html">
+      <div class="lg-field">
+        <label>邮箱</label>
+        <input class="input" type="email" placeholder="请输入邮箱地址">
+      </div>
+      <div class="lg-field">
+        <label>验证码</label>
+        <div class="lg-code-row">
+          <input class="input" placeholder="6 位验证码">
+          <button class="btn btn-ghost" type="button">获取验证码</button>
+        </div>
+      </div>
+
+      <label class="lg-agree">
+        <input type="checkbox" checked>
+        <span>我已阅读并同意<a href="terms.html">《用户协议》</a>与<a href="privacy.html">《隐私政策》</a></span>
+      </label>
+
+      <button class="btn btn-primary btn-block btn-lg" style="margin-top:14px" type="submit">登录 / 注册</button>
+
+      <div class="lg-links">
+        <a href="register.html">注册新账号</a>
+        <span class="small muted"><a href="#top" style="color:var(--text-muted)">忘记密码？</a>（即将上线）</span>
+      </div>
+
+      <div class="auth-tip">
+        演示环境验证码输出在后端控制台，或使用固定码 <b>123456</b>；未注册邮箱验证通过后将自动开通免费个人空间（每月 2 份免费审查）。
+      </div>
+    </form>
+
+    <p style="text-align:center;margin-top:18px;font-size:12.5px"><a href="index.html">← 返回首页</a></p>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="pricing.html">定价</a> · <a href="login.html">登录</a> · <a href="register.html">注册分流</a></div>
+</body>
+</html>

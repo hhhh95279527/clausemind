@@ -1,0 +1,187 @@
+/* AuthPages.module.css —— 登录 / 注册共享样式（对齐原型 docs/prototype 登录注册页） */
+.wrap {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #e0e7ff 100%);
+  padding: 24px;
+}
+
+.card {
+  width: 420px;
+  max-width: 100%;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(79, 70, 229, 0.12);
+  padding: 30px 32px 22px;
+}
+
+.cardWide {
+  width: 460px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary);
+  font-weight: 700;
+  font-size: 17px;
+  text-decoration: none;
+  margin-bottom: 14px;
+}
+
+.brandMark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--color-primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--color-text);
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--color-text-sub);
+  margin: 0 0 20px;
+}
+
+/* 协议勾选 */
+.agree {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  color: var(--color-text-sub);
+  margin: 4px 0 2px;
+}
+
+.agree a {
+  color: var(--color-primary);
+}
+
+.links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.demo {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.9;
+}
+
+.demo code {
+  background: #f3f4f6;
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--color-text-sub);
+}
+
+.tip {
+  margin-top: 10px;
+  padding: 9px 11px;
+  background: var(--color-primary-bg);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--color-primary-dark);
+  line-height: 1.7;
+}
+
+.back {
+  font-size: 12.5px;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+
+.foot {
+  text-align: center;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+}
+
+/* 注册分流身份卡片 */
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.choiceCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s;
+  background: #fff;
+  text-align: left;
+}
+
+.choiceCard:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-bg);
+}
+
+.choiceIco {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.choiceBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.choiceBody b {
+  font-size: 14.5px;
+  color: var(--color-text);
+}
+
+.choiceBody p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--color-text-sub);
+}
+
+.choiceGo {
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+}

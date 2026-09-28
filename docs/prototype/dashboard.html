@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合规仪表盘 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item active" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user">
+      <span class="avatar">王</span>
+      <div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div>
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <div class="main-area">
+    <header class="app-header">
+      <h2>合规仪表盘</h2>
+      <span class="head-sub">早上好，王 HR，今天有 4 件合同事务待处理</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span>
+        <span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+
+      <!-- 新手引导 -->
+      <div class="onboard-banner">
+        <svg class="icon" style="color:var(--primary)" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+        <div>
+          <b>欢迎使用 WorkMind 企业空间，3 步完成第一次团队审查</b>
+          <div class="small muted">预计耗时 3 分钟，可随时跳过</div>
+        </div>
+        <div class="onboard-steps">
+          <span class="ob-step done"><span class="num">✓</span>上传合同</span>
+          <a class="ob-step" href="contracts.html#empty-state-block"><span class="num">2</span>体验示例合同</a>
+          <span class="ob-step"><span class="num">3</span>配置 Playbook</span>
+        </div>
+        <a class="btn btn-ghost btn-sm" href="#">跳过引导</a>
+      </div>
+
+      <!-- 快捷操作 -->
+      <div class="grid-3">
+        <a class="card-flat" href="contracts.html#upload" style="display:flex;gap:14px;align-items:center;text-decoration:none;color:inherit">
+          <div class="ci" style="margin-bottom:0"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg></div>
+          <div><h3 style="margin-bottom:2px">上传合同审查</h3><p>支持 Word / PDF / 拍照</p></div>
+        </a>
+        <a class="card-flat" href="templates.html" style="display:flex;gap:14px;align-items:center;text-decoration:none;color:inherit">
+          <div class="ci" style="margin-bottom:0"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg></div>
+          <div><h3 style="margin-bottom:2px">找一份范本</h3><p>12 套常用合同文书</p></div>
+        </a>
+        <a class="card-flat" href="playbook.html" style="display:flex;gap:14px;align-items:center;text-decoration:none;color:inherit">
+          <div class="ci" style="margin-bottom:0"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <div><h3 style="margin-bottom:2px">配置审查规则</h3><p>红线 / 偏好 / 标准合同</p></div>
+        </a>
+      </div>
+
+      <!-- 统计卡 -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="sc-top"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>本月审查</div>
+          <div class="sc-num">18<span style="font-size:14px;color:var(--text-muted);font-weight:400"> / 50 份</span></div>
+          <div class="progress"><i style="width:36%"></i></div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-top"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>待审批</div>
+          <div class="sc-num" style="color:var(--warning)">2</div>
+          <div class="sc-foot">2 份合同等待法务 / 负责人审批</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-top"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>近 30 天高风险</div>
+          <div class="sc-num" style="color:var(--danger)">12</div>
+          <div class="sc-foot">中风险 27 · 低风险 9</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-top"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>台账临期</div>
+          <div class="sc-num" style="color:var(--danger)">4<span style="font-size:14px;color:var(--text-muted);font-weight:400"> 份</span></div>
+          <div class="sc-foot">其中 1 份已过期，<a href="ledger.html">去处理</a></div>
+        </div>
+      </div>
+
+      <div class="dash-cols">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- 待办 -->
+          <div class="panel">
+            <div class="panel-head"><h3>待办事项</h3><div class="ph-right"><a href="contracts.html" class="small">全部合同</a></div></div>
+            <div class="panel-body flush">
+              <a class="todo-item" href="review.html" style="color:inherit">
+                <span class="tag tag-orange tag-dot">待法务审</span>
+                <div class="ti-main"><b>员工劳动合同-钱某.docx</b><div>6 条风险待确认 · 命中 2 条公司红线</div></div>
+                <span class="small muted" style="margin-left:auto">今天 10:24</span>
+              </a>
+              <a class="todo-item" href="review.html" style="color:inherit">
+                <span class="tag tag-blue tag-dot">待审批</span>
+                <div class="ti-main"><b>保密与竞业限制协议-孙某.pdf</b><div>法务已确认，等待负责人终审</div></div>
+                <span class="small muted" style="margin-left:auto">昨天 17:02</span>
+              </a>
+              <div class="todo-item">
+                <span class="tag tag-red tag-dot">解析失败</span>
+                <div class="ti-main"><b>扫描件合同_0912.pdf</b><div>文件内容无法识别，建议重新上传清晰照片或粘贴文本</div></div>
+                <a class="btn btn-ghost btn-sm" href="contracts.html#upload" style="margin-left:auto">重新上传</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- 风险概览 -->
+          <div class="panel">
+            <div class="panel-head"><h3>近 30 天风险概览</h3><div class="ph-right"><span class="small muted">共 48 条 · 来自 18 份合同</span></div></div>
+            <div class="panel-body">
+              <div class="bar-row"><span class="bl">高风险</span><span class="bt"><i style="width:25%;background:var(--danger)"></i></span><span class="bv">12</span></div>
+              <div class="bar-row"><span class="bl">中风险</span><span class="bt"><i style="width:56%;background:var(--warning)"></i></span><span class="bv">27</span></div>
+              <div class="bar-row"><span class="bl">低风险</span><span class="bt"><i style="width:19%;background:var(--info)"></i></span><span class="bv">9</span></div>
+              <div style="border-top:1px solid var(--border-light);margin:14px 0 12px"></div>
+              <div class="small muted" style="margin-bottom:8px">高频风险类别 Top 5</div>
+              <div class="bar-row"><span class="bl">试用期</span><span class="bt"><i style="width:88%;background:var(--primary)"></i></span><span class="bv">14</span></div>
+              <div class="bar-row"><span class="bl">违约金</span><span class="bt"><i style="width:63%;background:var(--primary)"></i></span><span class="bv">10</span></div>
+              <div class="bar-row"><span class="bl">社保公积金</span><span class="bt"><i style="width:50%;background:var(--primary)"></i></span><span class="bv">8</span></div>
+              <div class="bar-row"><span class="bl">解除终止</span><span class="bt"><i style="width:38%;background:var(--primary)"></i></span><span class="bv">6</span></div>
+              <div class="bar-row"><span class="bl">争议管辖</span><span class="bt"><i style="width:25%;background:var(--primary)"></i></span><span class="bv">4</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <!-- 到期提醒 -->
+          <div class="panel">
+            <div class="panel-head"><h3>合同到期提醒</h3><div class="ph-right"><a href="ledger.html" class="small">合同台账</a></div></div>
+            <div class="panel-body flush">
+              <div class="ledger-deadline"><span class="tag tag-red">已过期</span><b>赵某 · 劳动合同</b><span class="ld-date small">9月10日</span></div>
+              <div class="ledger-deadline"><span class="tag tag-orange">12 天后到期</span><b>钱某 · 劳动合同</b><span class="ld-date small">9月30日</span></div>
+              <div class="ledger-deadline"><span class="tag tag-orange">21 天后到期</span><b>孙某 · 竞业限制</b><span class="ld-date small">10月9日</span></div>
+              <div class="ledger-deadline"><span class="tag tag-gray" style="background:#fefce8;color:#a16207">36 天后到期</span><b>李某 · 实习协议</b><span class="ld-date small">10月24日</span></div>
+              <div class="ledger-deadline"><span class="tag tag-gray">试用期到期</span><b>周某 · 试用期 10月15日</b><span class="ld-date small">10月15日</span></div>
+            </div>
+          </div>
+
+          <!-- 套餐用量 -->
+          <div class="panel">
+            <div class="panel-head"><h3>本月套餐用量</h3><div class="ph-right"><span class="plan-chip">TEAM</span></div></div>
+            <div class="panel-body">
+              <div class="small muted" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>智能审查</span><b style="color:var(--text)">18 / 50 份</b></div>
+              <div class="progress"><i style="width:36%"></i></div>
+              <div class="small muted" style="display:flex;justify-content:space-between;margin:14px 0 4px"><span>团队席位</span><b style="color:var(--text)">3 / 5 席</b></div>
+              <div class="progress"><i style="width:60%"></i></div>
+              <div class="small muted" style="display:flex;justify-content:space-between;margin:14px 0 4px"><span>台账条目</span><b style="color:var(--text)">24 条 · 不限</b></div>
+              <a class="btn btn-ghost btn-sm btn-block" href="billing.html" style="margin-top:16px">管理套餐与用量</a>
+            </div>
+          </div>
+
+          <!-- Playbook 命中概览 -->
+          <div class="panel">
+            <div class="panel-head"><h3>Playbook 命中概览</h3><div class="ph-right"><span class="tag tag-purple">公司规则</span></div></div>
+            <div class="panel-body flush">
+              <div class="todo-item">
+                <span class="tag tag-red">红线</span>
+                <div class="ti-main"><b>违约金上限规则</b><div>违约金不得超过合同总额 20%（商务 / 租赁）</div></div>
+                <span class="small" style="margin-left:auto;font-weight:700;color:var(--text)">命中 6 次</span>
+              </div>
+              <div class="todo-item">
+                <span class="tag tag-red">红线</span>
+                <div class="ti-main"><b>禁止自动离职条款</b><div>不得约定「自动离职视为放弃工资」（劳动）</div></div>
+                <span class="small" style="margin-left:auto;font-weight:700;color:var(--text)">命中 4 次</span>
+              </div>
+              <div class="todo-item">
+                <span class="tag tag-orange">口径</span>
+                <div class="ti-main"><b>试用期口径</b><div>试用期约定必须符合法定上限（劳动）</div></div>
+                <span class="small" style="margin-left:auto;font-weight:700;color:var(--text)">命中 3 次</span>
+              </div>
+              <div style="padding:10px 18px;border-top:1px solid var(--border-light)"><a href="playbook.html" class="small">查看全部规则与命中详情 →</a></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>

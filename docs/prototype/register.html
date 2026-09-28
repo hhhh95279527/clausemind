@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>注册 WorkMind — 选择身份</title>
+<link rel="stylesheet" href="assets/prototype.css">
+<style>
+  /* 注册分流页专属样式（rg- 前缀） */
+  .rg-card { width:520px; padding:32px 34px 26px; }
+  .rg-title { text-align:center; font-size:21px; margin-bottom:6px; }
+  .rg-subtitle { text-align:center; font-size:13px; color:var(--text-sub); margin-bottom:24px; }
+
+  .rg-choice { display:flex; flex-direction:column; gap:14px; }
+  .rg-choice a { display:flex; gap:14px; align-items:flex-start; padding:20px; border:1px solid var(--border); border-radius:var(--radius-lg); color:inherit; text-decoration:none; transition:.18s; background:#fff; }
+  .rg-choice a:hover { border-color:var(--primary); box-shadow:var(--shadow-md); transform:translateY(-1px); }
+  .rg-choice .rg-ico { width:44px; height:44px; border-radius:11px; background:var(--primary-bg); color:var(--primary); display:flex; align-items:center; justify-content:center; flex:none; }
+  .rg-choice a.ent .rg-ico { background:#1f2937; color:#fff; }
+  .rg-choice b { font-size:15.5px; display:block; margin-bottom:4px; }
+  .rg-choice p { font-size:13px; color:var(--text-sub); margin:0; }
+  .rg-choice .rg-go { margin-left:auto; align-self:center; color:var(--text-muted); font-size:18px; flex:none; }
+
+  #rg-personal, #rg-team { display:none; }
+  body:has(#form-personal:target) #rg-choose { display:none; }
+  body:has(#form-personal:target) #rg-personal { display:block; }
+  body:has(#form-team:target) #rg-choose { display:none; }
+  body:has(#form-team:target) #rg-team { display:block; }
+
+  .rg-panel .panel-body { padding:20px 20px 18px; }
+  .rg-back { font-size:12.5px; margin-bottom:12px; display:inline-block; }
+  .rg-field { margin-bottom:14px; }
+  .rg-field > label { display:block; font-size:13px; color:var(--text-sub); margin-bottom:6px; }
+  .rg-code-row { display:flex; gap:10px; }
+  .rg-code-row .input { flex:1; min-width:0; }
+  .rg-code-row .btn { flex:none; }
+  .rg-agree { display:flex; gap:8px; align-items:flex-start; font-size:12.5px; color:var(--text-sub); margin:16px 0 2px; }
+  .rg-agree input { margin-top:3px; flex:none; }
+  .rg-foot { text-align:center; margin-top:18px; font-size:13px; }
+  .rg-tip { margin-top:12px; font-size:12px; color:var(--text-muted); text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap" id="top">
+  <div class="auth-card rg-card">
+    <a class="brand" href="index.html">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </a>
+    <h1 class="rg-title">注册 WorkMind</h1>
+    <p class="rg-subtitle">先选择使用身份，两类空间随时可以升级</p>
+
+    <!-- 默认：身份选择 -->
+    <div id="rg-choose" class="rg-choice">
+      <a href="#form-personal">
+        <span class="rg-ico"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+        <span>
+          <b>我是个人</b>
+          <p>30 秒开通，免企业信息。每月 2 份免费审查，风险点、大白话摘要与评分注册即看。</p>
+        </span>
+        <span class="rg-go">›</span>
+      </a>
+      <a class="ent" href="#form-team">
+        <span class="rg-ico"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6M9 11h.01M15 11h.01"/></svg></span>
+        <span>
+          <b>我们是企业</b>
+          <p>创建团队空间，支持多人协作、审批流转、企业 Playbook 自定义审查规则与合同台账。</p>
+        </span>
+        <span class="rg-go">›</span>
+      </a>
+    </div>
+
+    <!-- 个人注册表单 -->
+    <div class="panel rg-panel" id="form-personal">
+      <div class="panel-body">
+        <a class="rg-back" href="register.html">← 重新选择身份</a>
+        <h3 style="font-size:15px;margin-bottom:14px">开通个人免费空间</h3>
+        <form action="home.html">
+          <div class="rg-field">
+            <label>邮箱</label>
+            <div class="rg-code-row">
+              <input class="input" type="email" placeholder="用于登录与接收审查结果">
+              <button class="btn btn-ghost" type="button">获取验证码</button>
+            </div>
+          </div>
+          <div class="rg-field">
+            <label>验证码</label>
+            <input class="input" placeholder="请输入 6 位验证码（演示固定码 123456）">
+          </div>
+          <div class="rg-field">
+            <label>设置密码</label>
+            <input class="input" type="password" placeholder="至少 8 位，建议含字母与数字">
+          </div>
+          <div class="rg-field">
+            <label>昵称（选填）</label>
+            <input class="input" placeholder="审查意见书中的称呼">
+          </div>
+
+          <label class="rg-agree">
+            <input type="checkbox" checked>
+            <span>我已阅读并同意<a href="terms.html">《用户协议》</a>与<a href="privacy.html">《隐私政策》</a></span>
+          </label>
+
+          <button class="btn btn-primary btn-block btn-lg" style="margin-top:14px" type="submit">免费开通</button>
+          <p class="rg-tip">开通即享 FREE 免费版：每月 2 份 · 3000 字以内 · 记录保留 7 天</p>
+        </form>
+      </div>
+    </div>
+
+    <!-- 企业注册表单 -->
+    <div class="panel rg-panel" id="form-team">
+      <div class="panel-body">
+        <a class="rg-back" href="register.html">← 重新选择身份</a>
+        <h3 style="font-size:15px;margin-bottom:14px">创建企业团队空间</h3>
+        <form action="dashboard.html">
+          <div class="rg-field">
+            <label>企业名称</label>
+            <input class="input" placeholder="例如：杭州星辰科技有限公司">
+          </div>
+          <div class="rg-field">
+            <label>企业规模</label>
+            <select class="select">
+              <option>1-10 人</option>
+              <option>11-50 人</option>
+              <option>51-200 人</option>
+              <option>200 人以上</option>
+            </select>
+          </div>
+          <div class="rg-field">
+            <label>你的职位</label>
+            <select class="select">
+              <option>HR</option>
+              <option>行政</option>
+              <option>法务</option>
+              <option>负责人</option>
+              <option>其他</option>
+            </select>
+          </div>
+          <div class="rg-field">
+            <label>邮箱</label>
+            <div class="rg-code-row">
+              <input class="input" type="email" placeholder="工作邮箱，用于登录与团队管理">
+              <button class="btn btn-ghost" type="button">获取验证码</button>
+            </div>
+          </div>
+          <div class="rg-field">
+            <label>验证码</label>
+            <input class="input" placeholder="请输入 6 位验证码（演示固定码 123456）">
+          </div>
+          <div class="rg-field">
+            <label>设置密码</label>
+            <input class="input" type="password" placeholder="至少 8 位，建议含字母与数字">
+          </div>
+
+          <label class="rg-agree">
+            <input type="checkbox" checked>
+            <span>我已阅读并同意<a href="terms.html">《用户协议》</a>与<a href="privacy.html">《隐私政策》</a></span>
+          </label>
+
+          <button class="btn btn-primary btn-block btn-lg" style="margin-top:14px" type="submit">创建团队空间</button>
+          <p class="rg-tip">团队空间默认含 TEAM 团队版演示席位：5 席位 · 企业 Playbook · 审批流转</p>
+        </form>
+      </div>
+    </div>
+
+    <p class="rg-foot">已有账号？<a href="login.html">返回登录</a></p>
+  </div>
+</div>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="pricing.html">定价</a> · <a href="login.html">登录</a> · <a href="register.html">注册分流</a></div>
+</body>
+</html>

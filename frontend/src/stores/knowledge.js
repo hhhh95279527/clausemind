@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import http, { fetchStream } from '@/utils/http.js'
 import { useAppStore } from './app.js'
+import { useAuthStore } from './auth.js'
 
 let msgId = 0
 
@@ -40,10 +41,12 @@ export const useKnowledgeStore = create((set, get) => {
       formData.append('category', category || '通用')
 
       try {
-        // 用原生 XMLHttpRequest 监听上传进度
-        const result = await new Promise((resolve, reject) => {
+        // 用原生 XMLHttpRequest 监听上传进度；
+        // 注意：XHR 不走 axios 拦截器，必须手动带上与 http.js 一致的 Authorization 头
+        const sendXhr = (token) => new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest()
           xhr.open('POST', '/api/knowledge/documents')
+          if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
 
           xhr.upload.addEventListener('progress', (e) => {
             if (e.lengthComputable) {
@@ -56,13 +59,30 @@ export const useKnowledgeStore = create((set, get) => {
               set({ uploadProgress: 100 })
               resolve(JSON.parse(xhr.responseText))
             } else {
-              reject(new Error(JSON.parse(xhr.responseText)?.error?.message || '上传失败'))
+              const err = new Error(
+                JSON.parse(xhr.responseText)?.error?.message || '上传失败'
+              )
+              err.status = xhr.status
+              reject(err)
             }
           })
 
           xhr.addEventListener('error', () => reject(new Error('网络错误')))
           xhr.send(formData)
         })
+
+        let result
+        try {
+          result = await sendXhr(useAuthStore.getState().accessToken)
+        } catch (err) {
+          // access token 过期：用 refresh token 换新后重发一次（与 axios 响应拦截器同策略）
+          if (err.status !== 401) throw err
+          const { refreshToken, setTokens } = useAuthStore.getState()
+          if (!refreshToken) throw err
+          const data = await http.post('/auth/refresh', { refreshToken })
+          setTokens(data.accessToken, data.refreshToken)
+          result = await sendXhr(data.accessToken)
+        }
 
         await get().loadDocuments()
         await get().loadCategories()

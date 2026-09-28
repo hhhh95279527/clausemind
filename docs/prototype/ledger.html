@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>合同台账 — WorkMind</title>
+<link rel="stylesheet" href="assets/prototype.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      WorkMind
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>合规仪表盘</a>
+      <a class="nav-item" href="contracts.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>合同审查</a>
+      <a class="nav-item active" href="ledger.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>合同台账</a>
+      <a class="nav-item" href="templates.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>合同范本</a>
+      <a class="nav-item" href="knowledge.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>法规问答</a>
+      <a class="nav-item" href="playbook.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>审查规则 Playbook</a>
+      <a class="nav-item" href="team.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>团队席位</a>
+      <a class="nav-item" href="integrations.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 1-.474-1.68l-1.683-1.682a2.414 2.414 0 0 1 3.414 0z"/></svg>集成中心</a>
+      <a class="nav-item" href="billing.html"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>我的套餐</a>
+      <div class="nav-group-label">系统管理 · 仅管理员</div>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1M19 8v6M22 11h-6"/></svg>用户管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>规则管理<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>转化漏斗<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M12 8V4M8 4h8M9 13h.01M15 13h.01"/></svg>任务 Agent<span class="mini-admin">ADMIN</span></a>
+      <a class="nav-item" href="#"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>调用链路<span class="mini-admin">ADMIN</span></a>
+    </nav>
+    <div class="sidebar-user"><span class="avatar">王</span><div><div style="color:#fff">王 HR</div><div style="font-size:11px;color:#6b7280">测试科技有限公司</div></div></div>
+  </aside>
+
+  <div class="main-area">
+    <header class="app-header">
+      <h2>合同台账</h2>
+      <span class="head-sub">合同全生命周期管理：期限、试用期、续签与到期提醒</span>
+      <div class="head-right">
+        <a href="#notify" style="position:relative;color:var(--text-sub);display:inline-flex" title="通知">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span style="position:absolute;top:-2px;right:-2px;width:8px;height:8px;border-radius:50%;background:var(--danger);border:1.5px solid #fff"></span>
+        </a>
+        <span class="plan-chip">团队版 TEAM</span><span class="avatar">王</span>
+      </div>
+    </header>
+
+    <main class="page">
+      <div class="stat-grid" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat-card"><div class="sc-top">履行中</div><div class="sc-num">22</div><div class="sc-foot">含无固定期限 3 份</div></div>
+        <div class="stat-card"><div class="sc-top">30 天内到期</div><div class="sc-num" style="color:var(--warning)">2</div><div class="sc-foot">建议尽快发起续签流程</div></div>
+        <div class="stat-card"><div class="sc-top">已过期未处理</div><div class="sc-num" style="color:var(--danger)">1</div><div class="sc-foot"><a href="#">赵某的合同</a></div></div>
+        <div class="stat-card"><div class="sc-top">本月新签 / 续签</div><div class="sc-num">5</div><div class="sc-foot">较上月 +2</div></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="tb-right" style="margin-left:0">
+          <div class="segmented">
+            <span class="on">全部</span><a href="#">履行中</a><a href="#">30 天内到期</a><a href="#">已过期</a><a href="#">已续签</a>
+          </div>
+          <input class="input" style="width:220px" placeholder="搜索员工姓名 / 部门">
+        </div>
+        <div class="tb-right">
+          <a class="btn btn-ghost" href="review.html">从审查记录加入</a>
+          <a class="btn btn-primary" href="#new"><svg class="icon-sm" style="width:14px;height:14px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>新增台账记录</a>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-body flush">
+          <table class="tbl">
+            <thead><tr><th style="width:56px">序号</th><th>员工</th><th style="width:150px">合同类型</th><th>合同期限</th><th style="width:170px">到期状态</th><th style="width:90px">状态</th><th style="width:190px">操作</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>①</td>
+                <td><b>赵某</b><div class="cell-sub">研发部 · 前端工程师</div></td>
+                <td>固定期限劳动合同</td>
+                <td class="small">2024-09-11<br>~ 2026-09-10</td>
+                <td><span class="tag tag-red">已过期 7 天</span></td>
+                <td><span class="tag tag-red">履行中</span></td>
+                <td class="row-actions"><a class="link-btn" href="#new">立即续签</a><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>②</td>
+                <td><b>钱某</b><div class="cell-sub">研发部 · 前端工程师</div></td>
+                <td>固定期限劳动合同</td>
+                <td class="small">2024-09-30<br>~ 2026-09-30</td>
+                <td><span class="tag tag-orange">12 天后到期</span></td>
+                <td><span class="tag tag-green">履行中</span></td>
+                <td class="row-actions"><a class="link-btn" href="#new">续签</a><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>③</td>
+                <td><b>孙某</b><div class="cell-sub">市场部 · 市场经理</div></td>
+                <td>竞业限制协议</td>
+                <td class="small">2025-10-09<br>~ 2026-10-09</td>
+                <td><span class="tag tag-orange">21 天后到期</span></td>
+                <td><span class="tag tag-green">履行中</span></td>
+                <td class="row-actions"><a class="link-btn" href="#new">续签</a><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>④</td>
+                <td><b>李某</b><div class="cell-sub">设计部 · 实习生（在校）</div></td>
+                <td>实习协议</td>
+                <td class="small">2026-04-24<br>~ 2026-10-24</td>
+                <td><span class="tag" style="background:#fefce8;color:#a16207">36 天后到期</span></td>
+                <td><span class="tag tag-green">履行中</span></td>
+                <td class="row-actions"><a class="link-btn" href="#new">续签</a><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>⑤</td>
+                <td><b>周某</b><div class="cell-sub">销售部 · 销售代表</div></td>
+                <td>固定期限劳动合同</td>
+                <td class="small">2026-07-15<br>~ 2029-07-14</td>
+                <td><span class="tag tag-gray">试用期 10-15 到期</span></td>
+                <td><span class="tag tag-green">履行中</span></td>
+                <td class="row-actions"><a class="link-btn" href="review.html">查看审查</a><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>⑥</td>
+                <td><b>吴某</b><div class="cell-sub">研发部 · 测试工程师</div></td>
+                <td>无固定期限劳动合同</td>
+                <td class="small">2023-03-01 起<br>无固定到期日</td>
+                <td><span class="tag tag-gray">长期履行</span></td>
+                <td><span class="tag tag-green">履行中</span></td>
+                <td class="row-actions"><a class="link-btn" href="review.html">查看审查</a><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>⑦</td>
+                <td><b>郑某</b><div class="cell-sub">原研发部 · 后端工程师</div></td>
+                <td>固定期限劳动合同</td>
+                <td class="small">2023-08-01<br>~ 2026-07-31</td>
+                <td class="small muted">已于 2026-08 续签新合同</td>
+                <td><span class="tag tag-gray">已续签</span></td>
+                <td class="row-actions"><a class="link-btn" href="#">查看新合同</a><button class="link-btn danger">删除</button></td>
+              </tr>
+              <tr>
+                <td>⑧</td>
+                <td><b>冯某</b><div class="cell-sub">原行政部</div></td>
+                <td>固定期限劳动合同</td>
+                <td class="small">2024-05-06<br>~ 2026-05-05</td>
+                <td class="small muted">2026-05-06 协商解除</td>
+                <td><span class="tag tag-gray">已解除</span></td>
+                <td class="row-actions"><a class="link-btn" href="#new">编辑</a><button class="link-btn danger">删除</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- 通知层 -->
+<div class="mask" id="notify">
+  <div class="modal" style="width:440px">
+    <div class="modal-head"><h3>通知</h3><span class="small muted" style="margin-left:auto;margin-right:10px">3 条未读</span><a class="x" href="#">×</a></div>
+    <div class="modal-body flush" style="padding:0">
+      <a class="todo-item" href="review.html" style="color:inherit">
+        <span class="tag tag-green tag-dot">审查完成</span>
+        <div class="ti-main"><b>《员工劳动合同-钱某.docx》AI 审查已完成</b><div>发现 6 条风险，其中高风险 2 条，待法务确认</div></div>
+        <span class="small muted" style="margin-left:auto">10:24</span>
+      </a>
+      <a class="todo-item" href="ledger.html" style="color:inherit">
+        <span class="tag tag-orange tag-dot">合同到期</span>
+        <div class="ti-main"><b>钱某 · 劳动合同 12 天后到期</b><div>2026-09-30 到期，建议尽快发起续签流程</div></div>
+        <span class="small muted" style="margin-left:auto">昨天</span>
+      </a>
+      <div class="todo-item">
+        <span class="tag tag-blue tag-dot">额度 80%</span>
+        <div class="ti-main"><b>团队本月审查额度已达 80% 预警线</b><div>可在「我的套餐」增购席位 / 审查包或升级套餐</div></div>
+        <a class="btn btn-ghost btn-sm" href="billing.html" style="margin-left:auto">去查看</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 新增/续签 抽屉 -->
+<a class="drawer-mask" id="new" href="#"></a>
+<aside class="drawer">
+  <div class="drawer-head">
+    <h3 style="font-size:16px">新增合同台账记录</h3>
+    <a href="#" class="x" style="margin-left:auto;color:var(--text-muted);font-size:20px">×</a>
+  </div>
+  <div class="drawer-body">
+    <div class="info-banner warn" style="margin-bottom:18px">
+      <svg class="icon-sm" style="width:15px;height:15px;margin-top:2px;flex:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+      <div>以下信息由 AI 从《员工劳动合同-钱某.docx》自动识别带入，识别结果可能不准确，<b>请逐项核对并补全后再保存</b>。未识别字段已留空。</div>
+    </div>
+
+    <div class="form-grid">
+      <div class="f-item req"><label>员工姓名</label><div class="f-control"><input class="input" value="钱某"></div></div>
+      <div class="f-item"><label>所属部门</label><div class="f-control"><input class="input" placeholder="如：研发部"></div></div>
+      <div class="f-item req"><label>合同类型</label><div class="f-control">
+        <select class="select"><option>固定期限劳动合同</option><option>无固定期限劳动合同</option><option>劳务协议</option><option>实习协议</option><option>保密协议</option><option>竞业限制协议</option><option>其他</option></select>
+      </div></div>
+      <div class="f-item"><label>担任岗位</label><div class="f-control"><input class="input" placeholder="如：前端工程师"></div></div>
+      <div class="f-item req"><label>开始日期</label><div class="f-control"><input class="input" type="date" value="2024-09-30"></div></div>
+      <div class="f-item"><label>到期日期</label><div class="f-control"><input class="input" type="date" value="2026-09-30"></div></div>
+      <div class="f-item"><label>试用期到期</label><div class="f-control"><input class="input" type="date" placeholder="无试用期则留空"></div></div>
+      <div class="f-item"><label>提前提醒</label><div class="f-control">
+        <div class="segmented"><span>7 天</span><span class="on">30 天</span><span>60 天</span><span>90 天</span></div>
+      </div></div>
+      <div class="f-item colspan2"><label>关联审查合同</label><div class="f-control">
+        <input class="input" value="员工劳动合同-钱某.docx（2026-09-17 审查，待法务审）" readonly style="background:#fafbff;color:var(--text-sub)">
+      </div></div>
+      <div class="f-item colspan2"><label>备注</label><div class="f-control"><textarea class="textarea" placeholder="如：续签意向已与员工沟通，预计 9 月 25 日前签署新合同"></textarea></div></div>
+    </div>
+  </div>
+  <div class="drawer-foot">
+    <a class="btn btn-ghost" href="#">取消</a>
+    <a class="btn btn-primary" href="ledger.html">核对无误，保存记录</a>
+  </div>
+</aside>
+
+<div class="proto-chip"><b>原型</b> <a href="index.html">落地页</a> · <a href="dashboard.html">仪表盘</a> · <a href="review.html">审查台</a> · <a href="playbook.html">Playbook</a> · <a href="team.html">团队</a> · <a href="integrations.html">集成</a> · <a href="home.html">个人工作台→</a></div>
+</body>
+</html>
