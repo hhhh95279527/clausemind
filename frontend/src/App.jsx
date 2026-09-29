@@ -1,7 +1,7 @@
 // frontend/src/App.jsx
 // 根布局：三套 persona 布局壳（Public/Personal/Team）+ antd ConfigProvider（主题联动）
 // Phase 0.3 重构：单一布局壳 → 按 persona 路由分组；旧路由 `/chat` `/monitor` 重定向
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, useRef, lazy, Suspense } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { ConfigProvider, App as AntdApp, theme as antdTheme, Spin } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
@@ -9,10 +9,10 @@ import PublicLayout from '@/components/layout/PublicLayout.jsx'
 import PersonalLayout from '@/components/layout/PersonalLayout.jsx'
 import TeamLayout from '@/components/layout/TeamLayout.jsx'
 import AuthGuard from '@/components/common/AuthGuard.jsx'
-import PagePlaceholder from '@/components/common/PagePlaceholder.jsx'
 import { useAppStore, setMessageApi } from '@/stores/app.js'
 import { usePersona } from '@/utils/persona.js'
 import { resolvePageMeta, PERSONAS } from '@/config/navigation.jsx'
+import { trackPageView } from '@/utils/analytics.js'
 
 // ── 已实现的页面（懒加载）─────────────────────────────────────────────────
 const LoginView       = lazy(() => import('@/views/LoginView.jsx'))
@@ -51,8 +51,7 @@ const TeamView          = lazy(() => import('@/views/team/TeamView.jsx'))
 const IntegrationsView  = lazy(() => import('@/views/team/IntegrationsView.jsx'))
 const TemplatesView     = lazy(() => import('@/views/team/TemplatesView.jsx'))
 
-// ── 占位页面（后续 Phase 实现后替换）──────────────────────────────────────
-const AnalyticsView     = () => <PagePlaceholder title="埋点漏斗"     phase="Phase 7" desc="注册→首审→付费墙→升级→支付" />
+const AnalyticsView   = lazy(() => import('@/views/admin/AnalyticsView.jsx'))
 
 function PageFallback() {
   return (
@@ -78,10 +77,14 @@ export default function App() {
   // persona 由后端 workspaceType 驱动（缺失时 role 兜底），见 utils/persona.js
   const persona = usePersona()
 
-  // 路由切换时更新页面 title
+  // 路由切换时更新页面 title + 上报 PV（带来源页 from，供页面跳转/留存分析）
+  const prevPathRef = useRef(location.pathname)
   useEffect(() => {
     const meta = resolvePageMeta(location.pathname)
     document.title = `${meta.title} — WorkMind`
+    const from = prevPathRef.current
+    trackPageView(location.pathname, from !== location.pathname ? { from } : {})
+    prevPathRef.current = location.pathname
   }, [location.pathname])
 
   // 基于当前 persona 选 authed layout

@@ -3,6 +3,7 @@
 import axios from 'axios'
 import { useAppStore } from '@/stores/app.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { trackApiError } from '@/utils/analytics.js'
 
 // 创建 axios 实例
 const http = axios.create({
@@ -101,6 +102,17 @@ http.interceptors.response.use(
       }
     } else {
       toast.error('网络异常，请检查连接')
+    }
+
+    // 上报 API 错误（401 已在上方处理完毕，此处均为最终失败；进 analytics_events 便于排查）
+    const reqUrl = error.config?.url || ''
+    if (error.response) {
+      const errMsg = error.response.data?.error?.message || error.response.data?.error || '请求失败'
+      trackApiError(reqUrl, error.response.status, String(errMsg))
+    } else if (error.code === 'ECONNABORTED') {
+      trackApiError(reqUrl, 0, 'timeout')
+    } else {
+      trackApiError(reqUrl, 0, error.message || 'network error')
     }
 
     return Promise.reject(error)

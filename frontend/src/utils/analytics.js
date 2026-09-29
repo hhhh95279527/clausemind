@@ -15,12 +15,16 @@ function track(eventType, data = {}) {
     url: window.location.href,
     pathname: window.location.pathname,
     userAgent: navigator.userAgent,
-    ...data,
+    // 业务字段统一进 props，与后端 normalizeEvent(raw.props) 对齐
+    props: data,
   }
 
   // 使用 sendBeacon 保证页面卸载时也能发送
+  // 注意：sendBeacon 传字符串会发 text/plain，后端 Express json() 不解析 → body 为空 → 400
+  // 必须用 Blob 显式声明 application/json，与后端 controller 预期一致
   if (navigator.sendBeacon) {
-    navigator.sendBeacon(TRACK_URL, JSON.stringify(payload))
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' })
+    navigator.sendBeacon(TRACK_URL, blob)
   } else {
     fetch(TRACK_URL, {
       method: 'POST',
@@ -33,9 +37,9 @@ function track(eventType, data = {}) {
 
 // ── 便捷方法 ──────────────────────────────────────────────────
 
-// 页面 PV
-export function trackPageView(pageName) {
-  track('page_view', { pageName })
+// 页面 PV（data 可带 from 来源页，供页面跳转/留存分析）
+export function trackPageView(pageName, data = {}) {
+  track('page_view', { pageName, ...data })
 }
 
 // 功能点击
