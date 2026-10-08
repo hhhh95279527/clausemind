@@ -31,9 +31,9 @@ export default function RegisterView() {
       <div className={`${styles.card} ${styles.cardWide}`}>
         <Link to="/" className={styles.brand}>
           <span className={styles.brandMark}><SafetyOutlined /></span>
-          WorkMind
+          ClauseMind
         </Link>
-        <h1 className={styles.title}>注册 WorkMind</h1>
+        <h1 className={styles.title}>注册 ClauseMind</h1>
         <p className={styles.subtitle}>先选择使用身份，两类空间随时可以升级</p>
 
         {step === 'choose' && (
@@ -94,7 +94,7 @@ function CodeField({ form }) {
   }
 
   return (
-    <Form.Item name="emailCode" rules={[
+    <Form.Item name="emailCode" label="验证码" rules={[
       { required: true, message: '请输入验证码' },
       { pattern: /^\d{6}$/, message: '验证码为 6 位数字' },
     ]}>
@@ -158,22 +158,24 @@ function PersonalForm({ onBack }) {
     <div>
       <a className={styles.back} onClick={onBack} href="#back">← 重新选择身份</a>
       <h3 style={{ fontSize: 15, marginBottom: 14 }}>开通个人免费空间</h3>
-      <Form form={form} onFinish={submit} size="large" autoComplete="off" initialValues={{ agreed: true }}>
-        <Form.Item name="email" rules={[
+      <Form form={form} onFinish={submit} size="large" autoComplete="off"
+        layout="horizontal" labelCol={{ flex: '74px' }} colon={false}
+        initialValues={{ agreed: true }}>
+        <Form.Item name="email" label="邮箱" rules={[
           { required: true, message: '请输入邮箱' },
           { type: 'email', message: '邮箱格式不正确' },
         ]}>
           <Input prefix={<MailOutlined />} placeholder="用于登录与接收审查结果" />
         </Form.Item>
         <CodeField form={form} />
-        <Form.Item name="password" rules={[
+        <Form.Item name="password" label="密码" rules={[
           { required: true, message: '请设置密码' },
           { min: 8, message: '密码至少 8 位，建议含字母与数字' },
         ]}>
           <Input.Password prefix={<LockOutlined />} placeholder="至少 8 位，建议含字母与数字" />
         </Form.Item>
-        <Form.Item name="displayName">
-          <Input prefix={<UserOutlined />} placeholder="昵称（选填），审查意见书中的称呼" />
+        <Form.Item name="displayName" label="昵称">
+          <Input prefix={<UserOutlined />} placeholder="选填，审查意见书中的称呼" />
         </Form.Item>
         <Agreement />
         <Button type="primary" htmlType="submit" loading={loading} block size="large">
@@ -221,24 +223,25 @@ function TeamForm({ onBack }) {
       <a className={styles.back} onClick={onBack} href="#back">← 重新选择身份</a>
       <h3 style={{ fontSize: 15, marginBottom: 14 }}>创建企业团队空间</h3>
       <Form form={form} onFinish={submit} size="large" autoComplete="off"
+        layout="horizontal" labelCol={{ flex: '74px' }} colon={false}
         initialValues={{ agreed: true, companySize: COMPANY_SIZES[0], position: POSITIONS[0] }}>
-        <Form.Item name="orgName" rules={[{ required: true, message: '请填写企业名称' }]}>
+        <Form.Item name="orgName" label="企业名称" rules={[{ required: true, message: '请填写企业名称' }]}>
           <Input prefix={<BankOutlined />} placeholder="例如：杭州星辰科技有限公司" />
         </Form.Item>
-        <Form.Item name="companySize">
+        <Form.Item name="companySize" label="企业规模">
           <Select options={COMPANY_SIZES.map((v) => ({ value: v, label: v }))} />
         </Form.Item>
-        <Form.Item name="position">
+        <Form.Item name="position" label="你的岗位">
           <Select options={POSITIONS.map((v) => ({ value: v, label: v }))} />
         </Form.Item>
-        <Form.Item name="email" rules={[
+        <Form.Item name="email" label="工作邮箱" rules={[
           { required: true, message: '请输入工作邮箱' },
           { type: 'email', message: '邮箱格式不正确' },
         ]}>
-          <Input prefix={<MailOutlined />} placeholder="工作邮箱，用于登录与团队管理" />
+          <Input prefix={<MailOutlined />} placeholder="用于登录与团队管理" />
         </Form.Item>
         <CodeField form={form} />
-        <Form.Item name="password" rules={[
+        <Form.Item name="password" label="密码" rules={[
           { required: true, message: '请设置密码' },
           { min: 8, message: '密码至少 8 位，建议含字母与数字' },
         ]}>
