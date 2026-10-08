@@ -427,7 +427,7 @@ export default function ReviewResultView() {
       <div id="printArea" style={{ display: 'none' }}>
         <h1>{contract.title} · 风险审查摘要</h1>
         <p>风险评分：{score ?? '—'}（{stats?.scoreLevel || '—'}） · {sceneLabel(contract.scene)} · {new Date().toLocaleDateString('zh-CN')}</p>
-        {!deep && <div className="printWatermark"><b>WorkMind 免费版</b></div>}
+        {!deep && <div className="printWatermark"><b>ClauseMind 免费版</b></div>}
         <h2>大白话摘要</h2>
         <ol>{(stats?.summary || []).map((s, i) => <li key={i}><b>{s.title}：</b>{s.text}</li>)}</ol>
         <h2>风险清单（{stats?.total ?? 0} 条）</h2>

@@ -62,7 +62,7 @@ export default function TeamLayout({ children }) {
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : ''}`}>
         <div className={styles['sidebar-logo']}>
           <LogoIcon className={styles['logo-icon']} />
-          <span className={styles['logo-text']}>WorkMind</span>
+          <span className={styles['logo-text']}>ClauseMind</span>
         </div>
         <nav className={styles['sidebar-nav']}>
           {teamNav.map((item) => {

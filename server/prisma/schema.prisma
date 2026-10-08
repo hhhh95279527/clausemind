@@ -1,4 +1,4 @@
-// Prisma Schema — WorkMind 合同风险审查平台
+// Prisma Schema — ClauseMind 合同风险审查平台
 // 分层：平台层（Tenant/Quota/Trace/Span/Eval）+ 业务层（Contract/Clause/Review/Risk/Rule）
 
 generator client {

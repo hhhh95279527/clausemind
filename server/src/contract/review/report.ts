@@ -65,6 +65,6 @@ export function buildOpinionMarkdown(
 
   lines.push('---')
   lines.push('')
-  lines.push('*本意见书由 WorkMind 合同风险审查平台自动生成并经人工终审，仅供内部决策参考，不构成正式法律意见。*')
+  lines.push('*本意见书由 ClauseMind 合同风险审查平台自动生成并经人工终审，仅供内部决策参考，不构成正式法律意见。*')
   return lines.join('\n')
 }

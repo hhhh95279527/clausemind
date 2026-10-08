@@ -166,7 +166,7 @@ export class IntegrationsService {
         config: { wide_screen_mode: true },
         header: {
           template: 'blue',
-          title: { tag: 'plain_text', content: 'WorkMind 测试通知' },
+          title: { tag: 'plain_text', content: 'ClauseMind 测试通知' },
         },
         elements: [
           {
@@ -175,7 +175,7 @@ export class IntegrationsService {
               tag: 'lark_md',
               content: [
                 '**Webhook 连通测试成功**',
-                '来自 WorkMind 集成中心：审查完成、合同到期 digest、额度 80% 预警将自动推送到本群。',
+                '来自 ClauseMind 集成中心：审查完成、合同到期 digest、额度 80% 预警将自动推送到本群。',
                 `发送时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
               ].join('\n'),
             },

@@ -86,7 +86,7 @@ export default function OnboardingGuide() {
 
   return (
     <Modal
-      title={`欢迎使用 WorkMind，${user.displayName || user.username || ''}`}
+      title={`欢迎使用 ClauseMind，${user.displayName || user.username || ''}`}
       open
       width={560}
       maskClosable={false}

@@ -14,7 +14,7 @@ export default function PublicChrome({ children }) {
       <nav className={styles.topnav}>
         <Link to="/" className={styles.brand}>
           <span className={styles.brandMark}><SafetyCertificateOutlined /></span>
-          WorkMind
+          ClauseMind
         </Link>
         <div className={styles.navLinks}>
           <a href="/#abilities">产品能力</a>

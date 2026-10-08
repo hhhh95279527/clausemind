@@ -4,7 +4,7 @@
 
 ## 1. 这是什么项目
 
-**WorkMind** —— 面向中小企业 HR 的 **AI 合同风险审查 SaaS**（演示/作品集项目）。核心能力：
+**ClauseMind** —— 面向中小企业 HR 的 **AI 合同风险审查 SaaS**（演示/作品集项目）。核心能力：
 
 1. **合同双轨审查**：规则轨（12 条声明式劳动法规则，确定性命中）+ Agent 轨（LangGraph ReAct，调用法规 RAG 做语义判断），风险合并去重（`detected_by = RULE / AGENT / BOTH`），最终由**人工终审（HITL）**拍板。
 2. **法规知识库 RAG**：文档切片 → embedding（无 Key 时降级关键词检索）→ PG 应用层余弦/关键词混合召回。

@@ -1,6 +1,6 @@
-# WorkMind AI
+# ClauseMind AI
 
-[![CI](https://github.com/hhhh95279527/workmind/actions/workflows/ci.yml/badge.svg)](https://github.com/hhhh95279527/workmind/actions/workflows/ci.yml)
+[![CI](https://github.com/hhhh95279527/clausemind/actions/workflows/ci.yml/badge.svg)](https://github.com/hhhh95279527/clausemind/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-22-339933?logo=nodedotjs)](https://nodejs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-10-E0234E?logo=nestjs)](https://nestjs.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.2-1C3C3C)](https://langchain-ai.github.io/langgraphjs/)
@@ -12,7 +12,7 @@
 
 ## 这个项目解决什么问题
 
-企业法务/HR 审合同靠人工逐条看，成本高、易漏审。WorkMind 把审查拆成两条互补的轨道：
+企业法务/HR 审合同靠人工逐条看，成本高、易漏审。ClauseMind 把审查拆成两条互补的轨道：
 
 - **规则轨（确定性、零成本）**：12 条声明式审查规则（正则/关键词、`ALL`/`LABOR` scope），毫秒级命中已知风险模式，无 AI Key 也能完整跑；
 - **Agent 轨（语义、可推理）**：LangGraph StateGraph 驱动的 ReAct 循环，结合法规库 RAG 发现规则覆盖不到的隐性风险；

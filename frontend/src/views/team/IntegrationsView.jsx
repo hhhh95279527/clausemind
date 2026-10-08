@@ -202,7 +202,7 @@ export default function IntegrationsView() {
       {/* 安全小灰条 */}
       <div className={css.secureBar}>
         <LockOutlined className={css.secureIcon} />
-        <div>所有集成凭证均加密存储、脱敏展示；通知与数据仅向你显式配置的官方域名发送，WorkMind 不会向第三方共享合同内容。</div>
+        <div>所有集成凭证均加密存储、脱敏展示；通知与数据仅向你显式配置的官方域名发送，ClauseMind 不会向第三方共享合同内容。</div>
       </div>
 
       {/* 飞书配置 */}

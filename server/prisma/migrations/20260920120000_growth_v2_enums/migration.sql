@@ -1,4 +1,4 @@
--- WorkMind 产品化改造 v2 · 枚举扩展
+-- ClauseMind 产品化改造 v2 · 枚举扩展
 -- PG 限制：ALTER TYPE ... ADD VALUE 新增的枚举值在同一事务内不可使用，
 -- 因此老套餐数据 PRO→TEAM、ENT→ENTERPRISE 的映射放在下一条迁移（20260920120100_growth_v2_data）。
 

@@ -144,14 +144,14 @@ export async function buildOpinionDocx(
 
   children.push(
     new Paragraph({ spacing: { before: 320 }, children: [] }),
-    p('本意见书由 WorkMind 合同风险审查平台自动生成并经人工终审，仅供内部决策参考，不构成正式法律意见。', {
+    p('本意见书由 ClauseMind 合同风险审查平台自动生成并经人工终审，仅供内部决策参考，不构成正式法律意见。', {
       color: '6B7280',
       size: 18,
     }),
   )
 
   const doc = new Document({
-    creator: 'WorkMind',
+    creator: 'ClauseMind',
     title: `审查意见书 · ${contract.title}`,
     sections: [{ properties: {}, children }],
   })

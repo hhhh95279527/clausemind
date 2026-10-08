@@ -44,7 +44,7 @@ export const useAuthStore = create(
       },
     }),
     {
-      name: 'workmind-auth',
+      name: 'clausemind-auth',
       // 只持久化 token 和用户信息
       partialize: (state) => ({
         user: state.user,

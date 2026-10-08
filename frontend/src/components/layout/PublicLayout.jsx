@@ -23,7 +23,7 @@ export default function PublicLayout({ children }) {
         fontSize: 13,
         color: 'var(--color-text-sub)',
       }}>
-        <span>© 2026 WorkMind</span>
+        <span>© 2026 ClauseMind</span>
         {publicFooterLinks.map((l) => (
           <Link key={l.path} to={l.path}>{l.label}</Link>
         ))}

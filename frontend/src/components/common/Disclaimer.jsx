@@ -10,7 +10,7 @@ import { InfoCircleOutlined } from '@ant-design/icons'
  */
 export default function Disclaimer({ variant = 'bar', free = false }) {
   if (variant === 'watermark') {
-    return 'WorkMind 免费版 · 仅供风险提示，不构成法律意见'
+    return 'ClauseMind 免费版 · 仅供风险提示，不构成法律意见'
   }
 
   const text = 'AI 风险提示仅供参考，不构成法律意见，重大合同建议咨询执业律师。'

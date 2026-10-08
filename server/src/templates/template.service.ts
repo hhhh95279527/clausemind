@@ -200,7 +200,7 @@ export class TemplateService {
         spacing: { after: 240 },
         children: [
           new TextRun({
-            text: `由 WorkMind 范本库提供 · ${new Date().toLocaleDateString('zh-CN')} · 使用前请结合实际情况调整`,
+            text: `由 ClauseMind 范本库提供 · ${new Date().toLocaleDateString('zh-CN')} · 使用前请结合实际情况调整`,
             color: '6b7280',
             size: 18,
           }),
@@ -224,7 +224,7 @@ export class TemplateService {
     }
 
     const word = new Document({
-      creator: 'WorkMind',
+      creator: 'ClauseMind',
       title: item.title,
       sections: [{ properties: {}, children }],
     })

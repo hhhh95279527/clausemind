@@ -6,7 +6,7 @@ import { TraceStatus } from '@prisma/client'
 import { DatabaseService } from '../database/database.service.js'
 import { config } from '../config/index.js'
 import { createContext, runInContext, type TraceContext } from './trace-context.js'
-import { WorkMindObserver, setObserverDatabase } from './langchain-observer.js'
+import { ClauseMindObserver, setObserverDatabase } from './langchain-observer.js'
 import { calcCostCny } from './pricing.js'
 import { QuotaService } from './quota.service.js'
 import { logger } from '../utils/logger.js'
@@ -21,14 +21,14 @@ export interface TraceInput {
 export interface TraceHandle {
   ctx: TraceContext
   /** 传给 LangChain 调用的 callbacks，自动产生 Span */
-  callbacks: [WorkMindObserver]
+  callbacks: [ClauseMindObserver]
   /** 标记本次为精确缓存命中（零成本，不计配额） */
   markCacheHit(savedTokens: number): void
 }
 
 @Injectable()
 export class TraceService implements OnModuleInit {
-  private readonly observer = new WorkMindObserver()
+  private readonly observer = new ClauseMindObserver()
 
   constructor(
     private readonly db: DatabaseService,

@@ -88,7 +88,7 @@ export async function retrieveDocs(question: string, opts: RetrieveOptions = {})
 }
 
 // ── RAG Prompt ────────────────────────────────────────────────
-const RAG_SYSTEM = `你是 WorkMind AI 知识库助手，是一个严谨的智能问答系统。
+const RAG_SYSTEM = `你是 ClauseMind AI 知识库助手，是一个严谨的智能问答系统。
 
 ## 核心规则
 1. 只根据下方提供的参考文档回答，绝不使用文档之外的知识

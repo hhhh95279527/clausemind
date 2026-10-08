@@ -24,7 +24,7 @@ export default function LegalPage({ content }) {
       <nav className={styles.topnav}>
         <Link to="/" className={styles.brand}>
           <span className={styles.brandMark}><SafetyOutlined /></span>
-          WorkMind
+          ClauseMind
         </Link>
         <div className={styles.navLinks}>
           <Link to="/#abilities">产品能力</Link>

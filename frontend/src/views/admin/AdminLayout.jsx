@@ -52,7 +52,7 @@ export default function AdminLayout() {
           height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontSize: collapsed ? 14 : 18, fontWeight: 600,
         }}>
-          {collapsed ? 'WM' : 'WorkMind 管理'}
+          {collapsed ? 'CM' : 'ClauseMind 管理'}
         </div>
         <Menu
           theme="dark"

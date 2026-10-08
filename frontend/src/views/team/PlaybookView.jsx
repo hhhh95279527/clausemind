@@ -348,7 +348,7 @@ export default function PlaybookView() {
       <div className={css.banner}>
         <span className={css.bico}><SafetyCertificateFilled /></span>
         <div>
-          <b>把公司的合规红线、禁止条款与标准合同沉淀在这里</b>，每份合同都会优先按公司口径审查；规则越用越准，团队的审查标准就越离不开 WorkMind。
+          <b>把公司的合规红线、禁止条款与标准合同沉淀在这里</b>，每份合同都会优先按公司口径审查；规则越用越准，团队的审查标准就越离不开 ClauseMind。
           <div className={`${shared.small} ${shared.muted}`} style={{ marginTop: 3 }}>
             红线命中直接判高风险；偏好口径用于修改建议；标准合同自动抽取规则草稿；行业包一键启用整组规则。
           </div>

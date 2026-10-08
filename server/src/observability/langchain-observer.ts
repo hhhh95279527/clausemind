@@ -56,8 +56,8 @@ export function extractUsage(output: LLMResult): { model?: string; usage: TokenU
   return { model, usage: { inputTokens, outputTokens, cacheHitTokens } }
 }
 
-export class WorkMindObserver extends BaseCallbackHandler {
-  name = 'workmind-observer'
+export class ClauseMindObserver extends BaseCallbackHandler {
+  name = 'clausemind-observer'
 
   private running = new Map<string, RunningCall>()
 

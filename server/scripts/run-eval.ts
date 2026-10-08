@@ -298,7 +298,7 @@ async function main() {
   const withLlm = !args.noLlm && isValidAiKey(config.ai.deepseekKey)
   const commitSha = getCommitSha()
 
-  console.log('WorkMind 离线评测')
+  console.log('ClauseMind 离线评测')
   console.log(`  分组：${args.types.join(', ')}｜LLM：${withLlm ? '启用' : '关闭（无有效 DEEPSEEK_API_KEY 或 --no-llm）'}｜commit：${commitSha ?? '未知'}`)
   if (args.withAgent) {
     console.log('  提示：--with-agent 为预留参数，Agent 轨评测不在 6.1 范围，本次跳过。')

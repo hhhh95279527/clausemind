@@ -263,7 +263,7 @@ function TopBar() {
         <span className={css.logoMark}>
           <SafetyCertificateOutlined />
         </span>
-        WorkMind
+        ClauseMind
       </Link>
       <span className={css.coEnv}>
         <LockFilled />

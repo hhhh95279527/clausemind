@@ -1,5 +1,5 @@
 ﻿# =====================================================================
-# WorkMind 本地开发一键启动脚本（Windows / PowerShell 5.1+ 兼容）
+# ClauseMind 本地开发一键启动脚本（Windows / PowerShell 5.1+ 兼容）
 # 用法：在项目根目录执行  .\start-dev.ps1
 # 作用：按顺序拉起 PostgreSQL -> Redis -> 后端(3000) -> 前端(5173)
 # 特性：幂等——已在运行的组件自动跳过；前后端各开一个独立日志窗口
@@ -40,7 +40,7 @@ function Wait-Http($Url, $Seconds) {
 }
 
 Write-Host ''
-Write-Host '========== WorkMind 开发环境启动 ==========' -ForegroundColor Cyan
+Write-Host '========== ClauseMind 开发环境启动 ==========' -ForegroundColor Cyan
 
 # 1) PostgreSQL（便携版，不是 Windows 服务，需手工拉起）
 if (Test-Port 5432) {
@@ -73,7 +73,7 @@ if (Test-Port 3000) {
   }
   Write-Host '[3/4] 新窗口启动后端 (http://localhost:3000) ...' -ForegroundColor Yellow
   Start-Process -FilePath cmd.exe -ArgumentList @(
-    '/k', "title WorkMind-Server && cd /d `"$ServerDir`" && npm run dev"
+    '/k', "title ClauseMind-Server && cd /d `"$ServerDir`" && npm run dev"
   )
 }
 
@@ -86,7 +86,7 @@ if (Test-Port 5173) {
   }
   Write-Host '[4/4] 新窗口启动前端 (http://localhost:5173) ...' -ForegroundColor Yellow
   Start-Process -FilePath cmd.exe -ArgumentList @(
-    '/k', "title WorkMind-Frontend && cd /d `"$FrontendDir`" && npm run dev"
+    '/k', "title ClauseMind-Frontend && cd /d `"$FrontendDir`" && npm run dev"
   )
 }
 
@@ -98,9 +98,9 @@ $webOk  = Wait-Http 'http://localhost:5173' 60
 
 Write-Host ''
 if ($apiOk) { Write-Host '  后端健康检查  PASS  http://localhost:3000/health' -ForegroundColor Green }
-else        { Write-Host '  后端未就绪，请查看「WorkMind-Server」窗口日志（等待编译或报错）' -ForegroundColor Red }
+else        { Write-Host '  后端未就绪，请查看「ClauseMind-Server」窗口日志（等待编译或报错）' -ForegroundColor Red }
 if ($webOk) { Write-Host '  前端页面      PASS  http://localhost:5173' -ForegroundColor Green }
-else        { Write-Host '  前端未就绪，请查看「WorkMind-Frontend」窗口日志' -ForegroundColor Red }
+else        { Write-Host '  前端未就绪，请查看「ClauseMind-Frontend」窗口日志' -ForegroundColor Red }
 
 Write-Host ''
 Write-Host '  打开应用： http://localhost:5173' -ForegroundColor White

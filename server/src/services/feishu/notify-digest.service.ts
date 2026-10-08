@@ -54,13 +54,13 @@ export class NotifyDigestService {
       return `${icon} **${i.title}**\n　${i.desc}`
     })
     if (picked.length > MAX_LINES) {
-      lines.push(`……另有 ${picked.length - MAX_LINES} 条，登录 WorkMind 查看全部`)
+      lines.push(`……另有 ${picked.length - MAX_LINES} 条，登录 ClauseMind 查看全部`)
     }
 
     const today = new Date().toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }).replace(/\//g, '-')
     const card = buildInteractiveCard({
       template: 'blue',
-      title: `WorkMind 每日提醒 · ${today}`,
+      title: `ClauseMind 每日提醒 · ${today}`,
       lines,
     })
     return this.feishu.sendCard(tenantId, card)

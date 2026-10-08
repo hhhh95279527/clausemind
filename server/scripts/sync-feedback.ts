@@ -62,7 +62,7 @@ function markerOf(tags: string[]): string | null {
 async function main() {
   const args = parseArgs(process.argv.slice(2))
 
-  console.log('WorkMind 反馈飞轮同步')
+  console.log('ClauseMind 反馈飞轮同步')
   console.log(
     `  模式：${args.dryRun ? 'DRY-RUN（不落库）' : '正式同步'}｜租户：${args.tenantId ?? '全部'}｜Agent 漏报阈值：${args.minRepeat} 次`,
   )

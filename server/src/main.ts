@@ -45,8 +45,8 @@ async function bootstrap() {
 
   // ── Swagger API 文档 ──────────────────────────────────────────
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('WorkMind API')
-    .setDescription('WorkMind 企业智能办公助手 API 文档')
+    .setTitle('ClauseMind API')
+    .setDescription('ClauseMind 企业智能办公助手 API 文档')
     .setVersion('1.0')
     .addBearerAuth()
     .addTag('auth', '认证相关（登录/注册/Token）')
@@ -67,7 +67,7 @@ async function bootstrap() {
     port: config.app.port,
     env:  config.app.env,
   })
-  console.log(`\n🚀 WorkMind Server 已启动`)
+  console.log(`\n🚀 ClauseMind Server 已启动`)
   console.log(`   地址: http://localhost:${config.app.port}`)
   console.log(`   健康检查: http://localhost:${config.app.port}/health`)
   console.log(`   API 文档: http://localhost:${config.app.port}/api/docs\n`)

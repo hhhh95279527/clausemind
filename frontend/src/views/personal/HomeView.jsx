@@ -55,7 +55,7 @@ export default function HomeView() {
       {/* 欢迎区 */}
       <div className={styles.welcome}>
         <h1>你好，{name}</h1>
-        <p>租房、入职、兼职、签 NDA 之前，把合同丢给 WorkMind，先帮你把坑标出来。</p>
+        <p>租房、入职、兼职、签 NDA 之前，把合同丢给 ClauseMind，先帮你把坑标出来。</p>
       </div>
 
       {/* 额度卡 */}

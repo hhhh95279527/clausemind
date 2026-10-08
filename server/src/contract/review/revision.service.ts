@@ -230,7 +230,7 @@ export class RevisionService {
       }),
       new Paragraph({
         children: [new TextRun({
-          text: `由 WorkMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 共接受 ${accepted.length} 条修订（修订痕迹可在 Word 中接受/拒绝）`,
+          text: `由 ClauseMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 共接受 ${accepted.length} 条修订（修订痕迹可在 Word 中接受/拒绝）`,
           color: '6b7280', size: 20,
         })],
         spacing: { after: 240 },
@@ -254,26 +254,26 @@ export class RevisionService {
         children.push(new Paragraph({ children: [new TextRun(clause.content)] }))
         continue
       }
-      // 有修订：原句删除痕迹（红） + 改写插入痕迹（蓝），作者 WorkMind AI
+      // 有修订：原句删除痕迹（红） + 改写插入痕迹（蓝），作者 ClauseMind AI
       const nowIso = new Date().toISOString()
       for (const r of revs) {
         children.push(new Paragraph({
           spacing: { before: 80, after: 80 },
           children: [
-            new DeletedTextRun({ id: nextChangeId(), author: 'WorkMind AI', date: nowIso, text: r.quote, color: 'C00000' }),
+            new DeletedTextRun({ id: nextChangeId(), author: 'ClauseMind AI', date: nowIso, text: r.quote, color: 'C00000' }),
           ],
         }))
         children.push(new Paragraph({
           spacing: { before: 80, after: 160 },
           children: [
-            new InsertedTextRun({ id: nextChangeId(), author: 'WorkMind AI', date: nowIso, text: r.rewritten!, color: '1D4ED8' }),
+            new InsertedTextRun({ id: nextChangeId(), author: 'ClauseMind AI', date: nowIso, text: r.rewritten!, color: '1D4ED8' }),
           ],
         }))
       }
     }
 
     const doc = new Document({
-      creator: 'WorkMind',
+      creator: 'ClauseMind',
       title: `修订稿 · ${contract.title}`,
       sections: [{ properties: {}, children }],
     })

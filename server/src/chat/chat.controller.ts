@@ -19,7 +19,7 @@ import { initSse } from '../utils/sse'
 
 // 内置角色预设
 const ROLES: Record<string, string> = {
-  default: '你是 WorkMind AI，一个严谨的智能办公助手，回答简洁专业。',
+  default: '你是 ClauseMind AI，一个严谨的智能办公助手，回答简洁专业。',
   tech:    '你是资深技术顾问，精通 Vue3、React、Node.js 等技术栈。回答要有代码示例，说明清楚原理。',
   legal:   '你是法务助理，熟悉合同法、知识产权、劳动合同。回答严谨，不编造法条，必要时建议咨询专业律师。',
 }

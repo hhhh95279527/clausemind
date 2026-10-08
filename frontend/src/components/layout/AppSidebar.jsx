@@ -17,7 +17,7 @@ export default function AppSidebar() {
       {/* Logo 区域 */}
       <div className={styles['sidebar-logo']}>
         <LogoIcon className={styles['logo-icon']} />
-        <span className={styles['logo-text']}>WorkMind</span>
+        <span className={styles['logo-text']}>ClauseMind</span>
       </div>
 
       {/* 主菜单 */}

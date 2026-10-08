@@ -75,7 +75,7 @@ export const systemAdminNav = [
 // ── 顶部栏页面元信息（覆盖所有路由）──────────────────────────────────────
 export const pageMeta = {
   // 公开
-  '/':            { title: 'WorkMind — AI 合同风险审查', icon: AppstoreOutlined, desc: '免费看到真实风险，付费解锁深度建议' },
+  '/':            { title: 'ClauseMind — AI 合同风险审查', icon: AppstoreOutlined, desc: '免费看到真实风险，付费解锁深度建议' },
   '/pricing':     { title: '定价方案',     icon: CreditCardOutlined, desc: '免费 / 个人 / 团队 / 企业 四档' },
   '/login':       { title: '登录',         icon: SolutionOutlined,   desc: '密码 / 邮箱验证码双通道' },
   '/register':    { title: '注册',         icon: SolutionOutlined,   desc: '个人 / 企业双路径分流' },
@@ -117,7 +117,7 @@ export const pageMeta = {
   '/chat':          { title: '智能对话',     icon: MessageOutlined,    desc: '已收编为合同助手' },
 }
 
-export const fallbackMeta = { title: 'WorkMind', icon: AppstoreOutlined }
+export const fallbackMeta = { title: 'ClauseMind', icon: AppstoreOutlined }
 
 // 动态详情路由（按前缀匹配）
 const pageMetaPatterns = [

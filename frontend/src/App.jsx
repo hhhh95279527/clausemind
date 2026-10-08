@@ -81,7 +81,7 @@ export default function App() {
   const prevPathRef = useRef(location.pathname)
   useEffect(() => {
     const meta = resolvePageMeta(location.pathname)
-    document.title = `${meta.title} — WorkMind`
+    document.title = `${meta.title} — ClauseMind`
     const from = prevPathRef.current
     trackPageView(location.pathname, from !== location.pathname ? { from } : {})
     prevPathRef.current = location.pathname

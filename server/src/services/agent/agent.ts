@@ -10,7 +10,7 @@ import { createChatModel } from '../model.js'
 import { buildTools, TOOL_LABELS } from './tools.js'
 import { logger } from '../../utils/logger.js'
 
-const AGENT_SYSTEM = `你是 WorkMind AI 任务助手，处理办公与法务场景的复杂任务。
+const AGENT_SYSTEM = `你是 ClauseMind AI 任务助手，处理办公与法务场景的复杂任务。
 
 工作原则：
 1. 先理解完整需求，想清楚需要哪些步骤

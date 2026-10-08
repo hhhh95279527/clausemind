@@ -299,7 +299,7 @@ export default function PersonalBillingView() {
           <div className={css.panelHead}><h3>需要团队协作？</h3></div>
           <div className={css.panelBody}>
             <p className={`${css.small} ${css.muted}`} style={{ lineHeight: 1.9 }}>
-              如果你和同事需要<b style={{ color: 'var(--color-text)' }}>共享合同库、统一审查规则（Playbook）、审批流与企业级管理后台</b>，WorkMind 提供团队版与企业版，支持成员席位、合同台账与操作审计。
+              如果你和同事需要<b style={{ color: 'var(--color-text)' }}>共享合同库、统一审查规则（Playbook）、审批流与企业级管理后台</b>，ClauseMind 提供团队版与企业版，支持成员席位、合同台账与操作审计。
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
               <Button type="primary" block onClick={() => navigate('/pricing')}>了解团队版</Button>

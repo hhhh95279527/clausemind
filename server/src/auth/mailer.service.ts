@@ -55,8 +55,8 @@ export class MailerService {
   async sendVerificationCode(to: string, code: string, ttlMinutes: number): Promise<void> {
     await this.send({
       to,
-      subject: '【WorkMind】登录验证码',
-      text: `你的 WorkMind 验证码为 ${code}，${ttlMinutes} 分钟内有效，请勿泄露给他人。如非本人操作请忽略本邮件。`,
+      subject: '【ClauseMind】登录验证码',
+      text: `你的 ClauseMind 验证码为 ${code}，${ttlMinutes} 分钟内有效，请勿泄露给他人。如非本人操作请忽略本邮件。`,
     })
   }
 }
