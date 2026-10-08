@@ -1,21 +1,21 @@
-version: "3.9"
-
 services:
   # ── PostgreSQL 数据库 ─────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: workmind-postgres
+    container_name: clausemind-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: workmind
       POSTGRES_USER: workmind
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-workmind123}
     ports:
-      - "5432:5432"
+      # 容器间走内部网络 postgres:5432，无需对宿主机外暴露。
+      # 默认仅绑定宿主机回环地址（生产安全）；本机 5432 被占用时在 .env 设 POSTGRES_PORT=5433
+      - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
     volumes:
       - pg-data:/var/lib/postgresql/data
     networks:
-      - workmind-net
+      - clausemind-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U workmind"]
       interval: 10s
@@ -25,14 +25,15 @@ services:
   # ── Redis 缓存 ────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    container_name: workmind-redis
+    container_name: clausemind-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      # Redis 无密码，默认仅绑定宿主机回环地址，切勿暴露公网
+      - "${REDIS_PORT:-127.0.0.1:6379}:6379"
     volumes:
       - redis-data:/data
     networks:
-      - workmind-net
+      - clausemind-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -44,7 +45,7 @@ services:
     build:
       context: ./server
       dockerfile: Dockerfile
-    container_name: workmind-server
+    container_name: clausemind-server
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -67,7 +68,7 @@ services:
       - SMTP_SECURE=${SMTP_SECURE:-true}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
-      - SMTP_FROM=${SMTP_FROM:-WorkMind <no-reply@workmind.example>}
+      - SMTP_FROM=${SMTP_FROM:-ClauseMind <no-reply@clausemind.example>}
       - INTEGRATION_SECRET=${INTEGRATION_SECRET:-}
     depends_on:
       postgres:
@@ -77,26 +78,44 @@ services:
     volumes:
       - ./server/uploads:/app/uploads
     networks:
-      - workmind-net
+      - clausemind-net
 
   # ── Nginx 前端 + 反向代理 ─────────────────────────────────────
   nginx:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: workmind-nginx
+    container_name: clausemind-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      # 生产默认 80；本机 80 被占用时在 .env 设 HTTP_PORT=8088
+      - "${HTTP_PORT:-80}:80"
     depends_on:
       - server
     networks:
-      - workmind-net
+      - clausemind-net
+
+  # ── Adminer 数据库可视化（浏览器看 PostgreSQL 内容）────────────
+  # 访问 http://localhost:8080（服务器用 http://服务器IP:8080）
+  # 登录信息：系统选 PostgreSQL，服务器 postgres，账号 workmind，
+  #          密码见 .env 的 POSTGRES_PASSWORD，数据库 workmind
+  # 生产环境如不需要可删除本服务或仅绑定本机 127.0.0.1:8080:8080
+  adminer:
+    image: adminer:4-standalone
+    container_name: clausemind-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - clausemind-net
 
 volumes:
   pg-data:
   redis-data:
 
 networks:
-  workmind-net:
+  clausemind-net:
     driver: bridge
