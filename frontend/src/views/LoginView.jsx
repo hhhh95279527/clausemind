@@ -24,9 +24,9 @@ export default function LoginView() {
       <div className={styles.card}>
         <Link to="/" className={styles.brand}>
           <span className={styles.brandMark}><SafetyOutlined /></span>
-          WorkMind
+          ClauseMind
         </Link>
-        <h1 className={styles.title}>登录 WorkMind</h1>
+        <h1 className={styles.title}>登录 ClauseMind</h1>
         <p className={styles.subtitle}>签合同前，先让 AI 帮你排雷</p>
 
         <Tabs
@@ -47,10 +47,12 @@ export default function LoginView() {
 }
 
 // ── 协议勾选（两个 tab 共用）────────────────────────────────────────────────
-function Agreement({ value, onChange }) {
+// 注意：外层 Form.Item 设了 valuePropName="checked"，antd 注入的属性名是 checked
+// （不是默认的 value），这里必须接收 checked，否则勾选状态无法回显。
+function Agreement({ checked, onChange }) {
   return (
     <Checkbox
-      checked={value}
+      checked={checked}
       onChange={(e) => onChange(e.target.checked)}
       className={styles.agree}
     >
