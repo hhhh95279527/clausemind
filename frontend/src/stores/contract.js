@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import http, { fetchStream } from '@/utils/http.js'
 import { useAppStore } from './app.js'
-import { trackFirstReviewStart } from '@/utils/analytics.js'
+import { trackFirstReviewStart, trackReviewCompleted, trackParseFailed, trackReportExported } from '@/utils/analytics.js'
 
 // 合同状态 → antd Tag 颜色与中文
 export const CONTRACT_STATUS_META = {
@@ -25,6 +25,9 @@ export const RISK_STATUS_META = {
 
 export const SEVERITY_COLOR = { HIGH: '#dc2626', MED: '#d97706', LOW: '#2563eb' }
 export const SEVERITY_TEXT = { HIGH: '高风险', MED: '中风险', LOW: '低风险' }
+
+// 解析失败已上报的合同 ID：同一合同多次进入详情/轮询只计一次（质量指标不去重会虚增）
+const parseFailReported = new Set()
 
 export const useContractStore = create((set, get) => ({
   contracts: [],
@@ -105,6 +108,14 @@ export const useContractStore = create((set, get) => ({
     try {
       const data = await http.get(`/contracts/${id}`)
       set({ detail: data })
+      // 解析失败埋点（质量指标）：按合同去重，轮询期间不重复上报
+      if (data.contract?.status === 'FAILED' && !parseFailReported.has(id)) {
+        parseFailReported.add(id)
+        trackParseFailed(
+          (data.contract.fileName || '').split('.').pop()?.toLowerCase() || 'text',
+          data.contract.parseError || '',
+        )
+      }
       return data
     } finally {
       set({ loadingDetail: false })
@@ -155,6 +166,10 @@ export const useContractStore = create((set, get) => ({
     // 真正发起成功才计漏斗（PLAN_LIMIT 被拦截不计）；聚合按用户去重，重复审查不增人数
     if (!blockedErr) {
       trackFirstReviewStart(get().detail?.contract?.scene)
+      // 流程无错跑完才计「审查完成」：中间错误（批次失败/SSE 断连）不虚增成功率
+      if (!get().reviewError) {
+        trackReviewCompleted(get().detail?.contract?.scene)
+      }
     }
     return { taskId, blocked: blockedErr }
   },
@@ -181,6 +196,7 @@ export const useContractStore = create((set, get) => ({
       })
     }
     const blob = await resp.blob()
+    trackReportExported('report_docx', get().detail?.contract?.scene)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

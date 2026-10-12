@@ -1,14 +1,18 @@
 // server/src/platform/platform.controller.ts
 // 平台超管接口（/api/platform）：全部 @Roles('PLATFORM_ADMIN')，登录端点除外
-import { Body, Controller, Get, Param, Post, Put, Req } from '@nestjs/common'
+import { Body, Controller, Get, Param, Post, Put, Req, Query } from '@nestjs/common'
 import type { Request } from 'express'
 import { PlatformService } from './platform.service.js'
+import { OrdersService } from '../billing/orders.service.js'
 import { Roles } from '../auth/decorators/roles.decorator.js'
 import { Public } from '../auth/decorators/public.decorator.js'
 
 @Controller('api/platform')
 export class PlatformController {
-  constructor(private readonly platform: PlatformService) {}
+  constructor(
+    private readonly platform: PlatformService,
+    private readonly orders: OrdersService,
+  ) {}
 
   /** 平台超管登录（公开端点；独立账号体系，与租户用户不共用） */
   @Public()
@@ -74,5 +78,25 @@ export class PlatformController {
   @Get('me')
   me(@Req() req: Request) {
     return { username: (req as any).user?.username }
+  }
+
+  // ── 转账订单人工确认 ──────────────────────────────────────────
+
+  @Roles('PLATFORM_ADMIN')
+  @Get('transfer-orders')
+  listTransferOrders(@Query('status') status?: string) {
+    return this.orders.listTransferOrders(status || 'PENDING')
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @Post('transfer-orders/:id/confirm')
+  confirmTransferOrder(@Param('id') id: string, @Req() req: Request) {
+    return this.orders.confirmTransferOrder(id, (req as any).user?.username || 'platform')
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @Post('transfer-orders/:id/reject')
+  rejectTransferOrder(@Param('id') id: string, @Req() req: Request, @Body() body: { reason?: string }) {
+    return this.orders.rejectTransferOrder(id, (req as any).user?.username || 'platform', body.reason || '')
   }
 }

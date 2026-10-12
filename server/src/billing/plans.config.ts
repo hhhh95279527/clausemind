@@ -21,6 +21,7 @@ export type PlanLimitReason =
   | 'TEAM_SPACE'       // 团队/集成页仅企业空间
   | 'SEAT_LIMIT'       // 超席位
   | 'COUPON_REQUIRED'  // 需要深度券
+  | 'TRIAL_EXHAUSTED'  // 免费试用次数用尽（每项功能终身 2 次）
 
 /** 权益特性名（EntitlementsService.can 判定用） */
 export type Feature =

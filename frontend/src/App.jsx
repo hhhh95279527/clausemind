@@ -17,6 +17,7 @@ import { trackPageView } from '@/utils/analytics.js'
 // ── 已实现的页面（懒加载）─────────────────────────────────────────────────
 const LoginView       = lazy(() => import('@/views/LoginView.jsx'))
 const RegisterView    = lazy(() => import('@/views/RegisterView.jsx'))
+const ForgotPasswordView = lazy(() => import('@/views/ForgotPasswordView.jsx'))
 const PrivacyView     = lazy(() => import('@/views/legal/PrivacyView.jsx'))
 const TermsView       = lazy(() => import('@/views/legal/TermsView.jsx'))
 const LandingView     = lazy(() => import('@/views/public/LandingView.jsx'))
@@ -118,6 +119,8 @@ export default function App() {
             {/* LoginView/RegisterView/Legal 页自带满屏布局，不包 PublicLayout */}
             <Route path="/login" element={<LoginView />} />
             <Route path="/register" element={<RegisterView />} />
+            <Route path="/forgot-password" element={<ForgotPasswordView />} />
+            <Route path="/reset-password" element={<ForgotPasswordView />} />
             <Route path="/privacy" element={<PrivacyView />} />
             <Route path="/terms" element={<TermsView />} />
 

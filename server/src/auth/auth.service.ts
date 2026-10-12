@@ -3,12 +3,14 @@
 import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomUUID, randomBytes } from 'node:crypto'
 import { DatabaseService } from '../database/database.service'
+import { RedisService } from '../redis/redis.service.js'
 import { config } from '../config/index.js'
 import { logger } from '../utils/logger.js'
 import type { UserRole, WorkspaceType, TenantPlan } from '@prisma/client'
 import { VerificationCodeService } from './verification-code.service.js'
+import { MailerService } from './mailer.service.js'
 
 export type RegisterPersona = 'PERSONAL' | 'TEAM'
 
@@ -67,6 +69,8 @@ export class AuthService {
     private readonly db: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly verificationCodes: VerificationCodeService,
+    private readonly redis: RedisService,
+    private readonly mailer: MailerService,
   ) {}
 
   // ── 注册：个人 / 企业双路径分流（FR-3）────────────────────────
@@ -340,6 +344,68 @@ export class AuthService {
     await this.revokeAllUserTokens(userId)
 
     return { success: true }
+  }
+
+  // ── 忘记密码：发重置邮件（一次性 token 存 Redis，15 分钟有效，60 秒频控）──
+  private PWD_RESET_TTL_SECONDS = 15 * 60
+
+  private pwdResetKey(token: string) {
+    return `pwdreset:${token}`
+  }
+
+  private pwdResetRateKey(email: string) {
+    return `pwdreset:rl:${email}`
+  }
+
+  async forgotPassword(email: string) {
+    const normalized = (email || '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      throw new BadRequestException('邮箱格式不正确')
+    }
+    // 60 秒重发频控（与验证码同策略），防邮件通道被滥用
+    const allowed = await this.redis.getClient().set(
+      this.pwdResetRateKey(normalized), '1', 'EX', 60, 'NX',
+    )
+    if (allowed !== 'OK') {
+      throw new BadRequestException('发送过于频繁，请 1 分钟后再试')
+    }
+
+    const user = await this.db.user.findUnique({ where: { email: normalized } })
+    if (!user || user.status !== 'ACTIVE') {
+      // 明确报错（与验证码登录口径一致：仅已绑定邮箱可操作）
+      throw new BadRequestException('该邮箱未绑定账号，请先注册或使用用户名密码登录')
+    }
+
+    const token = randomBytes(24).toString('hex')
+    await this.redis.set(this.pwdResetKey(token), normalized, this.PWD_RESET_TTL_SECONDS * 1000)
+    const resetUrl = `${config.app.frontUrl}/reset-password?token=${token}`
+    await this.mailer.sendPasswordReset(normalized, resetUrl, this.PWD_RESET_TTL_SECONDS / 60)
+    logger.info('auth: password reset mail sent', { email: normalized })
+    return { sent: true, message: '重置链接已发送至邮箱，15 分钟内有效' }
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const trimmed = (token || '').trim()
+    if (!trimmed) throw new BadRequestException('重置链接无效，请重新申请')
+    if (!newPassword || newPassword.length < 8) {
+      throw new BadRequestException('密码至少 8 位')
+    }
+    const email = await this.redis.get(this.pwdResetKey(trimmed))
+    if (!email) {
+      throw new BadRequestException('重置链接已失效，请重新申请')
+    }
+    const user = await this.db.user.findUnique({ where: { email } })
+    if (!user || user.status !== 'ACTIVE') {
+      throw new BadRequestException('账号不存在或已被禁用')
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12)
+    await this.db.user.update({ where: { id: user.id }, data: { passwordHash } })
+    // 一次性消费 + 吊销全部既有会话（旧密码登录态全部失效）
+    await this.redis.del(this.pwdResetKey(trimmed))
+    await this.revokeAllUserTokens(user.id)
+    logger.info('auth: password reset done', { email })
+    return { success: true, message: '密码已重置，请使用新密码登录' }
   }
 
   // ── 内部方法 ─────────────────────────────────────────────────

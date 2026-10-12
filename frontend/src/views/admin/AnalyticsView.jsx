@@ -100,6 +100,31 @@ export default function AnalyticsView() {
         <Button icon={<ReloadOutlined />} onClick={() => { loadFunnel(); loadBreakdown() }}>刷新</Button>
       </Space>
 
+      <Card
+        title="访客 → 注册（漏斗前置环节）"
+        extra={<Text type="secondary">访客按匿名设备去重（含未登录浏览）</Text>}
+        style={{ marginBottom: 16 }}
+      >
+        <Spin spinning={loadingFunnel}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{funnel?.visitor?.visitors ?? 0}</div>
+              <Text type="secondary">访客数（page_view 去重）</Text>
+            </div>
+            <div style={{ fontSize: 20, color: '#94a3b8' }}>→</div>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{funnel?.visitor?.signups ?? 0}</div>
+              <Text type="secondary">注册数</Text>
+            </div>
+            <div style={{ fontSize: 20, color: '#94a3b8' }}>=</div>
+            <div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{pct(funnel?.visitor?.signupRate)}</div>
+              <Text type="secondary">注册转化率</Text>
+            </div>
+          </div>
+        </Spin>
+      </Card>
+
       <Card title="转化漏斗（注册 → 支付成功）" style={{ marginBottom: 16 }}>
         <Spin spinning={loadingFunnel}>
           {topCount === 0 && !loadingFunnel ? (

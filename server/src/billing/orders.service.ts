@@ -76,6 +76,177 @@ export class OrdersService {
     return orders.map((o) => this.serialize(o))
   }
 
+  // ── 转账支付（人工确认模式）：用户提交转账单号 → 超管确认到账开通 ──────
+
+  /** 收款信息（收款码 URL 等管理员配置，展示在收银台转账页签） */
+  getPaymentInfo() {
+    return {
+      qrcodeUrl: appConfig.billing.paymentQrcodeUrl || null,
+      note: '转账后请复制转账单号（微信/支付宝账单中的转账记录单号）填入下方提交，管理员确认到账后权益自动开通。',
+    }
+  }
+
+  /** 提交转账订单：创建 PENDING 订单并记录渠道与转账单号，等待平台超管确认 */
+  async createTransferOrder(
+    tenantId: string,
+    userId: string,
+    body: { item?: string; channel?: string; transferNo?: string },
+  ) {
+    const item = getCheckoutItem((body.item || '').toUpperCase())
+    if (!item) throw new BadRequestException('未知商品')
+    const channel = ['WECHAT', 'ALIPAY', 'BANK'].includes((body.channel || '').toUpperCase())
+      ? (body.channel || '').toUpperCase()
+      : null
+    if (!channel) throw new BadRequestException('请选择转账渠道（微信 / 支付宝 / 银行）')
+    const transferNo = (body.transferNo || '').trim().slice(0, 100)
+    if (!transferNo) throw new BadRequestException('请填写转账单号')
+
+    const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
+    if (!tenant) throw new NotFoundException('工作空间不存在')
+    this.assertPurchasable(tenant, item)
+
+    // 防重复提交：同租户存在同单号的待确认订单时拒绝
+    const dup = await this.db.order.findFirst({
+      where: { tenantId, transferNo, status: 'PENDING' },
+      select: { id: true },
+    })
+    if (dup) throw new ConflictException('该转账单号已提交，正在等待管理员确认')
+
+    const order = await this.db.order.create({
+      data: {
+        tenantId,
+        kind: item.kind,
+        period: item.period,
+        targetPlan: item.targetPlan,
+        couponQty: item.couponQty,
+        amountFen: item.amountFen,
+        status: 'PENDING',
+        createdById: userId,
+        payChannel: channel,
+        transferNo,
+      },
+    })
+
+    await this.audit.log({
+      tenantId, userId,
+      action: 'TRANSFER_ORDER_SUBMIT',
+      resource: 'order',
+      resourceId: order.id,
+      detail: { item: item.item, channel, transferNo, amountFen: item.amountFen },
+    })
+    // 服务端埋点：转账单提交（漏斗：paywall → 转账提交 → 确认开通）
+    await this.db.analyticsEvent.create({
+      data: { tenantId, userId, type: 'transfer_submitted', props: { item: item.item, channel } },
+    }).catch(() => {})
+
+    return { order: this.serialize(order), message: '已提交，管理员确认到账后权益自动开通' }
+  }
+
+  /** 平台超管：待确认转账订单列表（含租户信息） */
+  async listTransferOrders(status: string) {
+    const st = ['PENDING', 'PAID', 'CANCELLED'].includes(status) ? status : 'PENDING'
+    const orders = await this.db.order.findMany({
+      where: { status: st as any, transferNo: { not: null } },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        tenant: { select: { name: true, plan: true } },
+        createdBy: { select: { username: true, displayName: true, email: true } },
+      },
+    })
+    return {
+      orders: orders.map((o) => ({
+        ...this.serialize(o),
+        payChannel: o.payChannel,
+        transferNo: o.transferNo,
+        rejectReason: o.rejectReason,
+        confirmedAt: o.confirmedAt,
+        tenantName: o.tenant?.name ?? '-',
+        tenantPlan: o.tenant?.plan ?? '-',
+        submitter: o.createdBy
+          ? `${o.createdBy.displayName || o.createdBy.username}（${o.createdBy.email || '无邮箱'}）`
+          : '-',
+      })),
+    }
+  }
+
+  /** 平台超管：确认到账（PENDING → PAID，事务内应用权益，与模拟支付同一套生效逻辑） */
+  async confirmTransferOrder(orderId: string, adminName: string) {
+    const order = await this.db.order.findUnique({ where: { id: orderId } })
+    if (!order) throw new NotFoundException('订单不存在')
+    if (order.status !== 'PENDING') throw new ConflictException('订单已处理，请刷新列表')
+
+    const item = getCheckoutItem(
+      order.kind === 'COUPON_PACK'
+        ? 'COUPON_PACK'
+        : `${order.targetPlan}_${order.period === 'YEAR' ? 'YEARLY' : 'MONTHLY'}`,
+    )
+    if (!item) throw new BadRequestException('订单商品信息无效')
+
+    const now = new Date()
+    const paid = await this.db.$transaction(async (tx) => {
+      const claimed = await tx.order.updateMany({
+        where: { id: order.id, status: 'PENDING' },
+        data: { status: 'PAID', paidAt: now, confirmedAt: now },
+      })
+      if (claimed.count !== 1) throw new ConflictException('订单状态已变更，请刷新后重试')
+
+      const tenant = await tx.tenant.findUnique({ where: { id: order.tenantId } })
+      if (!tenant) throw new NotFoundException('工作空间不存在')
+      const tenantPatch = this.buildEffectPatch(tenant, item, now)
+      await tx.tenant.update({ where: { id: order.tenantId }, data: tenantPatch })
+      return tx.order.findUniqueOrThrow({ where: { id: order.id } })
+    })
+
+    await this.audit.log({
+      tenantId: order.tenantId, userId: null,
+      action: 'TRANSFER_ORDER_CONFIRM',
+      resource: 'order',
+      resourceId: order.id,
+      detail: {
+        orderNo: this.orderNo(order.id, now),
+        item: item.item,
+        amountFen: order.amountFen,
+        transferNo: order.transferNo,
+        confirmedBy: adminName,
+        effect: this.effectSummary(item),
+      },
+    })
+    this.logger.log(`transfer order confirmed by ${adminName}: ${order.id} (${item.item})`)
+    // 服务端埋点：订单确认开通（转化终点）
+    await this.db.analyticsEvent.create({
+      data: {
+        tenantId: order.tenantId, userId: order.createdById,
+        type: 'order_confirmed', props: { item: item.item, amountFen: order.amountFen },
+      },
+    }).catch(() => {})
+
+    const entitlement = await this.entitlements.getEntitlementSnapshot(order.tenantId)
+    return { order: this.serialize(paid), entitlement }
+  }
+
+  /** 平台超管：驳回转账订单（PENDING → CANCELLED，记录驳回原因） */
+  async rejectTransferOrder(orderId: string, adminName: string, reason: string) {
+    const order = await this.db.order.findUnique({ where: { id: orderId } })
+    if (!order) throw new NotFoundException('订单不存在')
+    if (order.status !== 'PENDING') throw new ConflictException('订单已处理，请刷新列表')
+    const trimmed = (reason || '').trim().slice(0, 500)
+    if (!trimmed) throw new BadRequestException('请填写驳回原因')
+
+    await this.db.order.update({
+      where: { id: order.id },
+      data: { status: 'CANCELLED', rejectReason: trimmed, confirmedAt: new Date() },
+    })
+    await this.audit.log({
+      tenantId: order.tenantId, userId: null,
+      action: 'TRANSFER_ORDER_REJECT',
+      resource: 'order',
+      resourceId: order.id,
+      detail: { transferNo: order.transferNo, reason: trimmed, rejectedBy: adminName },
+    })
+    return { success: true }
+  }
+
   // ── 模拟支付：PENDING → PAID，事务内应用权益 ─────────────────────────────
   async mockPay(tenantId: string, userId: string, orderId: string, channel: PayChannel) {
     const order = await this.db.order.findFirst({ where: { id: orderId, tenantId } })
@@ -309,6 +480,10 @@ export class OrdersService {
     status: string
     createdAt: Date
     paidAt: Date | null
+    payChannel?: string | null
+    transferNo?: string | null
+    rejectReason?: string | null
+    confirmedAt?: Date | null
   }) {
     return {
       id: order.id,
@@ -323,6 +498,10 @@ export class OrdersService {
       status: order.status,
       createdAt: order.createdAt,
       paidAt: order.paidAt,
+      ...(order.payChannel !== undefined && { payChannel: order.payChannel }),
+      ...(order.transferNo !== undefined && { transferNo: order.transferNo }),
+      ...(order.rejectReason !== undefined && { rejectReason: order.rejectReason }),
+      ...(order.confirmedAt !== undefined && { confirmedAt: order.confirmedAt }),
     }
   }
 

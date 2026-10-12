@@ -51,4 +51,20 @@ export class OrdersController {
   ) {
     return this.orders.createEnterpriseLead(req.user.tenantId, req.user.userId, body)
   }
+
+  // ── 转账支付（人工确认）────────────────────────────────────────
+  // 收款信息（管理员收款码等），登录即可读
+  @Get('payment-info')
+  paymentInfo() {
+    return this.orders.getPaymentInfo()
+  }
+
+  // 提交转账订单：{ item, channel: WECHAT/ALIPAY/BANK, transferNo }，等待超管确认到账
+  @Post('transfer-orders')
+  async submitTransfer(
+    @Req() req: any,
+    @Body() body: { item?: string; channel?: string; transferNo?: string },
+  ) {
+    return this.orders.createTransferOrder(req.user.tenantId, req.user.userId, body)
+  }
 }

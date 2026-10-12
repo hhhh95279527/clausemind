@@ -9,6 +9,18 @@ export const config = {
     allowedOrigins: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
     // 对外基础地址（飞书卡片内跳转链接）：默认本机 dev，生产由 APP_BASE_URL 注入
     baseUrl: process.env.APP_BASE_URL || `http://localhost:${Number(process.env.PORT) || 3000}`,
+    // 前端地址（忘记密码邮件里的重置链接指向前端页面）
+    frontUrl: process.env.APP_FRONT_URL || 'http://localhost:5173',
+  },
+  // 试用计量：演示租户（按租户名匹配）不受限；FREE 租户每项功能终身免费 2 次
+  trial: {
+    freeLimit: Number(process.env.TRIAL_FREE_LIMIT) || 2,
+    demoTenantNames: (process.env.DEMO_TENANT_NAMES || '测试科技,个人演示空间')
+      .split(',').map((s) => s.trim()).filter(Boolean),
+  },
+  // 转账收款：管理员收款码图片地址，展示在收银台「银行转账」页签
+  billing: {
+    paymentQrcodeUrl: process.env.PAYMENT_QRCODE_URL || '',
   },
   ai: {
     deepseekKey:   process.env.DEEPSEEK_API_KEY,

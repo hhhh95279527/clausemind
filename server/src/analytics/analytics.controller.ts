@@ -84,19 +84,28 @@ export class AnalyticsController {
   }
 
   private resolveIdentity(req: Request, body?: any): EventIdentity {
+    // 匿名设备 ID：前端 localStorage 生成，仅做长度/字符白名单校验后透传落库，
+    // 用于把注册前的访客行为与注册后的用户关联（漏斗前置环节的数据源）
+    let anonymousId: string | null = null
+    if (typeof body?.anonymousId === 'string') {
+      const raw = body.anonymousId.trim()
+      if (raw.length >= 8 && raw.length <= 50 && /^[A-Za-z0-9_-]+$/.test(raw)) {
+        anonymousId = raw
+      }
+    }
     try {
       let token = ExtractJwt.fromAuthHeaderAsBearerToken()(req as any)
       if (!token && typeof body?.token === 'string' && body.token.trim()) {
         token = body.token.trim()
       }
-      if (!token) return {}
+      if (!token) return { anonymousId }
       const payload = this.jwt.verify(token)
       if (payload?.sub && payload?.tenantId) {
-        return { userId: payload.sub, tenantId: payload.tenantId }
+        return { userId: payload.sub, tenantId: payload.tenantId, anonymousId }
       }
     } catch {
       // 匿名/过期 Token：静默降级，不抛 401
     }
-    return {}
+    return { anonymousId }
   }
 }

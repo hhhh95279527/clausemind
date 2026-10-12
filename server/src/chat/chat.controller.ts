@@ -14,6 +14,7 @@ import { MonitorService } from '../monitor/monitor.service'
 import { DatabaseService } from '../database/database.service'
 import { TraceService } from '../observability/trace.service.js'
 import { QuotaService } from '../observability/quota.service.js'
+import { TrialService } from '../billing/trial.service.js'
 import { logger } from '../utils/logger.js'
 import { initSse } from '../utils/sse'
 
@@ -37,6 +38,7 @@ export class ChatController implements OnModuleInit {
     private readonly db: DatabaseService,
     private readonly tracer: TraceService,
     private readonly quota: QuotaService,
+    private readonly trial: TrialService,
   ) {}
 
   onModuleInit() {
@@ -109,6 +111,9 @@ export class ChatController implements OnModuleInit {
 
           // 4. 租户月度配额断言（缓存命中零成本，放在缓存检查之后）
           await this.quota.assert(tenantId)
+          // 试用拦截：FREE 非演示租户 AI 问答终身 2 次（缓存命中零成本不计）
+          await this.trial.assertTrialAvailable(tenantId, 'CHAT')
+          await this.trial.consumeTrial(tenantId, 'CHAT')
 
           // 5. 历史消息 + token 裁剪
           const history = await getHistory(sessionId)

@@ -59,4 +59,20 @@ export class MailerService {
       text: `你的 ClauseMind 验证码为 ${code}，${ttlMinutes} 分钟内有效，请勿泄露给他人。如非本人操作请忽略本邮件。`,
     })
   }
+
+  /** 发送密码重置链接（一次性 token，仅指向前端重置页） */
+  async sendPasswordReset(to: string, resetUrl: string, ttlMinutes: number): Promise<void> {
+    await this.send({
+      to,
+      subject: '【ClauseMind】密码重置',
+      text: [
+        `你（或他人）正在为 ClauseMind 账号 ${to} 申请重置密码。`,
+        ``,
+        `请点击以下链接设置新密码（${ttlMinutes} 分钟内有效，仅可使用一次）：`,
+        resetUrl,
+        ``,
+        `如非本人操作，请忽略本邮件，账号不会受到任何影响。`,
+      ].join('\n'),
+    })
+  }
 }

@@ -29,6 +29,73 @@
   color: var(--color-text-3, #9ca3af);
 }
 
+.ruleName {
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* 表单分组标题：步骤号 + 标题 + 一句话说明 */
+.groupTitle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 12px 4px;
+  margin: 8px -12px 0;
+  border-top: 1px dashed var(--color-border, rgba(0,0,0,0.1));
+}
+
+.groupTitle:first-of-type {
+  border-top: none;
+}
+
+.groupStep {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-primary, #10b981);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.groupName {
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 22px;
+}
+
+.groupHint {
+  font-size: 12px;
+  color: var(--color-text-3, #9ca3af);
+  line-height: 1.6;
+  margin-top: 2px;
+}
+
+/* 页首说明卡：三步流程 */
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.guideStep {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--color-text);
+}
+
+.guideNote {
+  font-size: 12px;
+  color: var(--color-text-3, #9ca3af);
+  padding-top: 6px;
+  border-top: 1px dashed var(--color-border, rgba(0,0,0,0.1));
+}
+
 .tryCode {
   font-family: monospace;
   font-size: 13px;

@@ -96,7 +96,11 @@ export class TraceService implements OnModuleInit {
     }
 
     const model = ctx.model || config.ai.primaryModel
-    const { costCny } = calcCostCny(model, ctx.usage)
+    // 优先用 observer 按每轮真实模型累加的费用（链路可能混用多模型）；
+    // 无 observer 数据时回退按主模型单价估算
+    const costCny = ctx.costCny > 0
+      ? Number(ctx.costCny.toFixed(6))
+      : calcCostCny(model, ctx.usage).costCny
 
     await this.db.trace.update({
       where: { id: traceId },

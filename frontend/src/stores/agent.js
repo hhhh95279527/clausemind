@@ -16,16 +16,21 @@ export const useAgentStore = create((set, get) => {
   return {
     // ── 工具列表（从后端加载，默认值保证首屏可见；后端按环境能力动态下发）──
     toolList: [
-      { name: 'read_doc',     label: '知识库检索', description: '从公司知识库检索内部文档' },
-      { name: 'legal_search', label: '法规库检索', description: '检索民法典、劳动法等条文原文' },
-      { name: 'calculate',    label: '数学计算', description: '金额、工期等精确计算' },
-      { name: 'get_date',     label: '日期计算', description: '日期查询和工作日计算' },
+      { name: 'contract_query',  label: '合同档案查询', description: '查询本企业已上传的合同与审查状态' },
+      { name: 'risk_query',      label: '审查风险查询', description: '查询合同审查发现的风险清单与统计' },
+      { name: 'ledger_query',    label: '合同台账查询', description: '查询员工合同台账与到期预警' },
+      { name: 'rule_lookup',     label: '审查规则查询', description: '查询平台审查规则与企业红线规则' },
+      { name: 'template_search', label: '合同范本查询', description: '查询平台合同范本目录' },
+      { name: 'legal_search',    label: '法规库检索', description: '检索民法典、劳动法等条文原文' },
+      { name: 'read_doc',        label: '知识库检索', description: '从公司知识库检索内部文档' },
+      { name: 'calculate',       label: '数学计算', description: '金额、工期等精确计算' },
+      { name: 'get_date',        label: '日期计算', description: '日期查询和工作日计算' },
     ],
     examples: [
-      { title: '技术调研', task: '对比 Vue3 和 React 2024年的最新状态，分别查询它们的最新版本和主要特性，生成一份技术选型报告' },
-      { title: '费用计算', task: '我出差3天，酒店每晚580元，机票往返1200元，餐费每天150元，帮我计算总报销金额，并查询一下公司差旅报销标准' },
-      { title: '工期计算', task: '项目计划从2024年3月1日开始，需要45个工作日完成，帮我计算预计完成日期，并生成一份项目时间轴摘要' },
-      { title: '知识查询', task: '从知识库查询公司的年假政策，计算一下我今年还剩多少年假（假设今年已用6天，总共15天），并发送结果通知给HR' },
+      { title: '法规核查', task: '劳动合同约定试用期6个月、试用期违约金5万元，先查法规库确认是否合法，给出条文依据' },
+      { title: '合同盘点', task: '查一下我上传过哪些合同，哪些还没完成人工终审，分别还有多少未处理的风险' },
+      { title: '到期预警', task: '看看台账里未来60天有哪些员工合同到期，按剩余天数排序列个清单，并给出续签动作建议' },
+      { title: '风险复盘', task: '统计我最近审查的合同里高风险问题主要集中在哪些类别，结合平台审查规则给出起草合同时的规避建议' },
     ],
 
     loadMeta: async () => {

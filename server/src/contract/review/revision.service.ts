@@ -15,6 +15,7 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages'
 import type { Clause, Risk, ReviewTask } from '@prisma/client'
 import { DatabaseService } from '../../database/database.service.js'
 import { EntitlementsService } from '../../billing/entitlements.service.js'
+import { TrialService, type TrialFeature } from '../../billing/trial.service.js'
 import { QuotaService } from '../../observability/quota.service.js'
 import { createChatModel } from '../../services/model.js'
 import { config as appConfig, isValidAiKey } from '../../config/index.js'
@@ -38,6 +39,7 @@ export class RevisionService {
     private readonly db: DatabaseService,
     private readonly entitlements: EntitlementsService,
     private readonly quota: QuotaService,
+    private readonly trial: TrialService,
   ) {}
 
   /** 取合同最近一次审查任务（含风险） */
@@ -58,6 +60,17 @@ export class RevisionService {
   private assertDeep(task: ReviewTask | null, plan: string) {
     if (task?.isDeep || this.entitlements.isDeep(plan)) return
     throw new PlanLimitException('DEEP_FEATURE', 'AI 多轮改稿为个人版权益，请开通个人版或使用 1 张深度券解锁本份合同', 'deep')
+  }
+
+  /**
+   * 深度门禁（试用放宽）：深度档/券解锁直接放行；
+   * FREE 非演示租户在试用次数内放行并消耗 1 次（用尽抛 TRIAL_EXHAUSTED 付费墙）。
+   * 仅在即将真实执行 LLM/导出动作前调用，避免幂等早退白耗次数。
+   */
+  private async assertDeepWithTrial(tenantId: string, task: ReviewTask | null, plan: string, feature: TrialFeature) {
+    if (task?.isDeep || this.entitlements.isDeep(plan)) return
+    await this.trial.assertTrialAvailable(tenantId, feature)
+    await this.trial.consumeTrial(tenantId, feature)
   }
 
   /** 取风险项并经 reviewTask→contract 校验租户归属（risks 表无 tenantId 列） */
@@ -102,12 +115,13 @@ export class RevisionService {
   /** 为全部风险生成修订建议（幂等：已生成则直接返回，除非 force） */
   async generate(tenantId: string, contractId: string, plan: string, force = false) {
     const { task, risks } = await this.load(tenantId, contractId)
-    this.assertDeep(task, plan)
     const targets = risks.filter((r) => force || !r.rewritten)
     if (!risks.length) {
       throw new NotFoundException('本次审查未发现风险，无需生成修订稿')
     }
+    // 幂等早退不消耗试用次数
     if (!targets.length) return this.list(tenantId, contractId, plan)
+    await this.assertDeepWithTrial(tenantId, task, plan, 'DRAFT')
     if (!isValidAiKey(appConfig.ai.deepseekKey)) {
       throw new ServiceUnavailableException('AI 模型未配置（DEEPSEEK_API_KEY 缺失），无法生成改写建议；规则审查结果不受影响')
     }
@@ -168,7 +182,7 @@ export class RevisionService {
   async regenerate(tenantId: string, riskId: string, tone: 'FIRM' | 'GENTLE' | 'NEUTRAL' = 'NEUTRAL') {
     const { risk, task } = await this.loadRiskForTenant(tenantId, riskId)
     const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } })
-    this.assertDeep(task, tenant.plan)
+    await this.assertDeepWithTrial(tenantId, task, tenant.plan, 'DRAFT')
     if (!isValidAiKey(appConfig.ai.deepseekKey)) {
       throw new ServiceUnavailableException('AI 模型未配置，重新生成暂不可用')
     }
@@ -200,7 +214,7 @@ export class RevisionService {
   async rebuttal(tenantId: string, riskId: string) {
     const { risk, task } = await this.loadRiskForTenant(tenantId, riskId)
     const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } })
-    this.assertDeep(task, tenant.plan)
+    await this.assertDeepWithTrial(tenantId, task, tenant.plan, 'DRAFT')
     if (!isValidAiKey(appConfig.ai.deepseekKey)) {
       throw new ServiceUnavailableException('AI 模型未配置，模拟反驳暂不可用')
     }
@@ -221,7 +235,7 @@ export class RevisionService {
    *  在 Word 中「接受全部修订」即得到完整的修订后合同。未接受的修订不计入。 */
   async exportDocx(tenantId: string, contractId: string, plan: string, res: Response) {
     const { contract, task, risks, clauses } = await this.load(tenantId, contractId)
-    this.assertDeep(task, plan)
+    await this.assertDeepWithTrial(tenantId, task, plan, 'EXPORT')
     const accepted = risks.filter((r) => r.revisionStatus === 'ACCEPTED' && r.rewritten)
     if (!accepted.length) {
       throw new NotFoundException('还没有已接受的修订，请先在改稿台接受至少一条')

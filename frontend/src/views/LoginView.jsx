@@ -8,6 +8,7 @@ import {
 import { UserOutlined, LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
 import http from '@/utils/http.js'
+import { trackLoginSuccess } from '@/utils/analytics.js'
 import { homePath } from '@/utils/persona.js'
 import styles from './auth/AuthPages.module.css'
 
@@ -40,6 +41,9 @@ export default function LoginView() {
 
         <p style={{ textAlign: 'center', marginTop: 14, fontSize: 12.5 }}>
           <Link to="/">← 返回首页</Link>
+        </p>
+        <p style={{ textAlign: 'center', marginTop: 4, fontSize: 12 }}>
+          <Link to="/platform/login">平台管理员登录入口 →</Link>
         </p>
       </div>
     </div>
@@ -80,6 +84,7 @@ function PwdLogin({ loading, setLoading, setAuth, goHome }) {
         password: values.password,
       })
       setAuth(data)
+      trackLoginSuccess('password')
       message.success('登录成功')
       goHome(data.user)
     } catch {
@@ -105,12 +110,7 @@ function PwdLogin({ loading, setLoading, setAuth, goHome }) {
       </Button>
       <div className={styles.links}>
         <Link to="/register">注册新账号</Link>
-        <span className={styles.muted}>忘记密码？（即将上线）</span>
-      </div>
-      <div className={styles.demo}>
-        演示账号：<br />
-        企业演示 <code>testboss / Test1234</code><br />
-        个人演示 <code>demo_personal / Test1234</code>
+        <Link to="/forgot-password">忘记密码？</Link>
       </div>
     </Form>
   )
@@ -161,6 +161,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
         code: values.code,
       })
       setAuth(data)
+      trackLoginSuccess('email_code')
       message.success('登录成功')
       goHome(data.user)
     } catch {
@@ -198,7 +199,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
       </Button>
       <div className={styles.links}>
         <Link to="/register">注册新账号</Link>
-        <span className={styles.muted}>忘记密码？（即将上线）</span>
+        <Link to="/forgot-password">忘记密码？</Link>
       </div>
       <div className={styles.tip}>
         使用注册时绑定的邮箱接收验证码即可登录；未注册的邮箱请先

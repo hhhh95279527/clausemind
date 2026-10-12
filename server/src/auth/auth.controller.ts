@@ -64,6 +64,22 @@ export class AuthController {
     return this.authService.login(req.user, clientMeta(req))
   }
 
+  // 忘记密码：向已绑定账号的邮箱发送一次性重置链接（15 分钟有效，60 秒频控）
+  @Public()
+  @HttpCode(200)
+  @Post('forgot-password')
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email)
+  }
+
+  // 重置密码：凭邮件链接中的一次性 token 设置新密码
+  @Public()
+  @HttpCode(200)
+  @Post('reset-password')
+  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+    return this.authService.resetPassword(body.token, body.newPassword)
+  }
+
   @Public()
   @Post('refresh')
   async refresh(@Request() req: any, @Body() body: { refreshToken: string }) {

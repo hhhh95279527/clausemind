@@ -111,15 +111,15 @@ export default function AgentView() {
       <main className={styles['execution-panel']}>
         {!tasks.length ? (
           <div className={styles['empty-state']}>
-            <div className={styles['empty-title']}>任务执行 Agent</div>
+            <div className={styles['empty-title']}>合同管理任务 Agent</div>
             <div className={styles['empty-desc']}>
-              在左侧输入任务，Agent 会自动规划步骤，调用合适的工具完成
+              在左侧输入任务，Agent 会自动查询本企业合同数据、检索法规与规则，规划步骤完成
             </div>
             <div className={styles['feature-tags']}>
-              <span className="tag tag-blue">联网搜索</span>
-              <span className="tag tag-green">知识库检索</span>
-              <span className="tag tag-purple">数学计算</span>
-              <span className="tag tag-amber">生成报告</span>
+              <span className="tag tag-blue">合同与台账查询</span>
+              <span className="tag tag-red">风险统计复盘</span>
+              <span className="tag tag-purple">法规条文检索</span>
+              <span className="tag tag-amber">到期预警与计算</span>
             </div>
           </div>
         ) : (

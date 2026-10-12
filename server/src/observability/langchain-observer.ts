@@ -85,6 +85,9 @@ export class ClauseMindObserver extends BaseCallbackHandler {
     ctx.usage.inputTokens += usage.inputTokens || 0
     ctx.usage.outputTokens += usage.outputTokens || 0
     ctx.usage.cacheHitTokens += usage.cacheHitTokens || 0
+    // 费用按本次调用的真实模型计价后累加——一条链路混用多模型时，
+    // trace 收口不能再用单一模型单价重算全部 tokens（会虚高/虚低）
+    ctx.costCny += cost.costCny
 
     await db.span.create({
       data: {

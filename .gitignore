@@ -1,4 +1,4 @@
-﻿node_modules/
+node_modules/
 dist/
 .env
 *.sqlite3
@@ -7,3 +7,5 @@ dist/
 *.log
 server/uploads/
 workspace/
+# 个人收款码（敏感，不入库，部署时自行放置到 frontend/public/）
+frontend/public/payment-qrcode.jpg

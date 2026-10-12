@@ -8,9 +8,11 @@ import { OrdersController } from './orders.controller.js'
 import { OrdersService } from './orders.service.js'
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service.js'
 
+// TrialService 由全局 EntitlementsModule 提供，此处无需重复注册
 @Module({
   imports: [AuditModule, AuthModule],
   controllers: [OrdersController],
   providers: [OrdersService, SubscriptionLifecycleService],
+  exports: [OrdersService],
 })
 export class BillingModule {}

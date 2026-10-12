@@ -15,6 +15,8 @@ export const EVENT_TYPES = new Set<string>([
   'page_view', 'click', 'performance', 'error', 'api_error', 'sse_disconnect',
   'sign_up', 'first_review_start', 'first_result_seen',
   'paywall_show', 'paywall_click_upgrade', 'checkout_success',
+  'login_success', 'review_completed', 'parse_failed', 'report_exported',
+  'trial_exhausted', 'transfer_submitted', 'order_confirmed',
   'feishu_test_sent', 'feishu_notify_sent', 'playbook_rule_created',
 ])
 
@@ -31,6 +33,8 @@ export const FUNNEL_STEPS = [
 export interface EventIdentity {
   userId?: string | null
   tenantId?: string | null
+  /** 匿名设备 ID（前端 localStorage 生成）：打通注册前访客行为 */
+  anonymousId?: string | null
 }
 
 export interface NormalizedEvent {
@@ -139,12 +143,13 @@ export class AnalyticsService {
         props: e.props,
         userId: identity.userId ?? null,
         tenantId: identity.tenantId ?? null,
+        anonymousId: identity.anonymousId ?? null,
       })),
     })
     return { accepted: events.length }
   }
 
-  /** 六步漏斗：COUNT DISTINCT user_id + 相邻/相对注册转化率 */
+  /** 六步漏斗：COUNT DISTINCT user_id + 相邻/相对注册转化率；另附「访客→注册」前置环节 */
   async getFunnel(from: Date, to: Date) {
     const rows: FunnelRow[] = await this.db.$queryRaw(Prisma.sql`
       SELECT type, COUNT(DISTINCT user_id)::int AS count
@@ -166,7 +171,30 @@ export class AnalyticsService {
         fromTop: top === 0 ? null : Number((count / top).toFixed(4)),
       }
     })
-    return { from: from.toISOString(), to: to.toISOString(), steps }
+
+    // 访客口径：page_view 的 distinct 匿名设备（无匿名ID的历史数据回退 user_id）
+    const visitorRows: Array<{ visitors: number; signups: number }> = await this.db.$queryRaw(Prisma.sql`
+      SELECT
+        (SELECT COUNT(DISTINCT COALESCE(anonymous_id, user_id))::int
+         FROM analytics_events
+         WHERE type = 'page_view' AND created_at >= ${from} AND created_at <= ${to}) AS visitors,
+        (SELECT COUNT(DISTINCT COALESCE(user_id, anonymous_id))::int
+         FROM analytics_events
+         WHERE type = 'sign_up' AND created_at >= ${from} AND created_at <= ${to}) AS signups
+    `)
+    const visitors = Number(visitorRows[0]?.visitors ?? 0)
+    const signups = Number(visitorRows[0]?.signups ?? 0)
+
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      visitor: {
+        visitors,
+        signups,
+        signupRate: visitors === 0 ? null : Number((signups / visitors).toFixed(4)),
+      },
+      steps,
+    }
   }
 
   /** 维度下钻：plan（join users/tenants）/ persona / scene（从事件 props 取） */

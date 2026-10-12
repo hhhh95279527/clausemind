@@ -89,4 +89,5 @@ export const LIMIT_REASON_TEXT = {
   TEAM_SPACE: '该功能属于团队空间',
   SEAT_LIMIT: '团队席位已用尽',
   COUPON_REQUIRED: '深度券余额不足',
+  TRIAL_EXHAUSTED: '免费试用已用完',
 }

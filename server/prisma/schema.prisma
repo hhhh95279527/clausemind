@@ -63,11 +63,11 @@ enum TenantStatus {
 
 // 平台级超级管理员：跨租户管理所有企业，独立于 users 表（不属于任何租户）
 model PlatformAdmin {
-  id           String   @id @default(cuid())
-  username     String   @unique @db.VarChar(50)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
+  id           String    @id @default(cuid())
+  username     String    @unique @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
   lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime @default(now()) @map("created_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
 
   @@map("platform_admins")
 }
@@ -697,18 +697,27 @@ enum PlaybookSource {
 
 // 模拟订单：不接真实支付，收银台一键 PAID 立即生效
 model Order {
-  id          String       @id @default(cuid())
-  tenantId    String       @map("tenant_id") @db.VarChar(50)
-  kind        OrderKind
-  period      OrderPeriod?
-  targetPlan  String?      @map("target_plan") @db.VarChar(20)
-  couponQty   Int?         @map("coupon_qty")
-  amountFen   Int          @default(0) @map("amount_fen")
-  status      OrderStatus  @default(PENDING)
-  createdById String?      @map("created_by_id") @db.VarChar(50)
-  paidAt      DateTime?    @map("paid_at")
-  createdAt   DateTime     @default(now()) @map("created_at")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
+  id            String       @id @default(cuid())
+  tenantId      String       @map("tenant_id") @db.VarChar(50)
+  kind          OrderKind
+  period        OrderPeriod?
+  targetPlan    String?      @map("target_plan") @db.VarChar(20)
+  couponQty     Int?         @map("coupon_qty")
+  amountFen     Int          @default(0) @map("amount_fen")
+  status        OrderStatus  @default(PENDING)
+  createdById   String?      @map("created_by_id") @db.VarChar(50)
+  paidAt        DateTime?    @map("paid_at")
+  // 转账支付通道（银行转账人工确认模式）：WECHAT/ALIPAY/BANK
+  payChannel    String?      @map("pay_channel") @db.VarChar(20)
+  // 用户提交的转账单号（对账凭据）
+  transferNo    String?      @map("transfer_no") @db.VarChar(100)
+  // 超管驳回原因（CANCELLED 时填写）
+  rejectReason  String?      @map("reject_reason") @db.VarChar(500)
+  // 超管确认到账信息
+  confirmedById String?      @map("confirmed_by_id") @db.VarChar(50)
+  confirmedAt   DateTime?    @map("confirmed_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
@@ -738,17 +747,34 @@ enum OrderStatus {
 
 // 增长埋点事件：只采事件与属性元数据，绝不采合同正文/风险全文
 model AnalyticsEvent {
-  id        String   @id @default(cuid())
-  tenantId  String?  @map("tenant_id") @db.VarChar(50)
-  userId    String?  @map("user_id") @db.VarChar(50)
-  type      String   @db.VarChar(50)
-  path      String?  @db.VarChar(500)
-  props     Json?
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  tenantId    String?  @map("tenant_id") @db.VarChar(50)
+  userId      String?  @map("user_id") @db.VarChar(50)
+  // 匿名设备 ID：注册前行为与注册后用户打通的纽带（前端 localStorage 生成）
+  anonymousId String?  @map("anonymous_id") @db.VarChar(50)
+  type        String   @db.VarChar(50)
+  path        String?  @db.VarChar(500)
+  props       Json?
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([tenantId, createdAt])
   @@index([type, createdAt])
+  @@index([anonymousId, createdAt])
   @@map("analytics_events")
+}
+
+// 试用计量：非演示 FREE 租户每项 AI 功能终身免费 2 次，用完触发付费墙
+model TrialUsage {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.VarChar(50)
+  // REVIEW 审查 / CHAT AI问答 / DRAFT AI改稿 / EXPORT 报告导出
+  feature   String   @db.VarChar(20)
+  usedCount Int      @default(0) @map("used_count")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, feature])
+  @@map("trial_usages")
 }
 
 // 集成配置：P0 飞书群机器人 Webhook（config 加密存储、脱敏返回）

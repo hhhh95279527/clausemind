@@ -126,6 +126,251 @@ export const getDateTool = tool(
   }
 )
 
+// ── 业务标签映射（工具输出用中文展示）──────────────────────────
+const SCENE_LABELS: Record<string, string> = {
+  LABOR: '劳动合同', INTERNSHIP: '实习协议', LEASE: '房屋租赁', SERVICE: '兼职/劳务',
+  NDA: '保密协议', SALE: '买卖合同', LOAN: '借款/民间借贷', EQUITY: '股权转让', CUSTOM: '非标合同',
+}
+const CONTRACT_STATUS_LABELS: Record<string, string> = {
+  UPLOADED: '已上传', PARSING: '解析中', READY: '解析完成', REVIEWING: '审查中',
+  WAITING_REVIEW: '待人工终审', COMPLETED: '已完成', FAILED: '失败',
+}
+const SEVERITY_LABELS: Record<string, string> = { HIGH: '高风险', MED: '中风险', LOW: '低风险' }
+const RISK_STATUS_LABELS: Record<string, string> = {
+  PENDING: '待终审', ACCEPTED: '已确认', IGNORED: '已忽略', EDITED: '已修改',
+}
+const LEDGER_TYPE_LABELS: Record<string, string> = {
+  FIXED_TERM_LABOR: '固定期限劳动合同', OPEN_ENDED_LABOR: '无固定期限劳动合同', SERVICE: '劳务协议',
+  INTERNSHIP: '实习协议', NDA: '保密协议', NON_COMPETE: '竞业限制协议', OTHER: '其他',
+}
+
+// 取当前租户 ID；业务数据查询必须带租户隔离，取不到就拒绝（不退化为全库）
+async function requireTenantId(): Promise<string | null> {
+  const { activeContext } = await import('../../observability/trace-context.js')
+  return activeContext()?.tenantId ?? null
+}
+
+// 枚举参数宽松归一化：模型可能传枚举值、中文标签或大小写变体，统一转标准枚举；无法识别返回 undefined
+function normalizeEnum(input: string | null | undefined, aliases: Record<string, string>): string | undefined {
+  if (!input) return undefined
+  const trimmed = String(input).trim()
+  const key = trimmed.toUpperCase()
+  if (aliases[key]) return key
+  const byLabel = Object.entries(aliases).find(([, label]) => label === trimmed)
+  return byLabel?.[0]
+}
+
+// ── 工具6：合同档案查询（当前租户的审查记录）────────────────────
+export const contractQueryTool = tool(
+  async ({ keyword, scene, status }) => {
+    logger.info('tool:contract_query', { keyword, scene, status })
+    if (!db) return '数据库未初始化。'
+    const tenantId = await requireTenantId()
+    if (!tenantId) return '无法识别当前企业身份，暂时不能查询合同数据。'
+    const sceneVal = normalizeEnum(scene, SCENE_LABELS)
+    const statusVal = normalizeEnum(status, CONTRACT_STATUS_LABELS)
+    if (scene && !sceneVal) return `无法识别的审查场景：${scene}，可选：${Object.values(SCENE_LABELS).join('/')}`
+    if (status && !statusVal) return `无法识别的审查状态：${status}，可选：${Object.values(CONTRACT_STATUS_LABELS).join('/')}`
+    const where: any = { tenantId }
+    if (keyword) where.title = { contains: keyword, mode: 'insensitive' }
+    if (sceneVal) where.scene = sceneVal
+    if (statusVal) where.status = statusVal
+    const rows = await db.contract.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { title: true, scene: true, status: true, clausesCount: true, charCount: true, createdAt: true },
+    })
+    if (!rows.length) return '没有符合条件的合同档案。'
+    const lines = rows.map((c, i) =>
+      `${i + 1}. 《${c.title}》[${SCENE_LABELS[c.scene] || c.scene}] 状态：${CONTRACT_STATUS_LABELS[c.status] || c.status}，${c.clausesCount} 条款 / ${c.charCount} 字，上传于 ${c.createdAt.toISOString().slice(0, 10)}`,
+    )
+    return `共查到 ${rows.length} 份合同（最多展示 20 份）：\n${lines.join('\n')}`
+  },
+  {
+    name: 'contract_query',
+    description: '查询当前企业已上传的合同档案清单（标题/审查场景/审查状态/条款数）。用户问"我有哪些合同""某某合同审完了吗"等自有合同时必须用它查真实数据。',
+    schema: z.object({
+      keyword: z.string().optional().describe('合同标题关键词，可选；不确定时不要传'),
+      scene: z.string().optional().describe('按审查场景过滤，可选，如 LABOR/劳动合同、LEASE/房屋租赁'),
+      status: z.string().optional().describe('按审查状态过滤，可选，如 WAITING_REVIEW/待人工终审、COMPLETED/已完成'),
+    }),
+  },
+)
+
+// ── 工具7：审查风险查询（跨合同汇总/按合同下钻）─────────────────
+export const riskQueryTool = tool(
+  async ({ contractKeyword, severity, status }) => {
+    logger.info('tool:risk_query', { contractKeyword, severity, status })
+    if (!db) return '数据库未初始化。'
+    const tenantId = await requireTenantId()
+    if (!tenantId) return '无法识别当前企业身份，暂时不能查询风险数据。'
+    const sevVal = normalizeEnum(severity, SEVERITY_LABELS)
+    const statusVal = normalizeEnum(status, RISK_STATUS_LABELS)
+    if (severity && !sevVal) return `无法识别的严重程度：${severity}，可选：高/MED/中/低`
+    if (status && !statusVal) return `无法识别的处理状态：${status}，可选：${Object.values(RISK_STATUS_LABELS).join('/')}`
+    const contractWhere: any = { tenantId }
+    if (contractKeyword) contractWhere.title = { contains: contractKeyword, mode: 'insensitive' }
+    const where: any = { contract: contractWhere }
+    if (sevVal) where.severity = sevVal
+    if (statusVal) where.status = statusVal
+    const [all, rows] = await Promise.all([
+      db.risk.findMany({ where, select: { severity: true } }),
+      db.risk.findMany({
+        where,
+        orderBy: [{ severity: 'asc' }, { createdAt: 'desc' }],
+        take: 20,
+        select: {
+          severity: true, category: true, title: true, status: true,
+          clauseTitle: true, quote: true, contract: { select: { title: true } },
+        },
+      }),
+    ])
+    const total = all.length
+    if (!total) return '没有符合条件的风险记录（可能尚未审查或风险已全部处理）。'
+    // 高中低分布统计，便于模型直接给出概览
+    const bySev: Record<string, number> = { HIGH: 0, MED: 0, LOW: 0 }
+    for (const r of all) bySev[r.severity] = (bySev[r.severity] || 0) + 1
+    const summary = `风险分布：高 ${bySev.HIGH || 0} / 中 ${bySev.MED || 0} / 低 ${bySev.LOW || 0}，共 ${total} 条${total > 20 ? '（以下展示前 20 条）' : ''}：`
+    const lines = rows.map((r, i) =>
+      `${i + 1}. [${SEVERITY_LABELS[r.severity] || r.severity}] 《${r.contract.title}》${r.clauseTitle || ''}：${r.title}（${RISK_STATUS_LABELS[r.status] || r.status}）｜原文：${r.quote.slice(0, 60)}`,
+    )
+    return `${summary}\n${lines.join('\n')}`
+  },
+  {
+    name: 'risk_query',
+    description: '查询当前企业合同审查发现的风险清单（按严重程度/处理状态/合同关键词过滤，含分布统计）。用户问"有哪些高风险""风险处理完了吗"时使用。',
+    schema: z.object({
+      contractKeyword: z.string().optional().describe('合同标题关键词，不传则统计全部合同'),
+      severity: z.string().optional().describe('按严重程度过滤，可选：HIGH/高、MED/中、LOW/低'),
+      status: z.string().optional().describe('按处理状态过滤，可选：PENDING/待终审、ACCEPTED/已确认、IGNORED/已忽略、EDITED/已修改'),
+    }),
+  },
+)
+
+// ── 工具8：员工合同台账查询（到期预警）─────────────────────────
+export const ledgerQueryTool = tool(
+  async ({ days, keyword }) => {
+    logger.info('tool:ledger_query', { days, keyword })
+    if (!db) return '数据库未初始化。'
+    const tenantId = await requireTenantId()
+    if (!tenantId) return '无法识别当前企业身份，暂时不能查询台账数据。'
+    const where: any = { tenantId, status: 'ACTIVE' }
+    if (keyword) {
+      where.OR = [
+        { employeeName: { contains: keyword, mode: 'insensitive' } },
+        { dept: { contains: keyword, mode: 'insensitive' } },
+        { position: { contains: keyword, mode: 'insensitive' } },
+      ]
+    }
+    const daysVal = typeof days === 'string' ? parseInt(days, 10) : days
+    if (daysVal && daysVal > 0) {
+      const now = new Date()
+      now.setHours(0, 0, 0, 0)
+      where.endDate = { gte: now, lte: new Date(now.getTime() + daysVal * 86_400_000) }
+    }
+    const rows = await db.contractLedger.findMany({
+      where,
+      orderBy: { endDate: 'asc' },
+      take: 30,
+      select: { employeeName: true, dept: true, position: true, contractType: true, startDate: true, endDate: true },
+    })
+    if (!rows.length) return '没有符合条件的台账记录。'
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const lines = rows.map((r, i) => {
+      const left = r.endDate ? Math.ceil((r.endDate.getTime() - today.getTime()) / 86_400_000) : null
+      return `${i + 1}. ${r.employeeName}${r.dept ? `（${r.dept}${r.position ? '/' + r.position : ''}）` : ''} ${LEDGER_TYPE_LABELS[r.contractType] || r.contractType}，${r.startDate.toISOString().slice(0, 10)} 起${r.endDate ? `，${r.endDate.toISOString().slice(0, 10)} 到期（剩 ${left} 天）` : '，无固定期限'}`
+    })
+    return `共查到 ${rows.length} 条在职台账（最多展示 30 条）：\n${lines.join('\n')}`
+  },
+  {
+    name: 'ledger_query',
+    description: '查询当前企业员工合同台账（姓名/部门/合同类型/起止日期），支持"未来 N 天到期"过滤。用户问"哪些合同快到期""某某的合同什么时候到期"时使用。',
+    schema: z.object({
+      days: z.union([z.number(), z.string()]).optional().describe('查询未来 N 天内到期的记录，如 30/60/90；不传则查全部在职台账'),
+      keyword: z.string().optional().describe('员工姓名/部门/岗位关键词，可选；不确定时不要传'),
+    }),
+  },
+)
+
+// ── 工具9：审查规则查询（平台内置规则 + 企业 Playbook 红线）─────
+export const ruleLookupTool = tool(
+  async ({ keyword }) => {
+    logger.info('tool:rule_lookup', { keyword })
+    if (!db) return '数据库未初始化。'
+    const tenantId = await requireTenantId()
+    const kw = keyword ? { contains: keyword, mode: 'insensitive' } : null
+    const ruleWhere: any = { enabled: true }
+    if (kw) ruleWhere.OR = [{ name: kw }, { description: kw }, { category: kw }]
+    const rules = await db.reviewRule.findMany({
+      where: ruleWhere,
+      orderBy: [{ scope: 'asc' }, { sortOrder: 'asc' }],
+      take: 30,
+      select: { name: true, severity: true, category: true, scope: true, description: true },
+    })
+    const parts: string[] = []
+    if (rules.length) {
+      parts.push(`【平台内置审查规则】共 ${rules.length} 条：\n${rules.map((r, i) =>
+        `${i + 1}. ${r.name}[${SEVERITY_LABELS[r.severity] || r.severity}]（${r.category}，适用：${r.scope === 'ALL' ? '全部合同' : r.scope === 'LABOR' ? '劳动/用工类' : r.scope}）${r.description || ''}`,
+      ).join('\n')}`)
+    }
+    if (tenantId) {
+      const pbWhere: any = { tenantId, enabled: true }
+      if (kw) pbWhere.OR = [{ title: kw }, { description: kw }]
+      const playbooks = await db.playbookRule.findMany({
+        where: pbWhere, orderBy: { createdAt: 'asc' }, take: 20,
+        select: { kind: true, title: true, description: true, contractTypes: true },
+      })
+      if (playbooks.length) {
+        const KIND_LABELS: Record<string, string> = {
+          FORBIDDEN: '红线规则', PREFERENCE: '偏好口径', STANDARD: '企业标准库', INDUSTRY: '行业专项',
+        }
+        parts.push(`【本企业自定义规则（Playbook）】共 ${playbooks.length} 条：\n${playbooks.map((p, i) =>
+          `${i + 1}. [${KIND_LABELS[p.kind] || p.kind}] ${p.title}${p.description ? `：${p.description}` : ''}`,
+        ).join('\n')}`)
+      }
+    }
+    if (!parts.length) return '没有匹配的审查规则。'
+    return parts.join('\n\n')
+  },
+  {
+    name: 'rule_lookup',
+    description: '查询平台内置的合同审查规则与企业自定义红线规则（Playbook）。用户问"平台会检查哪些问题""我们公司的红线规则"时使用。',
+    schema: z.object({
+      keyword: z.string().optional().describe('规则名称/类别关键词，如"试用期""违约金"；不传则查全部'),
+    }),
+  },
+)
+
+// ── 工具10：合同范本目录查询 ───────────────────────────────────
+export const templateSearchTool = tool(
+  async ({ keyword, scene }) => {
+    logger.info('tool:template_search', { keyword, scene })
+    const { TEMPLATE_CATALOG } = await import('../../templates/template-catalog.js')
+    const sceneVal = normalizeEnum(scene, SCENE_LABELS)
+    if (scene && !sceneVal) return `无法识别的场景：${scene}，可选：${Object.values(SCENE_LABELS).join('/')}`
+    let items = TEMPLATE_CATALOG
+    if (keyword) {
+      const k = keyword.toLowerCase()
+      items = items.filter((t) =>
+        t.title.toLowerCase().includes(k) || t.summary.toLowerCase().includes(k) || t.category.includes(keyword))
+    }
+    if (sceneVal) items = items.filter((t) => t.scene === sceneVal)
+    if (!items.length) return '平台范本库中没有匹配的范本。'
+    return `平台范本库共 ${items.length} 份匹配范本：\n${items.map((t) =>
+      `${t.title}（${t.category} / ${SCENE_LABELS[t.scene] || t.scene}）：${t.summary}`,
+    ).join('\n')}`
+  },
+  {
+    name: 'template_search',
+    description: '查询平台合同范本目录（16 份标准范本：劳动合同/实习/租赁/买卖/借贷/股权/NDA 等）。用户问"有没有某某合同范本""推荐个模板"时使用。',
+    schema: z.object({
+      keyword: z.string().optional().describe('范本名称/用途关键词，如"实习""租赁"；不传则列全部'),
+      scene: z.string().optional().describe('按审查场景过滤，可选，如 INTERNSHIP/实习协议、LEASE/房屋租赁'),
+    }),
+  },
+)
+
 /**
  * 构建当前可用工具列表：按环境能力动态注册。
  * 模型看不到不存在能力的工具，避免幻觉调用。
@@ -135,6 +380,11 @@ export function buildTools(): StructuredToolInterface[] {
     buildWebSearch(),
     readDocTool,
     legalSearchTool,
+    contractQueryTool,
+    riskQueryTool,
+    ledgerQueryTool,
+    ruleLookupTool,
+    templateSearchTool,
     calculateTool,
     getDateTool,
   ]
@@ -146,6 +396,11 @@ export const TOOL_LABELS: Record<string, string> = {
   tavily_search: '联网搜索',
   read_doc: '知识库检索',
   legal_search: '法规库检索',
+  contract_query: '合同档案查询',
+  risk_query: '审查风险查询',
+  ledger_query: '合同台账查询',
+  rule_lookup: '审查规则查询',
+  template_search: '合同范本查询',
   calculate: '数学计算',
   get_date: '日期计算',
 }

@@ -20,6 +20,7 @@ import { ContractParseService } from './parsing/contract-parse.service.js'
 import { OnboardingService } from './onboarding/onboarding.service.js'
 import { ContractAssistantService } from './assistant/contract-assistant.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
+import { TrialService } from '../billing/trial.service.js'
 import { PlanLimitException } from '../billing/plan-limit.exception.js'
 import { FREE_RETENTION_DAYS, getPlanDef, type ReviewScene } from '../billing/plans.config.js'
 import { Prisma } from '@prisma/client'
@@ -42,6 +43,7 @@ export class ContractController implements OnModuleInit {
     private readonly quota: QuotaService,
     private readonly onboarding: OnboardingService,
     private readonly entitlements: EntitlementsService,
+    private readonly trial: TrialService,
     private readonly assistant: ContractAssistantService,
     private readonly structured: StructuredService,
     private readonly audit: AuditService,
@@ -158,17 +160,22 @@ export class ContractController implements OnModuleInit {
     return { contract }
   }
 
-  // ── 发起前预检：字数/场景/月额度（不扣券、不建任务）；前端据此弹付费墙 ──
+  // ── 发起前预检：字数/场景/月额度/试用次数（不扣券、不建任务）；前端据此弹付费墙 ──
   @Post('contracts/eligibility')
   async eligibility(@Req() req: Request, @Body() body: { charCount?: number; scene?: string; payWithCoupon?: boolean }) {
     const tenantId = (req as any).user.tenantId
     const charCount = Number(body.charCount) || 0
     const scene = this.parseScene(body.scene)
+    const payWithCoupon = !!body.payWithCoupon
     const { deep } = await this.entitlements.assertStartReview(tenantId, {
       charCount,
       scene,
-      payWithCoupon: !!body.payWithCoupon,
+      payWithCoupon,
     })
+    // 试用拦截：FREE 非演示租户审查终身 2 次（用券属付费动作，不计）
+    if (!payWithCoupon) {
+      await this.trial.assertTrialAvailable(tenantId, 'REVIEW')
+    }
     const snapshot = await this.entitlements.getEntitlementSnapshot(tenantId)
     return { allowed: true, deep, ...snapshot }
   }
@@ -380,6 +387,10 @@ export class ContractController implements OnModuleInit {
       scene: contract.scene,
       payWithCoupon,
     })
+    // 拦截点①b：FREE 非演示租户审查试用终身 2 次（用券不计）
+    if (!payWithCoupon) {
+      await this.trial.assertTrialAvailable(tenantId, 'REVIEW')
+    }
 
     // 拦截点②：AI 月度 token 配额预检（前移到扣券/建任务之前，失败不扣券；异常过滤器转 429）
     await this.quota.assert(tenantId)
@@ -416,6 +427,10 @@ export class ContractController implements OnModuleInit {
               couponUsed: payWithCoupon,
             },
           })
+          // 任务落库即计一次审查试用（用券属付费动作不计）
+          if (!payWithCoupon) {
+            await this.trial.consumeTrial(tenantId, 'REVIEW')
+          }
           sse.send('task', { taskId: task.id })
 
           await startReview({
@@ -631,7 +646,11 @@ export class ContractController implements OnModuleInit {
       throw new ForbiddenException('审查尚未终审完成，意见书未生成')
     }
     const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } })
-    this.entitlements.assertFeature(tenant.plan, 'wordExport', 'EXPORT')
+    if (!this.entitlements.can(tenant.plan, 'wordExport')) {
+      // 试用放宽：FREE 非演示租户报告导出终身 2 次，用尽抛 TRIAL_EXHAUSTED
+      await this.trial.assertTrialAvailable(tenantId, 'EXPORT')
+      await this.trial.consumeTrial(tenantId, 'EXPORT')
+    }
 
     const buffer = await buildOpinionDocx(task.contract, task, task.risks)
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')

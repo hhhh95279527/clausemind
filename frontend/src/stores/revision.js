@@ -3,6 +3,8 @@
 import { create } from 'zustand'
 import http from '@/utils/http.js'
 import { useAuthStore } from './auth.js'
+import { useContractStore } from './contract.js'
+import { trackReportExported } from '@/utils/analytics.js'
 
 export const REVISION_STATUS_META = {
   NONE: { text: '未生成', color: 'default' },
@@ -67,6 +69,9 @@ export const useRevisionStore = create((set) => ({
       })
     }
     const blob = await resp.blob()
+    // 导出成功埋点：scene 从合同详情取（本 store 无此字段，取不到不阻塞导出）
+    const scene = useContractStore.getState().detail?.contract?.scene
+    trackReportExported('revision_docx', scene)
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url

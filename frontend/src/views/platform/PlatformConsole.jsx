@@ -22,6 +22,20 @@ const ROLE_OPTIONS = [
 const fmtTokens = (n) => (n >= 10000 ? `${(n / 10000).toFixed(1)}万` : String(n))
 const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('zh-CN') : '—')
 
+// 转账订单（用户在收银台提交转账单号 → 超管人工确认到账自动开通）
+const TRANSFER_STATUS_OPTIONS = [
+  { value: 'PENDING', label: '待确认' },
+  { value: 'PAID', label: '已确认到账' },
+  { value: 'CANCELLED', label: '已驳回' },
+]
+const ITEM_LABELS = {
+  PERSONAL_MONTHLY: '个人版 · 月付',
+  PERSONAL_YEARLY: '个人版 · 年付',
+  COUPON_PACK: '深度审查券包 ×10',
+  TEAM_MONTHLY: '团队版 · 月付',
+}
+const CHANNEL_LABELS = { WECHAT: '微信', ALIPAY: '支付宝', BANK: '银行转账' }
+
 export default function PlatformConsole() {
   const navigate = useNavigate()
   const [overview, setOverview] = useState(null)
@@ -53,6 +67,52 @@ export default function PlatformConsole() {
   }, [navigate])
 
   useEffect(() => { loadAll() }, [loadAll])
+
+  // ── 转账订单确认 ──
+  const [transferOrders, setTransferOrders] = useState([])
+  const [transferStatus, setTransferStatus] = useState('PENDING')
+  const [transferLoading, setTransferLoading] = useState(false)
+  const [rejectTarget, setRejectTarget] = useState(null) // 待驳回订单
+  const [rejectReason, setRejectReason] = useState('')
+  const [rejectSubmitting, setRejectSubmitting] = useState(false)
+
+  const loadTransferOrders = useCallback(async (status) => {
+    const st = status ?? transferStatus
+    setTransferLoading(true)
+    try {
+      const data = await platformApi.get(`/transfer-orders?status=${st}`)
+      setTransferOrders(data.orders || [])
+    } catch (err) {
+      if (err.response?.status === 401) { navigate('/platform/login', { replace: true }); return }
+      message.error(platformErrMessage(err, '转账订单加载失败'))
+    } finally {
+      setTransferLoading(false)
+    }
+  }, [navigate, transferStatus])
+
+  useEffect(() => { loadTransferOrders() }, [loadTransferOrders])
+
+  const confirmOrder = async (o) => {
+    try {
+      await platformApi.post(`/transfer-orders/${o.id}/confirm`)
+      message.success(`${o.tenantName} 的「${ITEM_LABELS[o.item] || o.item}」已确认到账并开通`)
+      loadTransferOrders()
+      loadAll()
+    } catch (err) { message.error(platformErrMessage(err)) }
+  }
+
+  const submitReject = async () => {
+    if (!rejectTarget) return
+    if (!rejectReason.trim()) { message.warning('请填写驳回原因'); return }
+    setRejectSubmitting(true)
+    try {
+      await platformApi.post(`/transfer-orders/${rejectTarget.id}/reject`, { reason: rejectReason.trim() })
+      message.success('订单已驳回')
+      setRejectTarget(null)
+      setRejectReason('')
+      loadTransferOrders()
+    } catch (err) { message.error(platformErrMessage(err)) } finally { setRejectSubmitting(false) }
+  }
 
   const logout = () => {
     localStorage.removeItem(PLATFORM_TOKEN_KEY)
@@ -213,6 +273,51 @@ export default function PlatformConsole() {
     },
   ]
 
+  const transferColumns = [
+    { title: '企业名称', dataIndex: 'tenantName', width: 150, render: (v, o) => (
+      <Space size={6}>
+        <span style={{ fontWeight: 600 }}>{v}</span>
+        <Tag>{o.tenantPlan}</Tag>
+      </Space>
+    ) },
+    { title: '商品', dataIndex: 'item', width: 150, render: (v) => ITEM_LABELS[v] || v },
+    { title: '金额', dataIndex: 'amountYuan', width: 90, align: 'right', render: (v) => <b>¥{v}</b> },
+    { title: '收款渠道', dataIndex: 'payChannel', width: 90, render: (v) => CHANNEL_LABELS[v] || v || '-' },
+    { title: '转账单号', dataIndex: 'transferNo', width: 210, render: (v) => (
+      <Typography.Text copyable={{ text: v }} style={{ fontSize: 12 }}>{v}</Typography.Text>
+    ) },
+    { title: '提交人', dataIndex: 'submitter', width: 210, ellipsis: true },
+    { title: '提交时间', dataIndex: 'createdAt', width: 150, render: (t) => t ? new Date(t).toLocaleString('zh-CN') : '-' },
+    { title: '状态', dataIndex: 'status', width: 110, render: (s, o) => {
+      if (s === 'PENDING') return <Tag color="orange">待确认</Tag>
+      if (s === 'PAID') return <Tag color="green">已到账</Tag>
+      return (
+        <div>
+          <Tag color="red">已驳回</Tag>
+          {o.rejectReason && <div style={{ fontSize: 12, color: '#999', maxWidth: 180 }}>{o.rejectReason}</div>}
+        </div>
+      )
+    } },
+    {
+      title: '操作', key: 'ops', width: 160, fixed: 'right',
+      render: (_, o) => o.status === 'PENDING' ? (
+        <Space size={4}>
+          <Popconfirm
+            title={`确认 ${o.tenantName} 已转账 ¥${o.amountYuan}？`}
+            description={`确认后自动开通「${ITEM_LABELS[o.item] || o.item}」权益`}
+            okText="确认到账" cancelText="取消"
+            onConfirm={() => confirmOrder(o)}
+          >
+            <Button size="small" type="link">确认到账</Button>
+          </Popconfirm>
+          <Button size="small" type="link" danger onClick={() => { setRejectTarget(o); setRejectReason('') }}>驳回</Button>
+        </Space>
+      ) : o.status === 'PAID'
+        ? <span style={{ color: '#999', fontSize: 12 }}>权益已开通</span>
+        : <span style={{ color: '#999', fontSize: 12 }}>—</span>
+    },
+  ]
+
   return (
     <div style={{ minHeight: '100vh', background: '#f5f6fa', padding: '20px 28px' }}>
       {/* 顶栏 */}
@@ -222,7 +327,7 @@ export default function PlatformConsole() {
           <span style={{ color: '#888', fontSize: 12 }}>跨租户超级管理员 · {localStorage.getItem(PLATFORM_USER_KEY) || ''}</span>
         </div>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={loadAll}>刷新</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => { loadAll(); loadTransferOrders() }}>刷新</Button>
           <Button icon={<LogoutOutlined />} onClick={logout}>退出</Button>
         </Space>
       </div>
@@ -251,6 +356,45 @@ export default function PlatformConsole() {
           pagination={{ showSizeChanger: false, showTotal: (t) => `共 ${t} 家企业` }}
         />
       </Card>
+
+      {/* 转账订单确认（用户转账支付 → 超管人工确认到账自动开通） */}
+      <Card
+        size="small" title="转账订单确认" style={{ marginTop: 18 }}
+        extra={
+          <Space>
+            <Select
+              size="small" value={transferStatus} options={TRANSFER_STATUS_OPTIONS}
+              style={{ width: 130 }} onChange={(v) => setTransferStatus(v)}
+            />
+            <Button size="small" icon={<ReloadOutlined />} onClick={() => loadTransferOrders()}>刷新</Button>
+          </Space>
+        }
+      >
+        <Table
+          columns={transferColumns} dataSource={transferOrders} rowKey="id" loading={transferLoading}
+          scroll={{ x: 1250 }} size="middle"
+          pagination={transferOrders.length > 10 ? { pageSize: 10, showSizeChanger: false } : false}
+          locale={{ emptyText: transferStatus === 'PENDING' ? '暂无待确认的转账订单' : '暂无订单' }}
+        />
+      </Card>
+
+      {/* 驳回转账订单（需填写原因告知用户） */}
+      <Modal
+        title="驳回转账订单" open={!!rejectTarget}
+        confirmLoading={rejectSubmitting}
+        okText="确认驳回" okButtonProps={{ danger: true }} cancelText="取消"
+        onOk={submitReject} onCancel={() => setRejectTarget(null)}
+      >
+        <p style={{ marginTop: 12 }}>
+          企业：{rejectTarget?.tenantName} · 商品：{rejectTarget ? (ITEM_LABELS[rejectTarget.item] || rejectTarget.item) : ''} · ¥{rejectTarget?.amountYuan}
+        </p>
+        <Input.TextArea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          placeholder="请填写驳回原因（例如：未查询到该笔转账记录）"
+          rows={3} maxLength={200} showCount
+        />
+      </Modal>
 
       {/* 新建企业 */}
       <Modal

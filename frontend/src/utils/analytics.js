@@ -5,6 +5,25 @@ import { useAuthStore } from '@/stores/auth.js'
 // 埋点上报端点（轻量方案：后端收集接口）
 const TRACK_URL = '/api/analytics/track'
 
+// ── 匿名设备 ID（访客→注册打通的纽带）──────────────────────────
+const AID_KEY = 'cm_anonymous_id'
+
+// localStorage 持久化的匿名 ID：注册前所有事件用它标识同一访客，
+// 注册成功后的 sign_up 事件同 ID 上报，后端即可把访客行为关联到用户
+export function getAnonymousId() {
+  try {
+    let aid = localStorage.getItem(AID_KEY)
+    if (!aid) {
+      aid = (crypto.randomUUID ? crypto.randomUUID() : `aid-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`)
+        .replace(/[^A-Za-z0-9_-]/g, '')
+      localStorage.setItem(AID_KEY, aid)
+    }
+    return aid
+  } catch {
+    return ''
+  }
+}
+
 // ── 核心上报方法 ──────────────────────────────────────────────
 function track(eventType, data = {}) {
   const { user, accessToken } = useAuthStore.getState()
@@ -14,6 +33,7 @@ function track(eventType, data = {}) {
     // sendBeacon 无法携带 Authorization 头，token 随信封提交；
     // 后端验签通过才回填身份，伪造/过期一律按匿名处理
     token: accessToken || null,
+    anonymousId: getAnonymousId() || null,
     timestamp: Date.now(),
     url: window.location.href,
     pathname: window.location.pathname,
@@ -40,9 +60,22 @@ function track(eventType, data = {}) {
 
 // ── 便捷方法 ──────────────────────────────────────────────────
 
-// 页面 PV（data 可带 from 来源页，供页面跳转/留存分析）
+// 页面 PV：自动附加 referrer 与 UTM 参数（来源渠道分析的数据源）
 export function trackPageView(pageName, data = {}) {
-  track('page_view', { pageName, ...data })
+  const utm = {}
+  try {
+    const search = new URLSearchParams(window.location.search)
+    for (const k of ['utm_source', 'utm_medium', 'utm_campaign']) {
+      const v = search.get(k)
+      if (v) utm[k] = v.slice(0, 100)
+    }
+  } catch { /* 非浏览器环境忽略 */ }
+  track('page_view', {
+    pageName,
+    ...(document.referrer ? { referrer: document.referrer.slice(0, 300) } : {}),
+    ...utm,
+    ...data,
+  })
 }
 
 // 功能点击
@@ -115,6 +148,34 @@ export function trackCheckoutSuccess(item) {
   track('checkout_success', { ...(item ? { item } : {}) })
 }
 
+// ── 关键业务行为事件（漏斗中间环节的成功率/质量分析）────────────
+
+// 登录成功（method: password 密码 / email_code 邮箱验证码）
+export function trackLoginSuccess(method) {
+  track('login_success', { ...(method ? { method } : {}) })
+}
+
+// 单次审查完成（含全部批次跑完、风险落库；scene 用于「发起→完成」成功率按场景拆分）
+export function trackReviewCompleted(scene) {
+  track('review_completed', { ...(scene ? { scene } : {}) })
+}
+
+// 合同上传后解析失败（fileType: txt/docx/pdf/jpg…；reason 失因摘要）
+export function trackParseFailed(fileType, reason) {
+  track('parse_failed', {
+    ...(fileType ? { fileType } : {}),
+    ...(reason ? { reason: String(reason).slice(0, 200) } : {}),
+  })
+}
+
+// 审查报告/改稿导出成功（kind: report_md / revision_docx / pdf 等）
+export function trackReportExported(kind, scene) {
+  track('report_exported', {
+    ...(kind ? { kind } : {}),
+    ...(scene ? { scene } : {}),
+  })
+}
+
 // ── 路由监听（自动 PV）─────────────────────────────────────────
 export function setupRouteTracking() {
   let lastPath = ''
@@ -133,5 +194,7 @@ export default {
   trackPageView, trackClick, trackPerformance, trackError, trackApiError, trackSseDisconnect,
   trackSignUp, trackFirstReviewStart, trackFirstResultSeen,
   trackPaywallShow, trackPaywallClickUpgrade, trackCheckoutSuccess,
+  trackLoginSuccess, trackReviewCompleted, trackParseFailed, trackReportExported,
+  getAnonymousId,
   setupRouteTracking,
 }

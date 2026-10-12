@@ -4,18 +4,21 @@
 // 文案以 docs/prototype/checkout.html 为唯一来源；价格以服务端订单返回为准。
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button } from 'antd'
+import { Button, Input } from 'antd'
 import {
   CheckCircleFilled,
   LockFilled,
   MessageFilled,
   SafetyCertificateOutlined,
   WechatOutlined,
+  PayCircleOutlined,
 } from '@ant-design/icons'
 import { useBillingStore } from '@/stores/billing.js'
 import { useMeStore } from '@/stores/me.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { useAppStore } from '@/stores/app.js'
 import { trackCheckoutSuccess } from '@/utils/analytics.js'
+import http from '@/utils/http.js'
 import css from './personal.module.css'
 
 // 商品展示元数据（三原型态文案逐字；团队升级为配置事实的功能性文案）
@@ -86,8 +89,17 @@ export default function CheckoutView() {
   const [channel, setChannel] = useState('WECHAT')
   const [paying, setPaying] = useState(false)
   const [result, setResult] = useState(null)
+  // 转账支付（人工确认模式）：管理员收款码 + 用户提交转账单号 → 超管确认开通
+  const [payInfo, setPayInfo] = useState(null)
+  const [transferChannel, setTransferChannel] = useState('WECHAT')
+  const [transferNo, setTransferNo] = useState('')
+  const [transferSubmitting, setTransferSubmitting] = useState(false)
+  const [transferDone, setTransferDone] = useState(false)
 
   useEffect(() => { loadEntitlement() }, [loadEntitlement])
+  useEffect(() => {
+    http.get('/billing/payment-info').then(setPayInfo).catch(() => {})
+  }, [])
 
   const workspaceLabel = entitlement?.workspaceType === 'TEAM' ? '团队空间' : '个人空间'
   const accountName = user?.displayName || user?.username || '当前账号'
@@ -106,6 +118,57 @@ export default function CheckoutView() {
     } finally {
       setPaying(false)
     }
+  }
+
+  // 转账支付：提交转账单号，等待管理员人工确认到账后自动开通
+  const submitTransfer = async () => {
+    if (!item) return
+    if (!transferNo.trim()) {
+      useAppStore.getState().toast.warning('请填写转账单号（微信/支付宝账单中的转账记录单号）')
+      return
+    }
+    setTransferSubmitting(true)
+    try {
+      await http.post('/billing/transfer-orders', {
+        item,
+        channel: transferChannel,
+        transferNo: transferNo.trim(),
+      })
+      setTransferDone(true)
+    } catch {
+      // 拦截器已 toast（重复单号 / 校验失败）
+    } finally {
+      setTransferSubmitting(false)
+    }
+  }
+
+  // ── 转账单已提交（等待人工确认）面板 ──
+  if (transferDone) {
+    return (
+      <div className={css.coTopbarShell}>
+        <TopBar />
+        <main className={css.coWrap}>
+          <div className={`${css.coCard} ${css.coSuccessCard}`}>
+            <div className={css.coSuccess}>
+              <div className={css.coSuccessIc}><CheckCircleFilled /></div>
+              <h2>转账信息已提交</h2>
+              <p>管理员确认到账后，权益将自动开通，无需重复提交。</p>
+              <p className={`${css.muted} ${css.small}`}>
+                商品 {meta?.goods} · 应付 ¥{meta?.amount} · 转账单号 {transferNo}
+              </p>
+              <div className={css.coSuccessBtns}>
+                <Button type="primary" size="large" onClick={() => navigate(item === 'TEAM_MONTHLY' ? '/billing' : '/me/billing')}>
+                  查看我的订阅
+                </Button>
+                <Button size="large" onClick={() => navigate(item === 'TEAM_MONTHLY' ? '/dashboard' : '/home')}>
+                  返回工作台
+                </Button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   // ── 支付成功面板 ──
@@ -190,7 +253,7 @@ export default function CheckoutView() {
 
               <div className={css.coDivider} />
               <div className={css.coLine}><span>商品</span><b>{meta.goods}</b></div>
-              <div className={css.coLine}><span>支付方式</span><b>{channel === 'WECHAT' ? '微信支付' : '支付宝'}</b></div>
+              <div className={css.coLine}><span>支付方式</span><b>{channel === 'WECHAT' ? '微信支付' : channel === 'ALIPAY' ? '支付宝' : '转账支付（人工确认）'}</b></div>
               <div className={css.coLine}><span>账号</span><b>{accountName} · {workspaceLabel}</b></div>
               <div className={css.coLine}>
                 <span>应付金额</span>
@@ -229,7 +292,58 @@ export default function CheckoutView() {
                   <span>支付宝</span>
                   <span className={css.coChannelSub}>&nbsp;</span>
                 </label>
+                <label className={`${css.coPayItem} ${channel === 'TRANSFER' ? css.coPayActive : ''}`}>
+                  <input
+                    type="radio" name="pay" checked={channel === 'TRANSFER'}
+                    onChange={() => setChannel('TRANSFER')}
+                  />
+                  <span className={css.coRadio} />
+                  <span className={`${css.coChannelIc} ${css.coAlipay}`}>
+                    <PayCircleOutlined />
+                  </span>
+                  <span>转账支付</span>
+                  <span className={css.coChannelSub}>人工确认</span>
+                </label>
               </div>
+
+              {channel === 'TRANSFER' && (
+                <div style={{ marginTop: 16, padding: 14, border: '1px dashed var(--color-border, #d9d9d9)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>转账后提交单号</div>
+                  {payInfo?.qrcodeUrl ? (
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                      <img
+                        src={payInfo.qrcodeUrl}
+                        alt="管理员收款码"
+                        style={{ width: 120, height: 120, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border, #eee)' }}
+                      />
+                      <div style={{ fontSize: 12.5, color: 'var(--color-text-sub)', lineHeight: 1.7 }}>
+                        请扫码支付 <b>¥{meta.amount}</b>，<br />保留好转账记录。
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12.5, color: 'var(--color-text-sub)', marginBottom: 12, lineHeight: 1.7 }}>
+                      管理员尚未配置收款码，请线下联系管理员转账后提交单号。
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                    {['WECHAT', 'ALIPAY', 'BANK'].map((c) => (
+                      <Button
+                        key={c} size="small"
+                        type={transferChannel === c ? 'primary' : 'default'}
+                        onClick={() => setTransferChannel(c)}
+                      >
+                        {c === 'WECHAT' ? '微信' : c === 'ALIPAY' ? '支付宝' : '银行'}
+                      </Button>
+                    ))}
+                  </div>
+                  <Input
+                    placeholder="粘贴转账单号（账单中的转账记录单号）"
+                    value={transferNo}
+                    maxLength={100}
+                    onChange={(e) => setTransferNo(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className={css.coPayTitle} style={{ marginTop: 20 }}>账单明细</div>
               <div className={`${css.small} ${css.muted}`} style={{ lineHeight: 1.9 }}>
@@ -242,15 +356,25 @@ export default function CheckoutView() {
 
           <div className={css.coFoot}>
             <div className={css.coAgree}>
-              点击「模拟支付，立即生效」即表示你已阅读并同意
-              <Link to="/terms">《用户协议》</Link>与<Link to="/privacy">《隐私政策》</Link>，并知悉本页为原型演示环境。
+              {channel === 'TRANSFER'
+                ? '提交转账单号即表示你已完成转账并同意管理员核对到账后开通权益，核对结果以管理员确认为准。'
+                : <>点击「模拟支付，立即生效」即表示你已阅读并同意<Link to="/terms">《用户协议》</Link>与<Link to="/privacy">《隐私政策》</Link>，并知悉本页为原型演示环境。</>}
             </div>
-            <Button
-              type="primary" size="large" block loading={paying}
-              className={css.coPayBtn} onClick={doPay}
-            >
-              模拟支付，立即生效
-            </Button>
+            {channel === 'TRANSFER' ? (
+              <Button
+                type="primary" size="large" block loading={transferSubmitting}
+                className={css.coPayBtn} onClick={submitTransfer}
+              >
+                我已转账，提交单号
+              </Button>
+            ) : (
+              <Button
+                type="primary" size="large" block loading={paying}
+                className={css.coPayBtn} onClick={doPay}
+              >
+                模拟支付，立即生效
+              </Button>
+            )}
           </div>
         </div>
       </main>

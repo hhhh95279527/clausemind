@@ -197,11 +197,14 @@ export class PlatformService implements OnModuleInit {
     if (dup) throw new ConflictException('管理员用户名已被占用')
 
     const created = await this.db.$transaction(async (tx) => {
+      // 空间类型随套餐自动判定：团队/企业版 → TEAM，免费/个人版 → PERSONAL
+      // 否则会出现「个人版套餐却渲染团队侧边栏、团队功能却无权益」的错配
+      const workspaceType = plan === 'TEAM' || plan === 'ENTERPRISE' ? 'TEAM' : 'PERSONAL'
       const tenant = await tx.tenant.create({
         data: {
           name,
           plan: plan as any,
-          workspaceType: 'TEAM',
+          workspaceType: workspaceType as any,
           status: 'ACTIVE',
           planUpdatedAt: new Date(),
           // 付费套餐默认订阅期 1 年，可随时在控制台调整
