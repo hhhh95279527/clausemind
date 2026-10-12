@@ -53,6 +53,10 @@ const TemplatesView     = lazy(() => import('@/views/team/TemplatesView.jsx'))
 
 const AnalyticsView   = lazy(() => import('@/views/admin/AnalyticsView.jsx'))
 
+// ── 平台超管（独立账号体系，不进主导航，直接访问 URL）───────────────────────
+const PlatformLoginPage = lazy(() => import('@/views/platform/PlatformLoginPage.jsx'))
+const PlatformConsole   = lazy(() => import('@/views/platform/PlatformConsole.jsx'))
+
 function PageFallback() {
   return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -154,6 +158,10 @@ export default function App() {
             {/* ── 旧路由重定向 ─────────────────────────────────────────── */}
             <Route path="/chat" element={<Navigate to={chatRedirect} replace />} />
             <Route path="/monitor" element={<Navigate to={chatRedirect} replace />} />
+
+            {/* ── 平台超管（独立账号体系：platform_token；无 token 由页面自跳登录）── */}
+            <Route path="/platform/login" element={<PlatformLoginPage />} />
+            <Route path="/platform" element={<PlatformConsole />} />
 
             {/* 兜底 */}
             <Route path="*" element={<Navigate to={chatRedirect} replace />} />

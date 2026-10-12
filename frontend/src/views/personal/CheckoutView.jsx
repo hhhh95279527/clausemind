@@ -15,6 +15,7 @@ import {
 import { useBillingStore } from '@/stores/billing.js'
 import { useMeStore } from '@/stores/me.js'
 import { useAuthStore } from '@/stores/auth.js'
+import { trackCheckoutSuccess } from '@/utils/analytics.js'
 import css from './personal.module.css'
 
 // 商品展示元数据（三原型态文案逐字；团队升级为配置事实的功能性文案）
@@ -98,6 +99,7 @@ export default function CheckoutView() {
       const order = await createOrder(item)
       const paid = await mockPay(order.id, channel)
       setResult(paid)
+      trackCheckoutSuccess(item)
       await loadEntitlement()
     } catch (e) {
       // 拦截器已 toast；补充确保按钮恢复

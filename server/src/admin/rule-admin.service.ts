@@ -7,7 +7,7 @@ import { tryRuleOnText } from '../contract/rules/rule.engine.js'
 import { logger } from '../utils/logger.js'
 
 const SEVERITIES: readonly Severity[] = ['HIGH', 'MED', 'LOW']
-const SCOPES = ['ALL', 'LABOR'] as const
+const SCOPES = ['ALL', 'LABOR', 'INTERNSHIP'] as const
 const MAX_TRY_TEXT = 20_000
 
 export interface RuleInput {
@@ -103,7 +103,7 @@ export class RuleAdminService {
    * 试运行：id 给已存规则（字段覆盖），或直接给完整 rule 字段（编辑中未落库）。
    * 不落库、不写任何业务数据。
    */
-  async tryRule(body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean }) {
+  async tryRule(body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean; internship?: boolean }) {
     const text = (body.text ?? '').toString()
     if (!text.trim()) throw new BadRequestException('请粘贴待检测的条款文本')
     if (text.length > MAX_TRY_TEXT) throw new BadRequestException(`试运行文本不超过 ${MAX_TRY_TEXT} 字`)
@@ -122,7 +122,8 @@ export class RuleAdminService {
     }
 
     const scope = String(merged.scope ?? 'ALL')
-    const skipped = scope === 'LABOR' && !body.labor
+    const skipped = (scope === 'LABOR' && !body.labor)
+      || (scope === 'INTERNSHIP' && !body.internship)
     const result = skipped
       ? { hit: false, mode: null, regexError: null, matches: [] }
       : tryRuleOnText(rule, text)
@@ -132,6 +133,7 @@ export class RuleAdminService {
       name: merged.name ?? '',
       scope,
       labor: !!body.labor,
+      internship: !!body.internship,
       skipped,
       ...result,
       matchCount: result.matches.length,
@@ -176,7 +178,7 @@ export class RuleAdminService {
 
     if (input.scope !== undefined) {
       const scope = input.scope.toString().trim().toUpperCase()
-      if (!SCOPES.includes(scope as any)) throw new BadRequestException('scope 只能是 ALL/LABOR')
+      if (!SCOPES.includes(scope as any)) throw new BadRequestException('scope 只能是 ALL/LABOR/INTERNSHIP')
       out.scope = scope
     }
 

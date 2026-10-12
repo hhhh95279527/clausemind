@@ -43,8 +43,12 @@ http.interceptors.response.use(
     const toast = useAppStore.getState().toast
     const originalRequest = error.config
 
+    // 认证类接口（登录/验证码登录/刷新token）的 401 是"凭据错误"而非"会话过期"，
+    // 直接交给下方统一错误提示（如"密码错误"），绝不能触发刷新 token / 跳转刷新页面
+    const isAuthRequest = /\/auth\/(login|login-by-code|refresh)(\?|$)/.test(originalRequest.url || '')
+
     // 401 且未重试过：尝试刷新 Token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       const { refreshToken, logout } = useAuthStore.getState()
 
       // 没有 refreshToken，直接登出
@@ -125,7 +129,21 @@ http.interceptors.response.use(
 // onEvent：收到特定事件（sources、tool_start 等）的回调
 // onDone：流结束时的回调
 // onError：出错时的回调
-export async function fetchStream(url, body, { onToken, onEvent, onDone, onError } = {}) {
+export async function fetchStream(url, body, { onToken, onEvent, onDone, onError, onIdleTimeout, idleTimeoutMs = 0 } = {}) {
+  // 空闲看门狗：超过 idleTimeoutMs 没收到任何字节（含 SSE 心跳）则主动断开。
+  // 后端长任务（如 AI 审查）仍会继续执行，调用方可在 onIdleTimeout 后重新拉取状态自愈，
+  // 避免连接被中间链路静默掐成半开时界面永久停在“进行中”。
+  const controller = new AbortController()
+  let idleTimer = null
+  let timedOut = false
+  const armIdle = () => {
+    if (!idleTimeoutMs) return
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, idleTimeoutMs)
+  }
   try {
     const { accessToken } = useAuthStore.getState()
     const headers = { 'Content-Type': 'application/json' }
@@ -137,6 +155,7 @@ export async function fetchStream(url, body, { onToken, onEvent, onDone, onError
       method: 'POST',
       headers,
       body: JSON.stringify(body),
+      signal: controller.signal,
     })
 
     if (!response.ok) {
@@ -153,10 +172,12 @@ export async function fetchStream(url, body, { onToken, onEvent, onDone, onError
     const reader  = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer    = ''
+    armIdle()
 
     while (true) {
       const { value, done } = await reader.read()
       if (done) break
+      armIdle() // 收到任意字节（含 ': hb' 心跳）即重置空闲计时
 
       buffer += decoder.decode(value, { stream: true })
 
@@ -195,7 +216,14 @@ export async function fetchStream(url, body, { onToken, onEvent, onDone, onError
       }
     }
   } catch (err) {
+    if (timedOut) {
+      // 主动断开：不当作错误弹窗，交由调用方按“后端可能已完成”重新拉状态
+      onIdleTimeout?.()
+      return
+    }
     onError?.(err)
+  } finally {
+    clearTimeout(idleTimer)
   }
 }
 

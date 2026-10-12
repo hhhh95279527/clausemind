@@ -3,7 +3,7 @@
 import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
 import * as bcrypt from 'bcryptjs'
-import { createHash, randomUUID, randomBytes } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { DatabaseService } from '../database/database.service'
 import { config } from '../config/index.js'
 import { logger } from '../utils/logger.js'
@@ -14,8 +14,8 @@ export type RegisterPersona = 'PERSONAL' | 'TEAM'
 
 interface RegisterDto {
   persona: RegisterPersona
+  username: string
   email: string
-  emailCode: string
   password: string
   displayName?: string
   // 企业流
@@ -23,6 +23,9 @@ interface RegisterDto {
   companySize?: string
   position?: string
 }
+
+/** 用户名规则：3-20 位字母、数字或下划线（登录时与邮箱二选一） */
+const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/
 
 /** 返回给前端的用户体：携带套餐与空间类型，供 persona 路由与权益展示 */
 export interface AuthUserPayload {
@@ -68,8 +71,13 @@ export class AuthService {
 
   // ── 注册：个人 / 企业双路径分流（FR-3）────────────────────────
   // PERSONAL → FREE 个人空间；TEAM → TEAM 团队版演示空间（原型确认：默认含 5 席演示）
+  // 注册不强制邮箱验证码：用户名 + 密码即可开户；邮箱归属在首次"验证码登录"时自然验证
   async register(dto: RegisterDto, meta: TokenMeta = {}) {
     const email = (dto.email || '').trim().toLowerCase()
+    const username = (dto.username || '').trim()
+    if (!USERNAME_RE.test(username)) {
+      throw new BadRequestException('用户名需为 3-20 位字母、数字或下划线')
+    }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       throw new BadRequestException('邮箱格式不正确')
     }
@@ -83,15 +91,19 @@ export class AuthService {
       throw new BadRequestException('请填写企业名称')
     }
 
-    const existingEmail = await this.db.user.findUnique({ where: { email } })
+    const [existingUsername, existingEmail] = await Promise.all([
+      this.db.user.findUnique({ where: { username } }),
+      this.db.user.findUnique({ where: { email } }),
+    ])
+    if (existingUsername) {
+      throw new ConflictException('用户名已被占用，请换一个')
+    }
     if (existingEmail) {
       throw new ConflictException('该邮箱已注册，请直接登录')
     }
-    // 注册必须验证码通过（dev 控制台码 / 固定码 123456）
-    await this.verificationCodes.verifyCode(email, dto.emailCode)
 
     const passwordHash = await bcrypt.hash(dto.password, 12)
-    const displayName = (dto.displayName || '').trim() || email.split('@')[0]
+    const displayName = (dto.displayName || '').trim() || username
 
     const isTeam = dto.persona === 'TEAM'
     // 租户 + 用户在一个事务里创建（UserProfile 已下线，不再创建）
@@ -113,13 +125,13 @@ export class AuthService {
 
       return tx.user.create({
         data: {
-          username: await this.uniqueUsername(tx, email),
+          username,
           email,
           passwordHash,
           displayName,
           role: 'ADMIN' as UserRole, // 空间创建者=租户管理员（团队管理/席位需要）
           tenantId: tenant.id,
-          emailVerified: true,
+          emailVerified: false, // 未走验证码；首次验证码登录成功后自动置 true
           metadata: isTeam
             ? { companySize: dto.companySize ?? null, position: dto.position ?? null }
             : undefined,
@@ -132,7 +144,7 @@ export class AuthService {
     return { user, ...tokens }
   }
 
-  // ── 邮箱验证码登录：未注册邮箱自动开通 FREE 个人空间（FR-4）──────
+  // ── 邮箱验证码登录：仅允许已注册 / 已绑定该邮箱的账号（FR-4）──────
   async loginByCode(email: string, code: string, meta: TokenMeta = {}) {
     const normalized = (email || '').trim().toLowerCase()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
@@ -140,55 +152,37 @@ export class AuthService {
     }
     await this.verificationCodes.verifyCode(normalized, code)
 
-    let user = await this.db.user.findUnique({ where: { email: normalized } })
-
-    // 未注册：自动开户 FREE 个人空间（P0 直接开户，P1 强校验设置密码）
+    const user = await this.db.user.findUnique({ where: { email: normalized } })
     if (!user) {
-      const randomPasswordHash = await bcrypt.hash(randomBytes(24).toString('hex'), 12)
-      const created = await this.db.$transaction(async (tx) => {
-        const tenant = await tx.tenant.create({
-          data: {
-            name: `${normalized.split('@')[0]} 的个人空间`,
-            plan: 'FREE' as TenantPlan,
-            workspaceType: 'PERSONAL' as WorkspaceType,
-          },
-        })
-        return tx.user.create({
-          data: {
-            username: await this.uniqueUsername(tx, normalized),
-            email: normalized,
-            passwordHash: randomPasswordHash,
-            displayName: normalized.split('@')[0],
-            role: 'USER' as UserRole,
-            tenantId: tenant.id,
-            emailVerified: true,
-          },
-        })
-      })
-      logger.info('auth: auto signup via email code', { userId: created.id })
-      user = created
+      throw new BadRequestException('该邮箱未绑定账号，请先注册或使用用户名密码登录')
     }
-
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('账号已被禁用')
     }
+    // 能收到验证码即证明邮箱归属，顺带完成邮箱验证
     if (!user.emailVerified) {
       await this.db.user.update({ where: { id: user.id }, data: { emailVerified: true } })
     }
     return this.login(user, meta)
   }
 
-  /** 由邮箱生成唯一用户名（个人流无用户名字段；username 列 VarChar(50) 唯一非空） */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private async uniqueUsername(tx: any, email: string): Promise<string> {
-    const base = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').slice(0, 32) || 'user'
-    let candidate = base
-    for (let i = 0; i < 20; i++) {
-      const exists = await tx.user.findUnique({ where: { username: candidate } })
-      if (!exists) return candidate
-      candidate = `${base}${randomBytes(2).toString('hex')}`
+  /** 发送"登录用"验证码：仅向已绑定账号的邮箱发信，避免发信通道被滥用 */
+  async sendLoginCode(email: string) {
+    const normalized = (email || '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+      throw new BadRequestException('邮箱格式不正确')
     }
-    return `${base}${randomBytes(4).toString('hex')}`
+    const user = await this.db.user.findUnique({
+      where: { email: normalized },
+      select: { status: true },
+    })
+    if (!user) {
+      throw new BadRequestException('该邮箱未绑定账号，请先注册后再使用验证码登录')
+    }
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('账号已被禁用，无法接收验证码')
+    }
+    return this.verificationCodes.sendCode(normalized)
   }
 
   /** 组装前端用户体（联查租户套餐/空间类型） */

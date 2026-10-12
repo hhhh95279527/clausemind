@@ -6,8 +6,8 @@
 export type PlanCode = 'FREE' | 'PERSONAL' | 'TEAM' | 'ENTERPRISE'
 export type WorkspaceKind = 'PERSONAL' | 'TEAM'
 
-/** 审查场景类型：FREE 仅前四类，非标合同仅付费套餐 */
-export type ReviewScene = 'LABOR' | 'LEASE' | 'SERVICE' | 'NDA' | 'CUSTOM'
+/** 审查场景类型：FREE 支持 LABOR/INTERNSHIP/LEASE/SERVICE/NDA；买卖/借款/股权及非标仅付费套餐 */
+export type ReviewScene = 'LABOR' | 'INTERNSHIP' | 'LEASE' | 'SERVICE' | 'NDA' | 'SALE' | 'LOAN' | 'EQUITY' | 'CUSTOM'
 
 /** PLAN_LIMIT 拦截原因（与前端付费墙 reason 对齐） */
 export type PlanLimitReason =
@@ -53,6 +53,8 @@ export interface PlanDef {
   monthlyReviewQuota: number
   /** 单份合同字数上限：Infinity=不限 */
   maxChars: number
+  /** 合同文件上传大小上限（字节） */
+  maxUploadBytes: number
   /** 可审查场景类型 */
   allowedScenes: ReviewScene[]
   /** 免费记录保留天数；null=永久 */
@@ -65,8 +67,9 @@ export interface PlanDef {
   couponSupported: boolean
 }
 
-const ALL_SCENES: ReviewScene[] = ['LABOR', 'LEASE', 'SERVICE', 'NDA', 'CUSTOM']
-const FREE_SCENES: ReviewScene[] = ['LABOR', 'LEASE', 'SERVICE', 'NDA']
+const ALL_SCENES: ReviewScene[] = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM']
+// 免费支持个人高频五类；买卖/借款/股权等商事类型与非标同走会员或深度券
+const FREE_SCENES: ReviewScene[] = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA']
 
 export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
   FREE: {
@@ -78,6 +81,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     seats: 1,
     monthlyReviewQuota: 2,
     maxChars: 3000,
+    maxUploadBytes: 8 * 1024 * 1024,   // 免费版单文件 8MB
     allowedScenes: FREE_SCENES,
     retentionDays: 7,
     ledgerMaxItems: 10,
@@ -106,6 +110,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     seats: 1,
     monthlyReviewQuota: Infinity,
     maxChars: Infinity,
+    maxUploadBytes: 15 * 1024 * 1024,  // 会员版单文件 15MB
     allowedScenes: ALL_SCENES,
     retentionDays: null,
     ledgerMaxItems: 10,
@@ -134,6 +139,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     seats: 5,
     monthlyReviewQuota: Infinity,
     maxChars: Infinity,
+    maxUploadBytes: 15 * 1024 * 1024,  // 会员版单文件 15MB
     allowedScenes: ALL_SCENES,
     retentionDays: null,
     ledgerMaxItems: Infinity,
@@ -162,6 +168,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     seats: Infinity,
     monthlyReviewQuota: Infinity,
     maxChars: Infinity,
+    maxUploadBytes: 15 * 1024 * 1024,  // 会员版单文件 15MB
     allowedScenes: ALL_SCENES,
     retentionDays: null,
     ledgerMaxItems: Infinity,

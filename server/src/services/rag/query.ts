@@ -10,14 +10,54 @@ import { getRagDatabase } from './ingest.js'
 import { retrieveFromPg, type RetrievedChunk } from './pg-store.js'
 import { activeContext } from '../../observability/trace-context.js'
 import { logger } from '../../utils/logger.js'
-import { rewriteQuery, addMessage, getMessageHistory } from './memory.js'
+
+export interface HistoryTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// ── 查询重写：结合 DB 历史理解当前问题（指代消解）────────────────
+const REWRITE_PROMPT = `你是一个对话理解助手。请根据对话历史，理解用户的当前问题。
+如果当前问题指代不明（如"这个文档"、"它"、"总结一下"等），请结合历史将其改写为完整、明确的问题。
+只输出改写后的问题，不要解释。
+
+对话历史：
+{history}
+
+当前问题：{question}
+
+改写后的问题：`
+
+async function rewriteWithHistory(
+  question: string,
+  history: HistoryTurn[],
+  callbacks?: BaseCallbackHandler[],
+): Promise<string> {
+  const recent = history.slice(-6)
+  if (!recent.length) return question
+  const historyText = recent
+    .map((m) => `${m.role === 'user' ? '用户' : '助手'}：${m.content}`)
+    .join('\n')
+  try {
+    const prompt = ChatPromptTemplate.fromMessages([['system', REWRITE_PROMPT]])
+    const result = await prompt.pipe(chatModel).pipe(new StringOutputParser())
+      .invoke({ history: historyText, question }, { callbacks })
+    return result.trim() || question
+  } catch (e) {
+    logger.warn('rag: query rewrite failed, using original', { error: (e as Error).message })
+    return question
+  }
+}
 
 const FINAL_K = 4          // 最终保留的文档数
 const MULTI_QUERY_COUNT = 3 // 多查询扩展的变体数量
 
-const QUERY_EXPANSION_PROMPT = `你是一个擅长从不同角度理解问题的助手。
-给定用户的一个问题，请从 {count} 个不同的角度改写这个问题，使其更容易在知识库中检索到相关内容。
-每个变体用单独的 {n}. 开头，直接输出问题本身，不要多余的解释。`
+const QUERY_EXPANSION_PROMPT = `你是一个擅长法律与合同文书检索的助手。
+给定用户的一个问题，请从 {count} 个不同角度做近义改写，使其更容易在法律条文库中检索到相关内容。
+要求：
+1. 必须保持原问题的主题与语境，不得引入原问题没有的新概念，不得变成泛泛的元问题
+2. 使用法律/合同场景中的规范用词（如"工资"可改写为"劳动报酬"，"辞退"可改写为"解除劳动合同"）
+3. 每个变体单独一行，以数字序号开头（如 1. 2. 3.），直接输出问题本身，不要解释`
 
 function parseQueryVariants(text: string): string[] {
   return text.split('\n')
@@ -25,6 +65,16 @@ function parseQueryVariants(text: string): string[] {
     .filter((l) => /^\d+\./.test(l))
     .map((l) => l.replace(/^\d+\.\s*/, '').trim())
     .filter(Boolean)
+}
+
+/** 过滤退化变体：去掉标点后过短、纯疑问词、或长度异常的变体，避免跑偏的扩展稀释召回 */
+function isValidVariant(v: string): boolean {
+  const stripped = v.replace(/[\s\p{P}\p{S}0-9a-zA-Z]/gu, '')
+  if (stripped.length < 3) return false
+  // 纯元问题（"如何理解这个问题"之类）不含实质名词
+  if (/如何理解|什么意思|怎么理解|这个问题|该问题|这句话/.test(v) && v.length < 15) return false
+  if (v.length > 80) return false
+  return true
 }
 
 async function expandQuery(question: string, callbacks?: BaseCallbackHandler[]): Promise<string[]> {
@@ -36,7 +86,8 @@ async function expandQuery(question: string, callbacks?: BaseCallbackHandler[]):
     const result = await prompt.pipe(chatModel).pipe(new StringOutputParser())
       .invoke({ question, count: String(MULTI_QUERY_COUNT) }, { callbacks })
     const variants = parseQueryVariants(result)
-    const all = [question, ...variants.filter((v) => v && v !== question)]
+      .filter((v) => v !== question && isValidVariant(v))
+    const all = [question, ...variants]
     logger.info('rag: query expansion', { original: question, variants: all })
     return Array.from(new Set(all))
   } catch (e) {
@@ -51,36 +102,68 @@ export interface RetrieveOptions {
   k?: number
   docType?: DocType
   tenantId?: string | null
+  /** 仅检索本租户私有文档（不混入平台共享库） */
+  ownOnly?: boolean
+  /** 会话级隔离：仅检索该会话上传的文档 */
+  sessionId?: string | null
 }
 
-// ── 检索：多查询变体合并去重（内部以单变体分数最高者为准）──────────
+// ── 检索：原始问题召回优先，扩展变体仅补位 ──────────────────────
+// 经验：LLM 生成的扩展变体可能跑偏（元问题/语义漂移），若各变体平等竞争，
+// 原始问题命中的高相关 chunk 会被挤出 top-k。因此：
+// 1) 原始问题单独检索，其命中结果按分数直接占住名额；
+// 2) 扩展变体并发召回，仅用于补满剩余名额（chunkId 去重，变体间取最高分）。
 export async function retrieveDocs(question: string, opts: RetrieveOptions = {}): Promise<RetrievedChunk[]> {
   const db = getRagDatabase()
   if (!db) return []
 
   const k = opts.k ?? FINAL_K
   const tenantId = opts.tenantId ?? activeContext()?.tenantId ?? null
-  const queries = await expandQuery(question)
-
-  const merged = new Map<string, RetrievedChunk>()
-  for (const q of queries) {
-    const docs = await retrieveFromPg(db as any, q, {
-      k,
-      docType: opts.docType,
-      category: opts.category,
-      tenantId,
+  const retrieve = (q: string) => retrieveFromPg(db as any, q, {
+    k,
+    docType: opts.docType,
+    category: opts.category,
+    tenantId,
+    ownOnly: opts.ownOnly,
+    sessionId: opts.sessionId,
+  })
+  // 原始问题优先检索：命中已满 k 条则直接返回，跳过查询扩展（省一次 LLM 调用，也避免变体跑偏）
+  const originalDocs = (await retrieve(question)).sort((a, b) => b.score - a.score)
+  const originalIds = new Set(originalDocs.map((d) => d.chunkId))
+  if (originalDocs.length >= k) {
+    logger.info('rag: retrieved docs (original only)', {
+      question: question.slice(0, 40),
+      relevant: originalDocs.length,
+      topScore: originalDocs[0]?.score,
     })
-    for (const d of docs) {
-      const key = d.chunkId
-      if (!merged.has(key) || d.score > merged.get(key)!.score) merged.set(key, d)
+    return originalDocs
+  }
+
+  // 原始问题召回不足：用扩展变体补满剩余名额（chunkId 去重，变体间取最高分）
+  const queries = await expandQuery(question)
+  const variantPool = new Map<string, RetrievedChunk>()
+  const variants = queries.slice(1)
+  if (variants.length) {
+    const variantResults = await Promise.all(variants.map(retrieve))
+    for (const docs of variantResults) {
+      for (const d of docs) {
+        if (originalIds.has(d.chunkId)) continue
+        const exist = variantPool.get(d.chunkId)
+        if (!exist || d.score > exist.score) variantPool.set(d.chunkId, d)
+      }
     }
   }
 
-  const top = [...merged.values()].sort((a, b) => b.score - a.score).slice(0, k)
+  const top = [
+    ...originalDocs,
+    ...[...variantPool.values()].sort((a, b) => b.score - a.score),
+  ].slice(0, k)
+
   logger.info('rag: retrieved docs', {
     question: question.slice(0, 40),
     queries: queries.length,
-    total: merged.size,
+    originalHits: originalDocs.length,
+    variantFills: top.length - originalDocs.length,
     relevant: top.length,
     topScore: top[0]?.score,
   })
@@ -120,81 +203,64 @@ function buildContext(docs: RetrievedChunk[]): string {
 }
 
 interface RagOptions extends RetrieveOptions {
-  sessionId?: string
+  /** 会话历史（由调用方从 DB 加载），用于指代消解与多轮上下文；最后一条应为当前用户问题之前的对话 */
+  history?: HistoryTurn[]
   callbacks?: BaseCallbackHandler[]
 }
 
 // ── 非流式 RAG（支持历史记忆）──────────────────────────────────
 export async function ragQuery(question: string, options: RagOptions = {}) {
-  const { sessionId, callbacks, ...retrieveOptions } = options
-  const rewrittenQuestion = sessionId ? await rewriteQuery(question, sessionId) : question
+  const { history = [], callbacks, ...retrieveOptions } = options
+  const rewrittenQuestion = await rewriteWithHistory(question, history, callbacks)
   const docs = await retrieveDocs(rewrittenQuestion, retrieveOptions)
 
   if (!docs.length) {
-    const answer = '知识库中未找到与该问题相关的内容。请尝试换一种提问方式，或上传相关文档后再试。'
-    if (sessionId) {
-      addMessage(sessionId, 'user', question)
-      addMessage(sessionId, 'assistant', answer)
+    return {
+      answer: '知识库中未找到与该问题相关的内容。请尝试换一种提问方式，或上传相关文档后再试。',
+      sources: [],
     }
-    return { answer, sources: [] }
   }
 
   const compressedDocs = await Promise.all(
     docs.map(async (doc) => ({ ...doc, content: await compressDoc(doc.content, rewrittenQuestion, callbacks) })),
   )
-  const historyMessages = sessionId ? getMessageHistory(sessionId) : []
   const prompt = ChatPromptTemplate.fromMessages([
     ['system', RAG_SYSTEM],
-    ...historyMessages.map((m: any) => [m.role === 'user' ? 'human' : 'assistant', m.content] as any),
+    ...history.map((m) => [m.role === 'user' ? 'human' : 'assistant', m.content] as any),
     ['human', `参考文档：\n${buildContext(compressedDocs as any)}\n\n问题：${question}`],
   ])
   const answer = await prompt.pipe(chatModel).pipe(new StringOutputParser()).invoke({}, { callbacks })
-
-  if (sessionId) {
-    addMessage(sessionId, 'user', question)
-    addMessage(sessionId, 'assistant', answer)
-  }
   return { answer, sources: docs }
 }
 
 // ── 流式 RAG ──────────────────────────────────────────────────
 export async function ragQueryStream(question: string, options: RagOptions = {}) {
-  const { sessionId, callbacks, ...retrieveOptions } = options
-  const rewrittenQuestion = sessionId ? await rewriteQuery(question, sessionId) : question
+  const { history = [], callbacks, ...retrieveOptions } = options
+  const rewrittenQuestion = await rewriteWithHistory(question, history, callbacks)
   const docs = await retrieveDocs(rewrittenQuestion, retrieveOptions)
-  if (sessionId) addMessage(sessionId, 'user', question)
 
   return {
     sources: docs,
     rewrittenQuestion,
     async *streamAnswer() {
       if (!docs.length) {
-        const answer = '知识库中未找到与该问题相关的内容。\n请尝试换一种提问方式，或上传相关文档后再试。'
-        if (sessionId) addMessage(sessionId, 'assistant', answer)
-        yield answer
+        yield '知识库中未找到与该问题相关的内容。\n请尝试换一种提问方式，或上传相关文档后再试。'
         return
       }
 
       const compressedDocs = await Promise.all(
         docs.map(async (doc) => ({ ...doc, content: await compressDoc(doc.content, rewrittenQuestion, callbacks) })),
       )
-      const historyMessages = sessionId ? getMessageHistory(sessionId) : []
-      const previousHistory = historyMessages.slice(0, -1)
       const prompt = ChatPromptTemplate.fromMessages([
         ['system', RAG_SYSTEM],
-        ...previousHistory.map((m: any) => [m.role === 'user' ? 'human' : 'assistant', m.content] as any),
+        ...history.map((m) => [m.role === 'user' ? 'human' : 'assistant', m.content] as any),
         ['human', `参考文档：\n${buildContext(compressedDocs as any)}\n\n问题：${question}`],
       ])
 
       const stream = await prompt.pipe(chatModel).stream({}, { callbacks })
-      let fullAnswer = ''
       for await (const chunk of stream) {
-        if (chunk.content) {
-          fullAnswer += chunk.content
-          yield chunk.content
-        }
+        if (chunk.content) yield chunk.content
       }
-      if (sessionId) addMessage(sessionId, 'assistant', fullAnswer)
     },
   }
 }

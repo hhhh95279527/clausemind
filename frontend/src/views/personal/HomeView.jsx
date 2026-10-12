@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ThunderboltOutlined, CheckOutlined, HomeOutlined, ClockCircleOutlined,
   SafetyCertificateOutlined, QuestionCircleOutlined, CalendarOutlined, FileTextOutlined,
+  SolutionOutlined,
 } from '@ant-design/icons'
 import { useMeStore } from '@/stores/me.js'
 import { useContractStore } from '@/stores/contract.js'
@@ -15,6 +16,7 @@ import styles from './personal.module.css'
 
 const SCENE_CARDS = [
   { code: 'LABOR', icon: <SafetyCertificateOutlined />, title: '劳动合同', desc: '新 offer 要签了？试用期、社保、竞业限制一眼看清。' },
+  { code: 'INTERNSHIP', icon: <SolutionOutlined />, title: '实习协议', desc: '在校生实习：工时、补贴、实习责任险和高危岗位要看清。' },
   { code: 'LEASE', icon: <HomeOutlined />, title: '房屋租赁', desc: '租房签约前查押金、维修义务和提前退租违约金。' },
   { code: 'SERVICE', icon: <ClockCircleOutlined />, title: '兼职劳务', desc: '咖啡厅、家教、接单兼职：报酬、工伤与扣款写明白。' },
   { code: 'NDA', icon: <FileTextOutlined />, title: '保密与 NDA', desc: '入职背调、合作前签 NDA：保密范围与违约责任别踩坑。' },
@@ -100,8 +102,8 @@ export default function HomeView() {
         )}
       </div>
 
-      {/* 场景四卡 */}
-      <div className={styles.grid4}>
+      {/* 场景五卡 */}
+      <div className={styles.grid5}>
         {SCENE_CARDS.map((c) => (
           <a key={c.code} className={styles.cardFlat} onClick={() => navigate(`/new#${SCENE_ANCHORS[c.code]}`)}>
             <span className={styles.ci} style={{ fontSize: 20 }}>{c.icon}</span>

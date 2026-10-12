@@ -133,7 +133,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
     const email = form.getFieldValue('email')
     try {
       await http.post('/auth/email-code', { email })
-      message.success('验证码已发送（演示环境见后端控制台，或使用固定码 123456）')
+      message.success('验证码已发送至邮箱，5 分钟内有效')
       setCooldown(60)
       timerRef.current = setInterval(() => {
         setCooldown((c) => {
@@ -173,7 +173,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
   return (
     <Form form={form} onFinish={handleLogin} size="large" autoComplete="off" initialValues={{ agreed: true }}>
       <Form.Item name="email" rules={[{ required: true, message: '请输入邮箱' }, { type: 'email', message: '邮箱格式不正确' }]}>
-        <Input prefix={<MailOutlined />} placeholder="请输入邮箱地址" />
+        <Input prefix={<MailOutlined />} placeholder="请输入已绑定的邮箱地址" />
       </Form.Item>
       <Form.Item name="code" rules={[
         { required: true, message: '请输入验证码' },
@@ -194,14 +194,15 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
         <Agreement />
       </Form.Item>
       <Button type="primary" htmlType="submit" loading={loading} block size="large">
-        登录 / 注册
+        登 录
       </Button>
       <div className={styles.links}>
         <Link to="/register">注册新账号</Link>
         <span className={styles.muted}>忘记密码？（即将上线）</span>
       </div>
       <div className={styles.tip}>
-        演示环境验证码输出在后端控制台，或使用固定码 <b>123456</b>；未注册邮箱验证通过后将自动开通免费个人空间（每月 2 份免费审查）。
+        使用注册时绑定的邮箱接收验证码即可登录；未注册的邮箱请先
+        <Link to="/register">注册账号</Link>。
       </div>
     </Form>
   )

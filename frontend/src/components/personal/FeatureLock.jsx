@@ -2,6 +2,7 @@
 // 风险卡深度三行（法条依据/修改建议/替代措辞）：未解锁时毛玻璃遮罩 + 付费墙入口
 import { LockOutlined } from '@ant-design/icons'
 import { PRICES } from '@/config/plans.js'
+import { trackPaywallClickUpgrade } from '@/utils/analytics.js'
 import styles from '@/views/personal/personal.module.css'
 
 export default function FeatureLock({ locked, legalBasis, suggestion, rewritten, onUpgrade, onCoupon }) {
@@ -24,7 +25,13 @@ export default function FeatureLock({ locked, legalBasis, suggestion, rewritten,
         <div className={styles.lockOver}>
           <span className={styles.lockIc}><LockOutlined /></span>
           <div className={styles.lockTxt}>开通个人版查看：法条依据 · 修改建议 · 替代措辞</div>
-          <button className="btn btn-primary btn-sm" onClick={onUpgrade}>开通个人版</button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => {
+              trackPaywallClickUpgrade('PERSONAL_MONTHLY', 'feature_lock')
+              onUpgrade()
+            }}
+          >开通个人版</button>
           <a className={styles.small} onClick={onCoupon}>或用 1 张深度券解锁（¥{PRICES.COUPON_UNIT}）</a>
         </div>
       )}

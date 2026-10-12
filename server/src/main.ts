@@ -1,5 +1,6 @@
 // server/src/main.ts
 // NestJS 入口：配置校验、全局中间件、异常过滤、Swagger 文档、优雅退出
+// （ReviewScene 新增 INTERNSHIP/SALE/LOAN/EQUITY 后需重启以加载重新生成的 Prisma Client）
 import 'reflect-metadata'
 import { NestFactory } from '@nestjs/core'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
@@ -36,8 +37,17 @@ async function bootstrap() {
   app.use(cors({
     origin: config.app.allowedOrigins,
     credentials: true,
+    // 跨源下载（改稿台/意见书导出）前端需读取 Content-Disposition 中的文件名
+    exposedHeaders: ['Content-Disposition'],
   }))
-  app.use(compression())
+  // SSE 流式响应绝不能压缩：zlib 会把小帧缓冲到响应结束才一次性 flush，
+  // 前端几分钟内收不到任何进度事件（表现为"一直 loading"）。其余响应保持 gzip。
+  app.use(compression({
+    filter: (req: any, res: any) => {
+      if (res.getHeader?.('Content-Type') === 'text/event-stream') return false
+      return compression.filter(req, res)
+    },
+  }))
   app.use(json({ limit: '5mb' }))
 
   // 统一错误处理（404 也在这里处理）

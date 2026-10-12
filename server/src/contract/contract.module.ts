@@ -11,9 +11,11 @@ import { RetentionService } from './retention/retention.service.js'
 import { StructuredService } from './review/structured.service.js'
 import { AuditModule } from '../audit/audit.module.js'
 import { FeishuModule } from '../services/feishu/feishu.module.js'
+import { DingtalkModule } from '../services/dingtalk/dingtalk.module.js'
+import { WeworkModule } from '../services/wework/wework.module.js'
 
 @Module({
-  imports: [AuditModule, FeishuModule],
+  imports: [AuditModule, FeishuModule, DingtalkModule, WeworkModule],
   controllers: [ContractController, RevisionController],
   providers: [
     ContractParseService,

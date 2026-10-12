@@ -27,7 +27,10 @@ import { IntegrationsModule } from './integrations/integrations.module.js'
 import { TemplatesModule } from './templates/templates.module.js'
 import { AnalyticsModule } from './analytics/analytics.module.js'
 import { NotificationsModule } from './notifications/notifications.module.js'
+import { PlatformModule } from './platform/platform.module.js'
 import { FeishuModule } from './services/feishu/feishu.module.js'
+import { DingtalkModule } from './services/dingtalk/dingtalk.module.js'
+import { WeworkModule } from './services/wework/wework.module.js'
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard'
 import { RolesGuard } from './auth/guards/roles.guard'
 import { logger } from './utils/logger.js'
@@ -74,6 +77,12 @@ import { logger } from './utils/logger.js'
     AnalyticsModule,
     // 飞书 Webhook / digest / MCP（FR-25，无配置即降级）
     FeishuModule,
+    // 钉钉群机器人 Webhook（无配置即降级）
+    DingtalkModule,
+    // 企业微信群机器人 Webhook（无配置即降级）
+    WeworkModule,
+    // 平台级超级管理员（独立账号体系，跨租户管理）
+    PlatformModule,
   ],
   providers: [
     // 全局守卫：先认证后鉴权。默认所有路由需登录，@Public() 放行

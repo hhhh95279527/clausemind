@@ -39,6 +39,10 @@
 }
 .iconLease { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #b45309; }
 .iconGeneric { background: var(--color-primary-bg); color: var(--color-primary-dark, #4f46e5); }
+.iconLabor { background: color-mix(in srgb, #3b82f6 14%, transparent); color: #1d4ed8; }
+.iconSale { background: color-mix(in srgb, #10b981 14%, transparent); color: #047857; }
+.iconEquity { background: color-mix(in srgb, #0ea5e9 14%, transparent); color: #0369a1; }
+.iconNda { background: color-mix(in srgb, #8b5cf6 14%, transparent); color: #6d28d9; }
 
 .tags { display: flex; gap: 6px; }
 .tplTitle { font-size: 15px; line-height: 1.5; }

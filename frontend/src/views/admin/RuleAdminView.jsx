@@ -22,6 +22,14 @@ const SEVERITY_META = {
   LOW: { color: 'blue', label: '低' },
 }
 
+// 规则作用域（与后端 SCOPES 白名单对齐）：LABOR=劳动关系，INTERNSHIP=实习协议（互不重叠）
+const SCOPE_OPTIONS = [
+  { value: 'ALL', label: 'ALL 所有合同' },
+  { value: 'LABOR', label: 'LABOR 劳动用工' },
+  { value: 'INTERNSHIP', label: 'INTERNSHIP 实习协议' },
+]
+const SCOPE_TAG_COLOR = { LABOR: 'purple', INTERNSHIP: 'cyan' }
+
 const SAMPLE_CLAUSE = '第三条 试用期：乙方试用期为八个月，试用期内工资按转正工资的70%发放；若乙方提前离职，应向甲方支付违约金5000元。'
 
 const EMPTY_RULE = {
@@ -42,7 +50,8 @@ const EMPTY_RULE = {
 
 // ── 试运行抽屉：已存规则传 id，编辑中的规则传 rule 字段 ──────────────
 function TryDrawer({ open, preset, onClose }) {
-  const [labor, setLabor] = useState(false)
+  // 试运行的合同域：ALL=通用条款 / LABOR=劳动关系 / INTERNSHIP=实习协议
+  const [domain, setDomain] = useState('ALL')
   const [text, setText] = useState(SAMPLE_CLAUSE)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
@@ -50,14 +59,15 @@ function TryDrawer({ open, preset, onClose }) {
   useEffect(() => {
     if (open) {
       setResult(null)
-      setLabor(preset?.rule?.scope === 'LABOR')
+      const scope = preset?.rule?.scope
+      setDomain(scope === 'LABOR' || scope === 'INTERNSHIP' ? scope : 'ALL')
     }
   }, [open, preset])
 
   const run = async () => {
     setLoading(true)
     try {
-      const body = { text, labor }
+      const body = { text, labor: domain === 'LABOR', internship: domain === 'INTERNSHIP' }
       if (preset?.id) body.id = preset.id
       if (preset?.rule) body.rule = preset.rule
       setResult(await http.post('/admin/rules/try', body))
@@ -86,9 +96,20 @@ function TryDrawer({ open, preset, onClose }) {
         />
         <Space wrap>
           <span>合同类型：</span>
-          <Switch checked={labor} onChange={setLabor} checkedChildren="劳动/用工" unCheckedChildren="通用合同" />
-          {preset?.rule?.scope === 'LABOR' && !labor && (
-            <Tag color="purple">该规则 scope=LABOR，当前不会执行</Tag>
+          <Select
+            value={domain}
+            onChange={setDomain}
+            style={{ width: 180 }}
+            options={[
+              { value: 'ALL', label: '通用合同' },
+              { value: 'LABOR', label: '劳动/用工合同' },
+              { value: 'INTERNSHIP', label: '实习协议' },
+            ]}
+          />
+          {preset?.rule?.scope && preset.rule.scope !== 'ALL' && preset.rule.scope !== domain && (
+            <Tag color={SCOPE_TAG_COLOR[preset.rule.scope] || 'default'}>
+              该规则 scope={preset.rule.scope}，当前合同域不会执行
+            </Tag>
           )}
         </Space>
         <TextArea
@@ -208,8 +229,8 @@ function RuleFormModal({ open, rule, onClose, onSaved, onTry }) {
           <Form.Item name="category" label="风险分类" style={{ flex: 1 }} rules={[{ required: true, message: '请输入分类' }]}>
             <Input placeholder="劳动用工 / 商事合同 / 知识产权…" maxLength={50} />
           </Form.Item>
-          <Form.Item name="scope" label="适用范围" style={{ width: 190 }} tooltip="LABOR 规则仅在劳动/用工类合同上运行，避免商事合同误报">
-            <Select options={[{ value: 'ALL', label: 'ALL 所有合同' }, { value: 'LABOR', label: 'LABOR 劳动用工' }]} />
+          <Form.Item name="scope" label="适用范围" style={{ width: 190 }} tooltip="LABOR=劳动用工合同；INTERNSHIP=实习协议（不构成劳动关系）；其余合同只跑 ALL">
+            <Select options={SCOPE_OPTIONS} />
           </Form.Item>
           <Form.Item name="enabled" label="启用" valuePropName="checked">
             <Switch checkedChildren="启用" unCheckedChildren="停用" />
@@ -297,7 +318,7 @@ export default function RuleAdminView() {
     { title: '分类', dataIndex: 'category', width: 110, render: (c) => <Tag>{c}</Tag> },
     {
       title: '范围', dataIndex: 'scope', width: 78,
-      render: (s) => <Tag color={s === 'LABOR' ? 'purple' : 'default'}>{s}</Tag>,
+      render: (s) => <Tag color={SCOPE_TAG_COLOR[s] || 'default'}>{s}</Tag>,
     },
     {
       title: '命中方式', width: 150,
@@ -372,7 +393,7 @@ export default function RuleAdminView() {
           style={{ width: 150 }}
           value={scope}
           onChange={(v) => { setPage(1); setScope(v) }}
-          options={[{ value: 'ALL', label: 'ALL 所有合同' }, { value: 'LABOR', label: 'LABOR 劳动用工' }]}
+          options={SCOPE_OPTIONS}
         />
         <Select
           placeholder="启用状态"

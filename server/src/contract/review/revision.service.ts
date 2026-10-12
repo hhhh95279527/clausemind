@@ -5,13 +5,14 @@
 // - 无 DEEPSEEK Key 时 503 降级提示；Word 导出走 docx 真·修订模式（w:ins/w:del 痕迹）
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import type { Response } from 'express'
+import { readFile } from 'node:fs/promises'
 import { z } from 'zod'
 import {
   Document, Packer, Paragraph, HeadingLevel, TextRun,
   InsertedTextRun, DeletedTextRun,
 } from 'docx'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
-import type { Risk, ReviewTask } from '@prisma/client'
+import type { Clause, Risk, ReviewTask } from '@prisma/client'
 import { DatabaseService } from '../../database/database.service.js'
 import { EntitlementsService } from '../../billing/entitlements.service.js'
 import { QuotaService } from '../../observability/quota.service.js'
@@ -19,6 +20,7 @@ import { createChatModel } from '../../services/model.js'
 import { config as appConfig, isValidAiKey } from '../../config/index.js'
 import { PlanLimitException } from '../../billing/plan-limit.exception.js'
 import { logger } from '../../utils/logger.js'
+import { injectTrackedChanges } from './docx-revision.js'
 
 const RevisionItemSchema = z.object({
   index: z.number().describe('风险序号（输入中的第 N 条，从 0 开始）'),
@@ -173,7 +175,7 @@ export class RevisionService {
     await this.quota.assert(tenantId)
 
     const model = createChatModel({ temperature: 0.3, streaming: false })
-      .withStructuredOutput(RevisionItemSchema, { name: 'one_revision' })
+      .withStructuredOutput(RevisionItemSchema, { method: 'jsonMode' })
     const toneHint = tone === 'FIRM'
       ? '措辞在合法范围内更强硬、不留模糊空间'
       : tone === 'GENTLE'
@@ -214,7 +216,9 @@ export class RevisionService {
     return { text: String(reply.content || '').trim() }
   }
 
-  /** 导出 Word 红划线修订稿（w:ins/w:del 真修订痕迹；未接受的修订不计入） */
+  /** 导出 Word 红划线修订稿
+   *  全文完整输出（未改条款原样保留；有改条款在原文位置内联 w:del 原句 + w:ins 改写），
+   *  在 Word 中「接受全部修订」即得到完整的修订后合同。未接受的修订不计入。 */
   async exportDocx(tenantId: string, contractId: string, plan: string, res: Response) {
     const { contract, task, risks, clauses } = await this.load(tenantId, contractId)
     this.assertDeep(task, plan)
@@ -223,14 +227,87 @@ export class RevisionService {
       throw new NotFoundException('还没有已接受的修订，请先在改稿台接受至少一条')
     }
 
+    // 优先原件保真：上传原件是 docx 且磁盘文件还在 → 直接在原 OOXML 上注入修订，
+    // 标题层级/字体/表格/页面设置等全部版式原样保留。
+    if (contract.fileType.toLowerCase() === 'docx' && contract.storagePath) {
+      const sent = await this.exportFromOriginalDocx(
+        contract.storagePath,
+        this.buildDownloadName(contract.fileName, contract.title),
+        accepted,
+        res,
+      )
+      if (sent) return
+    }
+
+    const buffer = await this.buildTextRebuildDocx(contract.title, accepted, clauses)
+    const downloadName = this.buildDownloadName(contract.fileName, contract.title)
+    this.sendDocxResponse(res, downloadName, buffer)
+  }
+
+  /** 文件名：劳动合同.docx → 劳动合同（修订后）.docx；粘贴文本用合同标题 */
+  private buildDownloadName(fileName: string, title: string): string {
+    const baseName = /^粘贴文本/.test(fileName)
+      ? title
+      : fileName.replace(/\.[^.]+$/, '') || title
+    return `${baseName}（修订后）.docx`
+  }
+
+  /**
+   * 发送 docx 响应。buffer 为 null 时表示响应头之外的内容由调用方自行写入（原件分支用 stream）。
+   * Content-Disposition 同时给 ASCII fallback 与 RFC 5987 filename*，兼容所有下载端。
+   */
+  private sendDocxResponse(res: Response, downloadName: string, buffer: Buffer | null) {
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="revised-contract.docx"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+    )
+    if (buffer) res.end(buffer)
+  }
+
+  /**
+   * 原件注入分支。磁盘文件丢失/损坏/非 docx 时返回 false，由调用方回退到文本重建，
+   * 绝不让用户因为历史数据拿不到导出文件。
+   */
+  private async exportFromOriginalDocx(
+    storagePath: string,
+    downloadName: string,
+    accepted: Risk[],
+    res: Response,
+  ): Promise<boolean> {
+    try {
+      const original = await readFile(storagePath)
+      const result = await injectTrackedChanges(
+        original,
+        accepted.map((r) => ({ quote: r.quote, ins: r.rewritten! })),
+      )
+      this.sendDocxResponse(res, downloadName, null)
+      // 供前端/排障观察原句定位命中率（未命中的修订已写入文末附加节，不会丢失）
+      res.setHeader('X-Revision-Applied', String(result.applied))
+      res.setHeader('X-Revision-Unmatched', String(result.unmatched.length))
+      res.end(result.buffer)
+      logger.info('revision: exported from original docx', {
+        applied: result.applied, unmatched: result.unmatched.length,
+      })
+      return true
+    } catch (e) {
+      logger.warn('revision: original docx unavailable, fallback to text rebuild', {
+        storagePath, error: (e as Error).message,
+      })
+      return false
+    }
+  }
+
+  /** 文本重建分支（粘贴文本 / txt / md / pdf / 图片 / 原件丢失的历史合同） */
+  private async buildTextRebuildDocx(title: string, accepted: Risk[], clauses: Clause[]) {
     const children: Paragraph[] = [
       new Paragraph({
         heading: HeadingLevel.HEADING_1,
-        children: [new TextRun({ text: `修订稿 · ${contract.title}`, bold: true })],
+        children: [new TextRun({ text: title, bold: true })],
       }),
       new Paragraph({
         children: [new TextRun({
-          text: `由 ClauseMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 共接受 ${accepted.length} 条修订（修订痕迹可在 Word 中接受/拒绝）`,
+          text: `由 ClauseMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 共接受 ${accepted.length} 条修订（红色删除线为原文、蓝色下划线为改写，可在 Word 中接受/拒绝）`,
           color: '6b7280', size: 20,
         })],
         spacing: { after: 240 },
@@ -251,46 +328,42 @@ export class RevisionService {
         children: [new TextRun({ text: clause.indexNo === 0 ? clause.title : `第${clause.indexNo}条 ${clause.title}`, bold: true })],
       }))
       if (!revs.length) {
-        children.push(new Paragraph({ children: [new TextRun(clause.content)] }))
+        children.push(...plainParagraphs(clause.content))
         continue
       }
-      // 有修订：原句删除痕迹（红） + 改写插入痕迹（蓝），作者 ClauseMind AI
-      const nowIso = new Date().toISOString()
-      for (const r of revs) {
+
+      // 有修订：把原句定位到条款原文中的位置，内联替换为 删除痕迹（红）+插入痕迹（蓝）
+      const { tokens, unmatched } = tokenizeEdits(clause.content, revs)
+      children.push(...revisionParagraphs(tokens))
+      // 锚点重叠/找不到的修订：原文已完整保留在上方，修订痕迹作为附加建议追加，绝不静默丢失
+      for (const r of unmatched) {
         children.push(new Paragraph({
-          spacing: { before: 80, after: 80 },
-          children: [
-            new DeletedTextRun({ id: nextChangeId(), author: 'ClauseMind AI', date: nowIso, text: r.quote, color: 'C00000' }),
-          ],
+          spacing: { before: 120 },
+          children: [new TextRun({ text: '附加修订建议（请人工定位）：', italics: true, color: '6b7280', size: 20 })],
         }))
         children.push(new Paragraph({
-          spacing: { before: 80, after: 160 },
-          children: [
-            new InsertedTextRun({ id: nextChangeId(), author: 'ClauseMind AI', date: nowIso, text: r.rewritten!, color: '1D4ED8' }),
-          ],
+          spacing: { before: 40, after: 40 },
+          children: [buildDelRun(r.quote)],
+        }))
+        children.push(new Paragraph({
+          spacing: { after: 120 },
+          children: [buildInsRun(r.rewritten!)],
         }))
       }
     }
 
     const doc = new Document({
       creator: 'ClauseMind',
-      title: `修订稿 · ${contract.title}`,
+      title,
       sections: [{ properties: {}, children }],
     })
-    const buffer = await Packer.toBuffer(doc)
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename*=UTF-8''${encodeURIComponent(`修订稿_${contract.title}.docx`)}`,
-    )
-    res.end(buffer)
+    return Packer.toBuffer(doc)
   }
 
   // ── 内部：一次性结构化生成多条修订 ──
   private async invokeRevisions(inputs: Array<{ clauseTitle: string; quote: string; suggestion: string; legalBasis: string }>) {
     const model = createChatModel({ temperature: 0.2, streaming: false })
-    const structured = model.withStructuredOutput(RevisionsSchema, { name: 'clause_revisions' })
+    const structured = model.withStructuredOutput(RevisionsSchema, { method: 'jsonMode' })
     const payload = inputs
       .slice(0, 12)
       .map((x, i) => `${i}. 条款：${x.clauseTitle}\n   原句：${x.quote}\n   修改建议：${x.suggestion}\n   法条：${x.legalBasis}`)
@@ -309,4 +382,95 @@ export class RevisionService {
 let changeSeq = 1
 function nextChangeId() {
   return changeSeq++
+}
+
+const CHANGE_AUTHOR = 'ClauseMind AI'
+
+function buildDelRun(text: string, brk = 0) {
+  return new DeletedTextRun({
+    id: nextChangeId(), author: CHANGE_AUTHOR, date: new Date().toISOString(),
+    text, color: 'C00000', break: brk,
+  })
+}
+function buildInsRun(text: string, brk = 0) {
+  return new InsertedTextRun({
+    id: nextChangeId(), author: CHANGE_AUTHOR, date: new Date().toISOString(),
+    text, color: '1D4ED8', break: brk,
+  })
+}
+
+/** 纯文本按换行拆为多个段落（保留原文的段落结构与空行） */
+function plainParagraphs(text: string): Paragraph[] {
+  return text.split('\n').map((line) => new Paragraph({
+    spacing: { line: 360 },
+    children: line ? [new TextRun(line)] : [],
+  }))
+}
+
+type EditToken =
+  | { type: 'plain'; text: string }
+  | { type: 'edit'; del: string; ins: string }
+
+/**
+ * 在条款原文中定位每条已接受修订的原句锚点，切成 原文片段 / 修订替换 的有序 token。
+ * - quote 经引用校验可能带首尾「…」省略号，取其核心片段定位
+ * - 锚点重叠或找不到的修订进 unmatched（调用方追加呈现），正文保证完整不丢
+ */
+function tokenizeEdits(content: string, revs: Risk[]): { tokens: EditToken[]; unmatched: Risk[] } {
+  const located: Array<{ start: number; end: number; r: Risk }> = []
+  const unmatched: Risk[] = []
+
+  const candidates = revs
+    .map((r) => {
+      const core = r.quote.replace(/^…+|…+$/g, '')
+      const start = core ? content.indexOf(core) : -1
+      return { r, start, end: start >= 0 ? start + core.length : -1 }
+    })
+    .sort((a, b) => (a.start - b.start) || (b.end - a.end))
+
+  let cursorEnd = 0
+  for (const c of candidates) {
+    if (c.start < 0 || c.start < cursorEnd) {
+      unmatched.push(c.r)
+      continue
+    }
+    located.push({ start: c.start, end: c.end, r: c.r })
+    cursorEnd = c.end
+  }
+
+  const tokens: EditToken[] = []
+  let pos = 0
+  for (const loc of located) {
+    if (loc.start > pos) tokens.push({ type: 'plain', text: content.slice(pos, loc.start) })
+    tokens.push({ type: 'edit', del: content.slice(loc.start, loc.end), ins: loc.r.rewritten! })
+    pos = loc.end
+  }
+  if (pos < content.length) tokens.push({ type: 'plain', text: content.slice(pos) })
+  return { tokens, unmatched }
+}
+
+/**
+ * 把 token 序列渲染为段落：修订与未改文字同段混排（行内红划线效果），
+ * token 内的换行同样切分为新段落，保留原文版式。
+ */
+function revisionParagraphs(tokens: EditToken[]): Paragraph[] {
+  const paraRuns: any[][] = [[]]
+  const appendText = (text: string, makeRun: (t: string, brk: number) => any) => {
+    const lines = text.split('\n')
+    lines.forEach((line, i) => {
+      if (i > 0) paraRuns.push([])
+      if (line) paraRuns[paraRuns.length - 1].push(makeRun(line, i > 0 ? 1 : 0))
+    })
+  }
+
+  for (const tk of tokens) {
+    if (tk.type === 'plain') {
+      appendText(tk.text, (t, brk) => new TextRun({ text: t, break: brk }))
+    } else {
+      appendText(tk.del, buildDelRun)
+      appendText(tk.ins, buildInsRun)
+    }
+  }
+
+  return paraRuns.map((runs) => new Paragraph({ spacing: { line: 360 }, children: runs }))
 }

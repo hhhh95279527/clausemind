@@ -15,6 +15,7 @@ import { useContractStore, CONTRACT_STATUS_META, SEVERITY_TEXT } from '@/stores/
 import { useAuthStore } from '@/stores/auth.js'
 import { useMeStore } from '@/stores/me.js'
 import http from '@/utils/http.js'
+import { trackFirstResultSeen } from '@/utils/analytics.js'
 import RiskCard from '@/components/contract/RiskCard.jsx'
 import styles from './ReviewWorkbench.module.css'
 
@@ -25,7 +26,8 @@ const CLAUSE_TYPE_TEXT = {
 }
 
 const SCENE_TEXT = {
-  LABOR: '劳动', LEASE: '租赁', SERVICE: '劳务', NDA: '保密', CUSTOM: '非标',
+  LABOR: '劳动', INTERNSHIP: '实习', LEASE: '租赁', SERVICE: '劳务', NDA: '保密',
+  SALE: '买卖', LOAN: '借款', EQUITY: '股权', CUSTOM: '非标',
 }
 
 export default function ReviewWorkbench() {
@@ -59,6 +61,7 @@ export default function ReviewWorkbench() {
   const [commentText, setCommentText] = useState('')
   const [commentSending, setCommentSending] = useState(false)
   const riskRefs = useRef({})
+  const resultSeenRef = useRef(false)
 
   useEffect(() => { loadEntitlement() }, [loadEntitlement])
 
@@ -106,6 +109,14 @@ export default function ReviewWorkbench() {
   const reviewOpen = review?.status === 'WAITING_REVIEW' && !reviewing
   const stats = review?.stats
   const acceptedCount = risks.filter((r) => r.status === 'ACCEPTED').length
+
+  // 漏斗：风险清单生成（stats 落库）即视为「看到结果」，每会话只记一次
+  useEffect(() => {
+    if (stats && !resultSeenRef.current) {
+      resultSeenRef.current = true
+      trackFirstResultSeen(contract?.scene)
+    }
+  }, [stats, contract?.scene])
 
   // 企业态：Playbook 命中分区（公司红线/偏好 vs 通用风险）
   const playbookRisks = useMemo(

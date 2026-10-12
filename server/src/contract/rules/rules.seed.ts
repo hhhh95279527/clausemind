@@ -1,7 +1,8 @@
 // server/src/contract/rules/rules.seed.ts
 // 内置审查规则（声明式）：正则/关键词负责零成本确定式召回，prompt 描述供 Agent 轨做语义判定。
 // 规则只做"粗召回 + 可解释提示"，是否真的违法/失衡交给人工终审，避免规则误伤。
-// scope：LABOR 规则仅在劳动/用工类合同上运行（避免商事合同里的押金等正常安排被误报）。
+// scope：LABOR 规则仅在劳动/用工类合同上运行（避免商事合同里的押金等正常安排被误报）；
+// INTERNSHIP 规则仅在实习协议上运行——实习不构成劳动关系，LABOR 域的社保/试用期规则不适用。
 import type { Severity } from '@prisma/client'
 
 export interface RuleSeed {
@@ -9,7 +10,7 @@ export interface RuleSeed {
   name: string
   severity: Severity
   category: string
-  scope: 'ALL' | 'LABOR'
+  scope: 'ALL' | 'LABOR' | 'INTERNSHIP'
   pattern?: string // 命中正则（JS 语法，不含 // 定界符）
   keywords?: string[] // 全部出现才命中（粗召回，宁多勿漏）
   prompt: string
@@ -188,5 +189,63 @@ export const BUILTIN_RULES: RuleSeed[] = [
     legalBasis: '《民法典》第五百八十六条：定金的数额由当事人约定；但是，不得超过主合同标的额的百分之二十，超过部分不产生定金的效力。',
     description: '定金比例若超过主合同标的额 20%，超出部分不具备定金罚则效力。',
     sortOrder: 120,
+  },
+
+  // ── 实习协议专项（scope=INTERNSHIP，仅在用户选择"实习协议"时运行）──────────
+  {
+    code: 'INTERN-TRIAL',
+    name: '实习协议约定试用期',
+    severity: 'MED',
+    category: '用工管理',
+    scope: 'INTERNSHIP',
+    pattern: '试用期',
+    keywords: [],
+    prompt: '在校生实习不构成劳动关系，劳动法的试用期制度不适用。判断协议是否对实习生约定了"试用期/试用工资/试用期转正"等安排；如仅约定毕业后入职的试用期安排且明确区分，属合理。',
+    suggestion: '删除针对实习期间的试用期条款，可改为"实习考核"条款；如打算毕业后录用，可另行约定毕业后签订劳动合同时的试用期安排。',
+    legalBasis: '原劳动部《关于贯彻执行〈中华人民共和国劳动法〉若干问题的意见》第12条：在校生利用业余时间勤工助学，不视为就业，未建立劳动关系。',
+    description: '实习协议中约定"试用期"混淆了实习与劳动关系，可能被认定为事实上的劳动合同约定。',
+    sortOrder: 200,
+  },
+  {
+    code: 'INTERN-OVERTIME',
+    name: '安排实习生加班/夜班',
+    severity: 'MED',
+    category: '休息休假',
+    scope: 'INTERNSHIP',
+    pattern: '加班|夜班|通宵作业|24\\s*小时值班|延长工作时间',
+    keywords: [],
+    prompt: '判断协议是否安排实习生加班、夜班或通宵作业，或约定"根据工作需要加班"而无限制；跟岗实习每日实习时间不得超过 8 小时。',
+    suggestion: '明确每日实习不超过 8 小时、不安排加班与夜班；确需错峰的，应在正常工作时段内安排并保证休息。',
+    legalBasis: '《职业学校学生实习管理规定》（教职成〔2021〕4号）第十七条：不得安排实习学生加班、夜班和通宵作业。',
+    description: '安排实习生加班、夜班属于明文禁止行为，实习单位可能被主管部门责令整改。',
+    sortOrder: 210,
+  },
+  {
+    code: 'INTERN-HAZARD',
+    name: '安排实习生从事高危岗位',
+    severity: 'HIGH',
+    category: '安全保护',
+    scope: 'INTERNSHIP',
+    pattern: '(?:安排|从事)[^。；\\n]{0,20}(?:高空|井下|放射性|有毒有害|有毒物品|易燃易爆|剧毒)|(?:高空|井下|放射性|有毒有害|易燃易爆|剧毒)[^。；\\n]{0,10}(?:作业|岗位)',
+    keywords: [],
+    prompt: '判断协议是否安排实习生从事高空、井下、放射性、有毒、易燃易爆等高危作业或相应岗位；安全培训与防护义务是否落实。',
+    suggestion: '删除高危岗位安排，为实习生提供符合标准的劳动防护用品和岗前安全培训，并在协议中写明禁止从事的岗位清单。',
+    legalBasis: '《职业学校学生实习管理规定》（教职成〔2021〕4号）第十七条：不得安排学生从事高空、井下、放射性、有毒、易燃易爆及其他具有较高安全风险的实习。',
+    description: '实习生不得被安排进入高危作业岗位，一旦发生事故，单位将承担远超一般实习纠纷的赔偿与行政责任。',
+    sortOrder: 220,
+  },
+  {
+    code: 'INTERN-INSURANCE',
+    name: '未投保实习责任保险/保险责任甩给学生',
+    severity: 'MED',
+    category: '工伤与人身保障',
+    scope: 'INTERNSHIP',
+    pattern: '保险[^。；;\\n]{0,20}(?:自行|自理|自己承担|自行解决|概不负责|不予(?:承担|负责))|(?:不购买|不提供|无需(?:购买|提供)?|无须)[^。；;\\n]{0,12}(?:实习责任保险|意外伤害险|保险)',
+    keywords: [],
+    prompt: '判断协议是否将实习期间的意外保险责任推给学生本人或学校，或明确不为实习生投保实习责任保险/意外伤害保险。',
+    suggestion: '约定由实习单位（或学校与单位共同）为实习生投保实习责任保险及意外伤害保险，并写明保额与覆盖整个实习期。',
+    legalBasis: '《职业学校学生实习管理规定》（教职成〔2021〕4号）：职业学校和实习单位应根据国家有关规定，为实习学生投保实习责任保险。',
+    description: '实习期间发生人身伤害时，未投保实习责任险的赔偿责任将主要由实习单位承担。',
+    sortOrder: 230,
   },
 ]

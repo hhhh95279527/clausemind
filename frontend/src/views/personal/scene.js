@@ -2,14 +2,19 @@
 // 个人曲线场景映射（原型文案）：后端 code ↔ 原型标签 ↔ /new 锚点
 export const SCENE_LABELS = {
   LABOR: '劳动合同',
+  INTERNSHIP: '实习协议',
   LEASE: '房屋租赁',
   SERVICE: '兼职劳务',
   NDA: '保密与 NDA',
+  SALE: '买卖合同',
+  LOAN: '借款合同',
+  EQUITY: '股权转让',
   CUSTOM: '非标合同',
 }
 
 export const SCENE_ANCHORS = {
   LABOR: 'scene-labor',
+  INTERNSHIP: 'scene-intern',
   LEASE: 'scene-rent',
   SERVICE: 'scene-parttime',
   NDA: 'scene-nda',
@@ -17,6 +22,7 @@ export const SCENE_ANCHORS = {
 
 export const ANCHOR_TO_SCENE = {
   'scene-labor': 'LABOR',
+  'scene-intern': 'INTERNSHIP',
   'scene-rent': 'LEASE',
   'scene-parttime': 'SERVICE',
   'scene-nda': 'NDA',

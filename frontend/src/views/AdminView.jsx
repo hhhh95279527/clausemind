@@ -1,8 +1,9 @@
 // frontend/src/views/AdminView.jsx
-// 管理后台主页面：用户管理、系统配置、用量统计
+// 管理后台主页面：用户管理（实装 UsersView）、系统配置、用量统计
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Space } from 'antd'
+import UsersView from './admin/UsersView.jsx'
 import styles from './AdminView.module.css'
 
 export default function AdminView() {
@@ -47,86 +48,10 @@ export default function AdminView() {
       </nav>
 
       <main className={styles.content}>
-        {activeTab === 'users' && <UserManagement />}
+        {activeTab === 'users' && <UsersView />}
         {activeTab === 'config' && <SystemConfig />}
         {activeTab === 'usage' && <UsageDashboard />}
       </main>
-    </div>
-  )
-}
-
-// ── 用户管理组件 ────────────────────────────────────────────────
-function UserManagement() {
-  const [users, setUsers] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const [total, setTotal] = useState(0)
-
-  // TODO: 加载用户列表
-  // useEffect(() => { loadUsers() }, [page])
-
-  return (
-    <div className={styles.section}>
-      <h2>用户管理</h2>
-      <p className={styles.hint}>管理系统用户、分配角色、控制访问权限</p>
-
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>用户名</th>
-            <th>邮箱</th>
-            <th>角色</th>
-            <th>状态</th>
-            <th>注册时间</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading ? (
-            <tr>
-              <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
-                加载中...
-              </td>
-            </tr>
-          ) : users.length === 0 ? (
-            <tr>
-              <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
-                暂无用户数据
-              </td>
-            </tr>
-          ) : (
-            users.map(user => (
-              <tr key={user.id}>
-                <td>{user.id.slice(0, 8)}...</td>
-                <td>{user.username}</td>
-                <td>{user.email || '-'}</td>
-                <td>
-                  <span className={`${styles.badge} ${styles[user.role?.toLowerCase()]}`}>
-                    {user.role || 'USER'}
-                  </span>
-                </td>
-                <td>
-                  <span className={`${styles.badge} ${styles[user.status?.toLowerCase()]}`}>
-                    {user.status || 'ACTIVE'}
-                  </span>
-                </td>
-                <td>{new Date(user.createdAt).toLocaleDateString()}</td>
-                <td>
-                  <button className={styles.btnSmall}>编辑</button>
-                  <button className={`${styles.btnSmall} ${styles.danger}`}>禁用</button>
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-
-      <div className={styles.pagination}>
-        <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}>上一页</button>
-        <span>第 {page} 页 / 共 {Math.ceil(total / 20)} 页</span>
-        <button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)}>下一页</button>
-      </div>
     </div>
   )
 }

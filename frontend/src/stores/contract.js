@@ -3,6 +3,7 @@
 import { create } from 'zustand'
 import http, { fetchStream } from '@/utils/http.js'
 import { useAppStore } from './app.js'
+import { trackFirstReviewStart } from '@/utils/analytics.js'
 
 // 合同状态 → antd Tag 颜色与中文
 export const CONTRACT_STATUS_META = {
@@ -125,6 +126,8 @@ export const useContractStore = create((set, get) => ({
     let taskId = null
     let blockedErr = null
     await fetchStream(`/api/contracts/${contractId}/reviews`, { payWithCoupon }, {
+      // 心跳 15s；90s 完全无字节视为连接半开，静默断开后靠 loadDetail 自愈，不弹错误
+      idleTimeoutMs: 90000,
       onEvent: (event, data) => {
         if (event === 'task') taskId = data.taskId
         if (event === 'stage') {
@@ -149,6 +152,10 @@ export const useContractStore = create((set, get) => ({
     })
     set({ reviewing: false })
     await get().loadDetail(contractId)
+    // 真正发起成功才计漏斗（PLAN_LIMIT 被拦截不计）；聚合按用户去重，重复审查不增人数
+    if (!blockedErr) {
+      trackFirstReviewStart(get().detail?.contract?.scene)
+    }
     return { taskId, blocked: blockedErr }
   },
 

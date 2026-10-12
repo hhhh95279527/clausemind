@@ -4,6 +4,7 @@
 // - 级联由外键 onDelete=Cascade 处理（clauses/risks/review_tasks）
 // - P0 不做通知持久化（Phase 7 铃铛实时计算到期预告）
 import { Injectable, OnModuleInit } from '@nestjs/common'
+import fs from 'fs/promises'
 import { DatabaseService } from '../../database/database.service.js'
 import { QueueService, QUEUES } from '../../queue/queue.service.js'
 import { logger } from '../../utils/logger.js'
@@ -28,14 +29,18 @@ export class RetentionService implements OnModuleInit {
     })
     if (!freeTenants.length) return 0
 
-    const result = await this.db.contract.deleteMany({
-      where: {
-        retainUntil: { lt: now },
-        tenantId: { in: freeTenants.map((t) => t.id) },
-      },
-    })
+    const where = {
+      retainUntil: { lt: now },
+      tenantId: { in: freeTenants.map((t) => t.id) },
+    }
+    // 先取磁盘原件路径，DB 删除后清理文件，避免 uploads/ 孤儿文件
+    const expired = await this.db.contract.findMany({ where, select: { storagePath: true } })
+    const result = await this.db.contract.deleteMany({ where })
     if (result.count > 0) {
       logger.info('retention: expired FREE contracts removed', { count: result.count })
+      await Promise.all(
+        expired.map((c) => (c.storagePath ? fs.unlink(c.storagePath).catch(() => {}) : null)),
+      )
     }
     return result.count
   }

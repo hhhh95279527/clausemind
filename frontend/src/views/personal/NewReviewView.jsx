@@ -5,25 +5,31 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
   CheckOutlined, InboxOutlined, SafetyCertificateOutlined, HomeOutlined,
   ClockCircleOutlined, FileTextOutlined, FileProtectOutlined, ExclamationCircleOutlined,
+  SolutionOutlined, ShoppingCartOutlined, TransactionOutlined, ApartmentOutlined,
 } from '@ant-design/icons'
 import { Spin } from 'antd'
 import { useContractStore } from '@/stores/contract.js'
 import { useMeStore } from '@/stores/me.js'
 import { useAppStore } from '@/stores/app.js'
-import { FREE_LIMITS } from '@/config/plans.js'
+import { FREE_LIMITS, UPLOAD_MAX_MB } from '@/config/plans.js'
 import Paywall from '@/components/billing/Paywall.jsx'
 import { ANCHOR_TO_SCENE } from './scene.js'
 import styles from './personal.module.css'
 
 const TYPES = [
+  // 免费五类（个人高频场景）
   { code: 'LABOR', icon: <SafetyCertificateOutlined />, title: '劳动合同', desc: '入职、转正、试用期、社保与竞业', deep: false },
+  { code: 'INTERNSHIP', icon: <SolutionOutlined />, title: '实习协议', desc: '在校生实习：补贴、工时、责任险与安全', deep: false },
+  { code: 'SERVICE', icon: <ClockCircleOutlined />, title: '兼职劳务', desc: '兼职、退休返聘、按次结算的劳务协议', deep: false },
   { code: 'LEASE', icon: <HomeOutlined />, title: '房屋租赁', desc: '租房、合租、押金与退租约定', deep: false },
-  { code: 'SERVICE', icon: <ClockCircleOutlined />, title: '兼职劳务', desc: '兼职、实习、按次结算的劳务协议', deep: false },
   { code: 'NDA', icon: <FileTextOutlined />, title: '保密与 NDA', desc: '入职背调、合作前的保密协议', deep: false },
-  { code: 'CUSTOM', icon: <FileProtectOutlined />, title: '非标合同', desc: '借款、合作、买卖等其他类型，需深度审查', deep: true },
+  // 付费商事类型（会员或深度券）
+  { code: 'SALE', icon: <ShoppingCartOutlined />, title: '买卖合同', desc: '货物买卖：交付验收、质量异议与定金', deep: true },
+  { code: 'LOAN', icon: <TransactionOutlined />, title: '借款合同', desc: '民间借贷：利率上限、预扣利息与担保', deep: true },
+  { code: 'EQUITY', icon: <ApartmentOutlined />, title: '股权转让', desc: '优先购买权、出资承继与变更登记', deep: true },
+  { code: 'CUSTOM', icon: <FileProtectOutlined />, title: '非标合同', desc: '合作、技术服务等其他类型，需深度审查', deep: true },
 ]
 const ACCEPT_EXT = ['.txt', '.md', '.docx', '.pdf', '.jpg', '.jpeg', '.png']
-const MAX_FILE = 2 * 1024 * 1024
 const MAX_TEXT = 200_000
 
 export default function NewReviewView() {
@@ -53,13 +59,17 @@ export default function NewReviewView() {
   useEffect(() => { loadEntitlement() }, [])
 
   const deepPlan = !!entitlement?.features?.deep
+  // 文件上限按套餐：免费 8MB，会员（个人版及以上）15MB
+  const maxUploadMB = deepPlan ? UPLOAD_MAX_MB.PAID : UPLOAD_MAX_MB.FREE
+  const maxFileBytes = maxUploadMB * 1024 * 1024
   const charCount = content.length
   const overLimit = !deepPlan && charCount > FREE_LIMITS.maxChars
   const couponBalance = entitlement?.couponBalance ?? 0
 
   const pickScene = (code) => {
     setScene(code)
-    if (code === 'CUSTOM' && !deepPlan) setPaywall(true)
+    // 免费五类之外的商事/非标类型，免费用户直接弹付费墙（最终判定以后端权益接口为准）
+    if (!deepPlan && !FREE_LIMITS.allowedScenes.includes(code)) setPaywall(true)
   }
 
   const validate = () => {
@@ -114,8 +124,12 @@ export default function NewReviewView() {
       useAppStore.getState().toast.warning('仅支持 txt / md / docx / pdf / jpg / png 文件')
       return
     }
-    if (f.size > MAX_FILE) {
-      useAppStore.getState().toast.warning('单文件不能超过 2MB')
+    if (f.size > maxFileBytes) {
+      useAppStore.getState().toast.warning(
+        deepPlan
+          ? `单文件不能超过 ${maxUploadMB}MB`
+          : `免费版单文件不能超过 ${maxUploadMB}MB，升级会员版可上传 ${UPLOAD_MAX_MB.PAID}MB`,
+      )
       return
     }
     setFile(f)
@@ -132,7 +146,7 @@ export default function NewReviewView() {
       <section className={styles.panel}>
         <div className={styles.panelHead}>
           <h3>① 选择合同类型</h3>
-          {!deepPlan && <span className={`${styles.small} ${styles.muted}`}>免费支持前四类</span>}
+          {!deepPlan && <span className={`${styles.small} ${styles.muted}`}>前五类免费，商事类型需深度权益</span>}
         </div>
         <div className={styles.panelBody}>
           <div className={styles.types}>
@@ -199,7 +213,10 @@ export default function NewReviewView() {
                 <b style={{ color: 'var(--color-text)', fontSize: 14.5 }}>
                   {file ? file.name : '点击或拖拽文件到这里'}
                 </b>
-                <div className={styles.small} style={{ marginTop: 6 }}>支持 txt / md / docx / pdf / jpg / png，单文件 ≤ 2MB</div>
+                <div className={styles.small} style={{ marginTop: 6 }}>
+                  支持 txt / md / docx / pdf / jpg / png，单文件 ≤ {maxUploadMB}MB
+                  {!deepPlan && `（会员版 ${UPLOAD_MAX_MB.PAID}MB）`}
+                </div>
               </div>
             </div>
           )}
@@ -245,6 +262,7 @@ export default function NewReviewView() {
         open={paywall}
         onClose={() => setPaywall(false)}
         couponBalance={couponBalance}
+        source="new_review"
         onUseCoupon={() => start(true)}
       />
     </div>

@@ -9,40 +9,52 @@ import {
   Button, Drawer, Empty, Input, Modal, Segmented, Spin, Tag, message,
 } from 'antd'
 import {
+  ApartmentOutlined,
   BankOutlined,
   FileDoneOutlined,
   FileTextOutlined,
   HomeOutlined,
   InfoCircleOutlined,
   LockOutlined,
+  MoneyCollectOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
+  ShoppingOutlined,
   SolutionOutlined,
+  ToolOutlined,
 } from '@ant-design/icons'
 import http from '@/utils/http.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useMeStore } from '@/stores/me.js'
 import css from './templates.module.css'
 
-const CATEGORIES = ['全部', '劳动合同类', '租赁类', '兼职与通用']
+const CATEGORIES = ['全部', '劳动合同类', '租赁类', '买卖借贷类', '股权服务类', '保密协议类']
 
 const CATEGORY_COLOR = {
   劳动合同类: 'blue',
   租赁类: 'orange',
-  兼职与通用: 'purple',
+  买卖借贷类: 'green',
+  股权服务类: 'cyan',
+  保密协议类: 'purple',
 }
 
 const ICON_CLS = {
   劳动合同类: 'iconLabor',
   租赁类: 'iconLease',
-  兼职与通用: 'iconGeneric',
+  买卖借贷类: 'iconSale',
+  股权服务类: 'iconEquity',
+  保密协议类: 'iconNda',
 }
 
 function TemplateIcon({ docId, category }) {
   if (docId === 'tpl_house_lease') return <HomeOutlined />
   if (docId === 'tpl_office_lease') return <BankOutlined />
   if (docId === 'tpl_nda' || docId === 'tpl_confidentiality') return <SafetyCertificateOutlined />
-  if (category === '兼职与通用') return <SolutionOutlined />
+  if (docId === 'tpl_sale') return <ShoppingOutlined />
+  if (docId === 'tpl_loan') return <MoneyCollectOutlined />
+  if (docId === 'tpl_equity_transfer') return <ApartmentOutlined />
+  if (docId === 'tpl_tech_service') return <ToolOutlined />
+  if (docId === 'tpl_labor_service' || docId === 'tpl_parttime') return <SolutionOutlined />
   if (docId === 'tpl_offer' || docId === 'tpl_renew_notice' || docId === 'tpl_termination_notice') {
     return <FileDoneOutlined />
   }
@@ -180,7 +192,7 @@ export default function TemplatesView() {
 
   return (
     <div className={css.page}>
-      <div className={css.subHead}>12 套高频文书 · 劳动 / 租赁 / 兼职通用 · 在线预览 · 一键采用发起审查</div>
+      <div className={css.subHead}>16 套高频合同范本 · 劳动用工 / 租赁 / 买卖借贷 / 股权服务 / 保密 · 依据现行法规整理 · 在线预览 · 一键采用发起审查</div>
 
       <div className={css.toolbar}>
         <Segmented

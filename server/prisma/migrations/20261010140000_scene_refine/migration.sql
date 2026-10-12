@@ -1,0 +1,6 @@
+-- 合同场景细化：新增实习协议（免费）与买卖/借款/股权转让（付费）四类
+-- PG12+ 支持 ADD VALUE IF NOT EXISTS；同一事务内仅加值不使用，安全
+ALTER TYPE "ReviewScene" ADD VALUE IF NOT EXISTS 'INTERNSHIP';
+ALTER TYPE "ReviewScene" ADD VALUE IF NOT EXISTS 'SALE';
+ALTER TYPE "ReviewScene" ADD VALUE IF NOT EXISTS 'LOAN';
+ALTER TYPE "ReviewScene" ADD VALUE IF NOT EXISTS 'EQUITY';

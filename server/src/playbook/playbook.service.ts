@@ -27,7 +27,7 @@ export interface PlaybookPattern {
 }
 
 const RULE_KINDS = ['FORBIDDEN', 'PREFERENCE'] as const
-const TYPE_CODES = ['LABOR', 'LEASE', 'SERVICE', 'NDA', 'CUSTOM', 'ALL']
+const TYPE_CODES = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM', 'ALL']
 const SEVERITIES: Severity[] = ['HIGH', 'MED', 'LOW']
 
 const PatternSchema = z.object({
@@ -256,7 +256,7 @@ export class PlaybookService {
       suggestion: z.string().max(500).describe('命中后给业务方的修改建议，一句话'),
     })
     const model = createChatModel({ temperature: 0.1, streaming: false })
-    const structured = model.withStructuredOutput(ParseSchema, { name: 'playbook_rule_parse' })
+    const structured = model.withStructuredOutput(ParseSchema, { method: 'jsonMode' })
     const out = await structured.invoke([
       ['human', `请把下面这条公司合同审查口径转成结构化匹配规则。
 要求：关键词必须来自规则语义本身、尽量使用合同条款中会真实出现的中文原词；

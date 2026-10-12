@@ -25,7 +25,8 @@ const FILTERS = [
 ]
 
 const SCENE_TEXT = {
-  LABOR: '劳动合同', LEASE: '租赁合同', SERVICE: '劳务合同', NDA: '保密协议', CUSTOM: '非标合同',
+  LABOR: '劳动合同', INTERNSHIP: '实习协议', LEASE: '租赁合同', SERVICE: '劳务合同',
+  NDA: '保密协议', SALE: '买卖合同', LOAN: '借款合同', EQUITY: '股权转让协议', CUSTOM: '非标合同',
 }
 
 // 审查状态（合同/任务整体阶段）

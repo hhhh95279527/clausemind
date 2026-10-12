@@ -296,6 +296,7 @@ export default function MyContractsView() {
         open={paywall}
         onClose={() => setPaywall(false)}
         couponBalance={couponBalance}
+        source="my_contracts"
         description="AI 改稿、长文档与非标合同审查属于深度权益。"
         onUseCoupon={() => {
           if (!lockedContractId) return

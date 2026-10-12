@@ -75,7 +75,7 @@ export default function TeamBillingView() {
       await submitEnterpriseLead(v)
       setLeadOpen(false)
       form.resetFields()
-      toast.success('已提交，演示环境将由专人（模拟）与你联系')
+      toast.success('咨询已提交，我们会尽快与你联系')
     } finally {
       setSubmitting(false)
     }

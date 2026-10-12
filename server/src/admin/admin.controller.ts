@@ -1,12 +1,15 @@
 // server/src/admin/admin.controller.ts
 // 管理后台：租户内用户管理、系统配置、基于 Trace 的用量聚合
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Req } from '@nestjs/common'
+import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Req } from '@nestjs/common'
 import type { Request } from 'express'
+import * as bcrypt from 'bcryptjs'
 import { DatabaseService } from '../database/database.service'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { BillingService } from '../monitor/billing.service.js'
 import { RuleAdminService, type RuleInput, type RuleListQuery } from './rule-admin.service.js'
 import { logger } from '../utils/logger.js'
+
+const USER_ROLES = ['ADMIN', 'MANAGER', 'USER', 'READONLY'] as const
 
 @Controller('api/admin')
 @Roles('ADMIN')
@@ -19,14 +22,28 @@ export class AdminController {
 
   // ── 用户管理（限本租户）────────────────────────────────────────
   @Get('users')
-  async listUsers(@Req() req: Request, @Query('page') page = '1', @Query('pageSize') pageSize = '20') {
+  async listUsers(
+    @Req() req: Request,
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '20',
+    @Query('q') q?: string,
+  ) {
     const tenantId = (req as any).user.tenantId
     const skip = (Number(page) - 1) * Number(pageSize)
     const take = Number(pageSize)
+    const search = (q || '').trim()
 
     const [users, total] = await Promise.all([
       this.db.user.findMany({
-        where: { tenantId },
+        where: {
+          tenantId,
+          ...(search && {
+            OR: [
+              { username: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          }),
+        },
         skip,
         take,
         orderBy: { createdAt: 'desc' },
@@ -35,19 +52,74 @@ export class AdminController {
           createdAt: true, lastLoginAt: true,
         },
       }),
-      this.db.user.count({ where: { tenantId } }),
+      this.db.user.count({
+        where: {
+          tenantId,
+          ...(search && {
+            OR: [
+              { username: { contains: search, mode: 'insensitive' } },
+              { email: { contains: search, mode: 'insensitive' } },
+            ],
+          }),
+        },
+      }),
     ])
 
     return { users, total, page: Number(page), pageSize: Number(pageSize) }
   }
 
+  /** 新增本租户用户（管理员代创建，含初始密码） */
+  @Post('users')
+  async createUser(@Req() req: Request, @Body() body: {
+    username?: string; email?: string; password?: string; displayName?: string; role?: string
+  }) {
+    const tenantId = (req as any).user.tenantId
+    const username = (body.username || '').trim()
+    const email = (body.email || '').trim() || null
+    const password = body.password || ''
+    const displayName = (body.displayName || '').trim() || username
+    const role = body.role || 'USER'
+
+    if (!/^[a-zA-Z0-9_-]{3,50}$/.test(username)) {
+      throw new BadRequestException('用户名需 3-50 位字母/数字/下划线/中划线')
+    }
+    if (password.length < 8) throw new BadRequestException('初始密码至少 8 位')
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new BadRequestException('邮箱格式不正确')
+    if (!USER_ROLES.includes(role as any)) throw new BadRequestException('角色不合法')
+
+    const dup = await this.db.user.findFirst({
+      where: { OR: [{ username }, ...(email ? [{ email }] : [])] },
+      select: { username: true, email: true },
+    })
+    if (dup?.username === username) throw new ConflictException('用户名已被占用')
+    if (dup && email && dup.email === email) throw new ConflictException('该邮箱已注册')
+
+    const passwordHash = await bcrypt.hash(password, 12)
+    const user = await this.db.user.create({
+      data: {
+        username, email, passwordHash, displayName,
+        role: role as any, tenantId, emailVerified: Boolean(email),
+      },
+      select: { id: true, username: true, email: true, displayName: true, role: true, status: true, createdAt: true },
+    })
+    logger.info('admin: user created', { id: user.id, username, role })
+    return { user }
+  }
+
   @Put('users/:id')
   async updateUser(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     const tenantId = (req as any).user.tenantId
+    const selfId = (req as any).user.userId
     const target = await this.db.user.findUnique({ where: { id }, select: { tenantId: true } })
     if (!target || target.tenantId !== tenantId) throw new ForbiddenException('无权操作该用户')
+    // 防自锁：不允许修改自己的角色/状态（降级或禁用自己会导致失去管理入口）
+    if (id === selfId && (body.role !== undefined || body.status !== undefined)) {
+      throw new BadRequestException('不能修改自己的角色或状态，请由其他管理员操作')
+    }
 
     const { role, status } = body
+    if (role !== undefined && !USER_ROLES.includes(role)) throw new BadRequestException('角色不合法')
+    if (status !== undefined && !['ACTIVE', 'DISABLED'].includes(status)) throw new BadRequestException('状态不合法')
     const user = await this.db.user.update({
       where: { id },
       data: {
@@ -63,8 +135,10 @@ export class AdminController {
   @Delete('users/:id')
   async deleteUser(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
+    const selfId = (req as any).user.userId
     const target = await this.db.user.findUnique({ where: { id }, select: { tenantId: true } })
     if (!target || target.tenantId !== tenantId) throw new ForbiddenException('无权操作该用户')
+    if (id === selfId) throw new BadRequestException('不能禁用自己的账号')
 
     // 软删除：禁用而非物理删除（保留审计关联）
     await this.db.user.update({ where: { id }, data: { status: 'DISABLED' } })
@@ -277,7 +351,7 @@ export class AdminController {
 
   // 注意：须放在 GET rules/:id 之前注册，避免 'try' 被当成 :id（POST 方法本身不与 GET :id 冲突，保持显式）
   @Post('rules/try')
-  tryRule(@Body() body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean }) {
+  tryRule(@Body() body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean; internship?: boolean }) {
     return this.rules.tryRule(body)
   }
 

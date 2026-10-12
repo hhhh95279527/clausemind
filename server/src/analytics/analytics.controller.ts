@@ -75,15 +75,20 @@ export class AnalyticsController {
     }
 
     // ④ 可选身份解析：有 Token 且合法才关联身份，失败/过期一律按匿名处理
-    const identity = this.resolveIdentity(req)
+    // sendBeacon 无法自定义 Authorization 头，前端把 access token 放在信封 body.token；
+    // 两种来源都走同一套 JWT 验签，body 仅作为头缺失时的降级通道
+    const identity = this.resolveIdentity(req, body)
 
     const events: NormalizedEvent[] = list.map((e) => normalizeEvent(e))
     return this.service.track(events, identity)
   }
 
-  private resolveIdentity(req: Request): EventIdentity {
+  private resolveIdentity(req: Request, body?: any): EventIdentity {
     try {
-      const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req as any)
+      let token = ExtractJwt.fromAuthHeaderAsBearerToken()(req as any)
+      if (!token && typeof body?.token === 'string' && body.token.trim()) {
+        token = body.token.trim()
+      }
       if (!token) return {}
       const payload = this.jwt.verify(token)
       if (payload?.sub && payload?.tenantId) {

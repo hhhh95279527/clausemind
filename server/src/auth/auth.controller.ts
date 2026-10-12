@@ -5,7 +5,6 @@ import { AuthService } from './auth.service'
 import { LocalAuthGuard } from './guards/local-auth.guard'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { Public } from './decorators/public.decorator'
-import { VerificationCodeService } from './verification-code.service'
 
 /** 提取客户端元信息（trust proxy 开启后 req.ip 取 X-Forwarded-For 对端） */
 function clientMeta(req: any) {
@@ -19,16 +18,16 @@ function clientMeta(req: any) {
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    private readonly verificationCodes: VerificationCodeService,
   ) {}
 
-  // 注册分流：persona=PERSONAL（仅邮箱+验证码+密码）/ TEAM（加企业名/规模/职位）
+  // 注册分流：persona=PERSONAL（用户名+邮箱+密码）/ TEAM（再加企业名/规模/职位）
+  // 注册不强制邮箱验证码；邮箱归属由首次验证码登录自然验证
   @Public()
   @Post('register')
   async register(@Request() req: any, @Body() body: {
     persona: 'PERSONAL' | 'TEAM'
+    username: string
     email: string
-    emailCode: string
     password: string
     displayName?: string
     orgName?: string
@@ -38,15 +37,15 @@ export class AuthController {
     return this.authService.register(body, clientMeta(req))
   }
 
-  // 发送邮箱验证码（60 秒频控；dev 控制台出码/固定码 123456）
+  // 发送登录用邮箱验证码：仅已绑定账号的邮箱可收（60 秒频控）
   @Public()
   @HttpCode(200)
   @Post('email-code')
   async sendEmailCode(@Body() body: { email: string }) {
-    return this.verificationCodes.sendCode(body.email)
+    return this.authService.sendLoginCode(body.email)
   }
 
-  // 邮箱验证码登录：未注册邮箱自动开通 FREE 个人空间
+  // 邮箱验证码登录：仅已绑定该邮箱的账号可登录
   @Public()
   @HttpCode(200)
   @Post('login-by-code')

@@ -16,10 +16,8 @@ import { useMeStore } from '@/stores/me.js'
 import { useAuthStore } from '@/stores/auth.js'
 import css from './integrations.module.css'
 
-// 8 个「即将推出」集成（文案与原型一一对应）
+// 「即将推出」集成（文案与原型一一对应；飞书/钉钉/企业微信已上线）
 const COMING_SOON = [
-  { code: 'DINGTALK', logo: '钉', name: '钉钉', sub: '工作通知与审批', desc: '审查完成、到期提醒推送到钉钉群与工作通知，支持发起钉钉审批。' },
-  { code: 'WECHAT_WORK', logo: '微', name: '企业微信', sub: '应用消息同步', desc: '通过企微应用推送审查卡片与台账提醒，客户 / 外部联系人场景适用。' },
   { code: 'ESIGN', logo: '签', name: '电子签', sub: '审查通过即发起签署', desc: '终审通过的合同一键发起电子签署，签署完成回写合同台账状态。' },
   { code: 'OA', logo: 'OA', name: 'OA 审批', sub: '对接企业现有审批流', desc: '审查意见书与用印申请联动 OA，按金额 / 部门走既有审批链路。' },
   { code: 'SSO', logo: 'S', name: 'SSO 单点登录', sub: '企业统一身份', desc: '支持 OIDC / SAML 对接企业 IdP，成员入职自动开通、离职自动回收。' },
@@ -41,6 +39,19 @@ export default function IntegrationsView() {
   const [webhookUrl, setWebhookUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  // 钉钉
+  const [dingtalk, setDingtalk] = useState(null)
+  const [dtConfigOpen, setDtConfigOpen] = useState(false)
+  const [dtWebhookUrl, setDtWebhookUrl] = useState('')
+  const [dtSecret, setDtSecret] = useState('')
+  const [dtSaving, setDtSaving] = useState(false)
+  const [dtTesting, setDtTesting] = useState(false)
+  // 企业微信
+  const [wework, setWework] = useState(null)
+  const [wwConfigOpen, setWwConfigOpen] = useState(false)
+  const [wwWebhookUrl, setWwWebhookUrl] = useState('')
+  const [wwSaving, setWwSaving] = useState(false)
+  const [wwTesting, setWwTesting] = useState(false)
   const [contact, setContact] = useState(null) // 当前留资集成
   const [contactDone, setContactDone] = useState(false)
   const [submittingLead, setSubmittingLead] = useState(false)
@@ -49,10 +60,20 @@ export default function IntegrationsView() {
   const loadFeishu = async () => {
     setFeishu(await http.get('/integrations/feishu'))
   }
+  const loadDingtalk = async () => {
+    setDingtalk(await http.get('/integrations/dingtalk'))
+  }
+  const loadWework = async () => {
+    setWework(await http.get('/integrations/wework'))
+  }
 
   useEffect(() => { loadEntitlement() }, [loadEntitlement])
   useEffect(() => {
-    if (isTeamSpace) loadFeishu()
+    if (isTeamSpace) {
+      loadFeishu()
+      loadDingtalk()
+      loadWework()
+    }
   }, [isTeamSpace])
 
   // ── 个人空间：加锁付费墙 ──
@@ -64,8 +85,8 @@ export default function IntegrationsView() {
           <h3>集成中心为团队版 / 企业版权益</h3>
           <p className={css.lockMuted}>个人版（PERSONAL）不支持团队办公流集成</p>
           <ul className={css.lockFeats}>
-            <li><span className={css.tick}>✓</span>飞书群机器人推送审查完成、合同到期与额度预警</li>
-            <li><span className={css.tick}>✓</span>钉钉 / 企业微信 / 电子签等 8 项集成联系开通</li>
+            <li><span className={css.tick}>✓</span>飞书 / 钉钉 / 企业微信群机器人推送审查完成、到期与额度预警</li>
+            <li><span className={css.tick}>✓</span>电子签 / OA / SSO 等更多集成联系开通</li>
             <li><span className={css.tick}>✓</span>集成凭证加密存储、脱敏展示</li>
           </ul>
           <Button type="primary" size="large" block onClick={() => navigate('/pricing')}>了解团队版 TEAM</Button>
@@ -74,7 +95,7 @@ export default function IntegrationsView() {
     )
   }
 
-  if (!feishu) {
+  if (!feishu || !dingtalk || !wework) {
     return <div className={css.center}><Spin size="large" tip="加载集成信息…" /></div>
   }
 
@@ -119,6 +140,99 @@ export default function IntegrationsView() {
     await http.delete('/integrations/feishu')
     message.success('已移除飞书配置')
     setFeishu({ configured: false, webhookMask: null, lastTestAt: null })
+  }
+
+  // ── 钉钉 ──
+  const openDtConfig = () => {
+    setDtWebhookUrl('')
+    setDtSecret('')
+    setDtConfigOpen(true)
+  }
+
+  const saveDtWebhook = async () => {
+    if (!/^https:\/\/oapi\.dingtalk\.com\/robot\/send\?.*access_token=/.test(dtWebhookUrl.trim())) {
+      message.warning('请填写完整的钉钉群机器人 Webhook（含 access_token）')
+      return
+    }
+    setDtSaving(true)
+    try {
+      const res = await http.put('/integrations/dingtalk', {
+        webhookUrl: dtWebhookUrl.trim(),
+        secret: dtSecret.trim() || undefined,
+      })
+      setDingtalk((d) => ({ ...d, configured: true, webhookMask: res.webhookMask, hasSecret: res.hasSecret }))
+      setDtWebhookUrl('')
+      setDtSecret('')
+      message.success('Webhook 已加密保存')
+      loadDingtalk()
+    } catch (err) {
+      message.error(err.response?.data?.error?.message || '保存失败')
+    } finally {
+      setDtSaving(false)
+    }
+  }
+
+  const sendDtTest = async () => {
+    setDtTesting(true)
+    try {
+      await http.post('/integrations/dingtalk/test', {}, { skipErrorToast: true })
+      message.success('测试消息已发送，请查看钉钉群')
+      loadDingtalk()
+    } catch (err) {
+      message.error(err.response?.data?.error?.message || '测试通知发送失败，请检查 Webhook 与安全设置')
+    } finally {
+      setDtTesting(false)
+    }
+  }
+
+  const removeDtWebhook = async () => {
+    await http.delete('/integrations/dingtalk')
+    message.success('已移除钉钉配置')
+    setDingtalk({ configured: false, webhookMask: null, hasSecret: false, lastTestAt: null })
+  }
+
+  // ── 企业微信 ──
+  const openWwConfig = () => {
+    setWwWebhookUrl('')
+    setWwConfigOpen(true)
+  }
+
+  const saveWwWebhook = async () => {
+    if (!/^https:\/\/qyapi\.weixin\.qq\.com\/cgi-bin\/webhook\/send\?.*key=/.test(wwWebhookUrl.trim())) {
+      message.warning('请填写完整的企业微信群机器人 Webhook（含 key）')
+      return
+    }
+    setWwSaving(true)
+    try {
+      const res = await http.put('/integrations/wework', { webhookUrl: wwWebhookUrl.trim() })
+      setWework((w) => ({ ...w, configured: true, webhookMask: res.webhookMask }))
+      setWwWebhookUrl('')
+      message.success('Webhook 已加密保存')
+      loadWework()
+    } catch (err) {
+      message.error(err.response?.data?.error?.message || '保存失败')
+    } finally {
+      setWwSaving(false)
+    }
+  }
+
+  const sendWwTest = async () => {
+    setWwTesting(true)
+    try {
+      await http.post('/integrations/wework/test', {}, { skipErrorToast: true })
+      message.success('测试消息已发送，请查看企业微信群')
+      loadWework()
+    } catch (err) {
+      message.error(err.response?.data?.error?.message || '测试通知发送失败，请检查 Webhook 是否有效')
+    } finally {
+      setWwTesting(false)
+    }
+  }
+
+  const removeWwWebhook = async () => {
+    await http.delete('/integrations/wework')
+    message.success('已移除企业微信配置')
+    setWework({ configured: false, webhookMask: null, lastTestAt: null })
   }
 
   const openContact = (item) => {
@@ -178,7 +292,68 @@ export default function IntegrationsView() {
           </div>
         </div>
 
-        {/* 8 个即将推出 */}
+        {/* 钉钉（已上线） */}
+        <div className={`${css.card} ${css.cardLive}`}>
+          <div className={css.cardHead}>
+            <span className={css.logoLive}>钉</span>
+            <div>
+              <b className={css.cardName}>钉钉</b>
+              <div className={css.muted}>群机器人通知</div>
+            </div>
+            {dingtalk.configured
+              ? <Tag color="green" className={css.mlAuto}>已配置</Tag>
+              : <Tag className={css.mlAuto}>未配置</Tag>}
+          </div>
+          <div className={css.feat}>
+            <Tag color={dingtalk.configured ? 'green' : 'default'}>
+              {dingtalk.configured ? '可用' : '未配置'}
+            </Tag>
+            <div>
+              <b>群机器人通知</b><br />
+              <span className={css.muted}>审查终审通过、额度 80% 预警自动推送到钉钉群</span>
+            </div>
+          </div>
+          <div className={css.feat}>
+            <Tag color={dingtalk.hasSecret ? 'green' : 'default'}>
+              {dingtalk.hasSecret ? '已启用' : '可选'}
+            </Tag>
+            <div>
+              <b>加签安全校验</b><br />
+              <span className={css.muted}>支持钉钉机器人「加签」安全设置，密钥加密存储</span>
+            </div>
+          </div>
+          <div className={css.actions}>
+            <Button type="primary" size="small" onClick={openDtConfig}>配置</Button>
+          </div>
+        </div>
+
+        {/* 企业微信（已上线） */}
+        <div className={`${css.card} ${css.cardLive}`}>
+          <div className={css.cardHead}>
+            <span className={css.logoLive}>微</span>
+            <div>
+              <b className={css.cardName}>企业微信</b>
+              <div className={css.muted}>群机器人通知</div>
+            </div>
+            {wework.configured
+              ? <Tag color="green" className={css.mlAuto}>已配置</Tag>
+              : <Tag className={css.mlAuto}>未配置</Tag>}
+          </div>
+          <div className={css.feat}>
+            <Tag color={wework.configured ? 'green' : 'default'}>
+              {wework.configured ? '可用' : '未配置'}
+            </Tag>
+            <div>
+              <b>群机器人通知</b><br />
+              <span className={css.muted}>审查终审通过、合同到期 digest、额度 80% 预警自动推送</span>
+            </div>
+          </div>
+          <div className={css.actions}>
+            <Button type="primary" size="small" onClick={openWwConfig}>配置</Button>
+          </div>
+        </div>
+
+        {/* 即将推出 */}
         {COMING_SOON.map((item) => (
           <div key={item.code} className={css.card}>
             <div className={css.cardHead}>
@@ -277,6 +452,134 @@ export default function IntegrationsView() {
         <div className={css.cfgBtns}>
           <Button size="small" onClick={() => { setConfigOpen(false); setGuideOpen(true) }}>查看配置指引</Button>
         </div>
+      </Modal>
+
+      {/* 钉钉配置 */}
+      <Modal
+        open={dtConfigOpen}
+        title="配置钉钉集成"
+        width={560}
+        footer={null}
+        onCancel={() => setDtConfigOpen(false)}
+        destroyOnClose
+      >
+        <div className={css.cfgHead}>
+          <span className={css.logoLive}>钉</span>
+          <b>群机器人通知</b>
+          <Tag color={dingtalk.configured ? 'green' : 'default'} className={css.mlAuto}>
+            {dingtalk.configured ? '可用' : '未配置'}
+          </Tag>
+        </div>
+
+        {dingtalk.configured && (
+          <Alert
+            type="success" showIcon className={css.cfgAlert}
+            message={<>当前 Webhook：<span className={css.maskText}>{dingtalk.webhookMask}</span></>}
+            description={
+              <span className={css.muted}>
+                页面仅脱敏展示{dingtalk.hasSecret ? '；已启用加签' : ''}{dingtalk.lastTestAt ? `；最近测试：${new Date(dingtalk.lastTestAt).toLocaleString('zh-CN', { hour12: false })}` : '；尚未发送测试通知'}
+              </span>
+            }
+          />
+        )}
+
+        {isAdmin ? (
+          <>
+            <div className={css.fieldLabel}>Webhook URL</div>
+            <Input.TextArea
+              rows={2}
+              value={dtWebhookUrl}
+              onChange={(e) => setDtWebhookUrl(e.target.value)}
+              placeholder="https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxx"
+              className={css.webhookInput}
+            />
+            <div className={css.hint}>在钉钉群「设置 → 机器人 → 添加机器人 → 自定义」获取；仅支持 oapi.dingtalk.com 官方域名，保存后加密存储。</div>
+            <div className={css.fieldLabel}>加签密钥（可选）</div>
+            <Input
+              value={dtSecret}
+              onChange={(e) => setDtSecret(e.target.value)}
+              placeholder="SEC 开头；机器人安全设置选择「加签」时必填"
+              maxLength={128}
+            />
+            <div className={css.hint}>
+              安全设置三选一：选择「自定义关键词」时请包含「ClauseMind」；选择「加签」请把 SEC 开头的密钥填到上方；留空密钥将清除已保存的加签。
+            </div>
+            <div className={css.cfgBtns}>
+              <Button type="primary" size="small" loading={dtSaving} onClick={saveDtWebhook}>保存 Webhook</Button>
+              <Button size="small" loading={dtTesting} disabled={!dingtalk.configured} onClick={sendDtTest}>发送测试通知</Button>
+              {dingtalk.configured && (
+                <Popconfirm
+                  title="移除钉钉 Webhook 配置？"
+                  okText="移除" cancelText="取消" okButtonProps={{ danger: true }}
+                  onConfirm={removeDtWebhook}
+                >
+                  <Button size="small" danger type="text">移除配置</Button>
+                </Popconfirm>
+              )}
+            </div>
+          </>
+        ) : (
+          <Alert type="info" showIcon message="仅团队负责人可修改 Webhook 配置，你可以联系负责人完成配置。" className={css.cfgAlert} />
+        )}
+      </Modal>
+
+      {/* 企业微信配置 */}
+      <Modal
+        open={wwConfigOpen}
+        title="配置企业微信集成"
+        width={560}
+        footer={null}
+        onCancel={() => setWwConfigOpen(false)}
+        destroyOnClose
+      >
+        <div className={css.cfgHead}>
+          <span className={css.logoLive}>微</span>
+          <b>群机器人通知</b>
+          <Tag color={wework.configured ? 'green' : 'default'} className={css.mlAuto}>
+            {wework.configured ? '可用' : '未配置'}
+          </Tag>
+        </div>
+
+        {wework.configured && (
+          <Alert
+            type="success" showIcon className={css.cfgAlert}
+            message={<>当前 Webhook：<span className={css.maskText}>{wework.webhookMask}</span></>}
+            description={
+              <span className={css.muted}>
+                页面仅脱敏展示{wework.lastTestAt ? `；最近测试：${new Date(wework.lastTestAt).toLocaleString('zh-CN', { hour12: false })}` : '；尚未发送测试通知'}
+              </span>
+            }
+          />
+        )}
+
+        {isAdmin ? (
+          <>
+            <div className={css.fieldLabel}>Webhook URL</div>
+            <Input.TextArea
+              rows={2}
+              value={wwWebhookUrl}
+              onChange={(e) => setWwWebhookUrl(e.target.value)}
+              placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx"
+              className={css.webhookInput}
+            />
+            <div className={css.hint}>在企业微信群「右上角… → 群机器人 → 添加 → 新创建一个机器人」获取；仅支持 qyapi.weixin.qq.com 官方域名，保存后加密存储。</div>
+            <div className={css.cfgBtns}>
+              <Button type="primary" size="small" loading={wwSaving} onClick={saveWwWebhook}>保存 Webhook</Button>
+              <Button size="small" loading={wwTesting} disabled={!wework.configured} onClick={sendWwTest}>发送测试通知</Button>
+              {wework.configured && (
+                <Popconfirm
+                  title="移除企业微信 Webhook 配置？"
+                  okText="移除" cancelText="取消" okButtonProps={{ danger: true }}
+                  onConfirm={removeWwWebhook}
+                >
+                  <Button size="small" danger type="text">移除配置</Button>
+                </Popconfirm>
+              )}
+            </div>
+          </>
+        ) : (
+          <Alert type="info" showIcon message="仅团队负责人可修改 Webhook 配置，你可以联系负责人完成配置。" className={css.cfgAlert} />
+        )}
       </Modal>
 
       {/* MCP 配置指引 */}

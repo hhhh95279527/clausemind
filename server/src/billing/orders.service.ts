@@ -12,8 +12,11 @@ import {
 import type { Prisma, Tenant } from '@prisma/client'
 import { DatabaseService } from '../database/database.service.js'
 import { AuditService } from '../audit/audit.service.js'
+import { MailerService } from '../auth/mailer.service.js'
 import { EntitlementsService } from './entitlements.service.js'
 import { getCheckoutItem, type CheckoutItem, type CheckoutItemDef } from './plans.config.js'
+import { config as appConfig } from '../config/index.js'
+import { Logger } from '@nestjs/common'
 
 export type PayChannel = 'WECHAT' | 'ALIPAY'
 
@@ -24,7 +27,10 @@ export class OrdersService {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly entitlements: EntitlementsService,
+    private readonly mailer: MailerService,
   ) {}
+
+  private readonly logger = new Logger('Orders')
 
   // ── 创建模拟订单（PENDING，价格由服务端目录决定）──────────────────────────
   async createOrder(tenantId: string, userId: string, itemCode: string) {
@@ -156,7 +162,7 @@ export class OrdersService {
     return { entitlement }
   }
 
-  // ── 企业版留资（ENTERPRISE 定制 / 席位增购咨询，仅审计落库）──────────────
+  // ── 企业版留资（ENTERPRISE 定制 / 席位增购咨询，审计落库 + 邮件通知）──────────
   async createEnterpriseLead(
     tenantId: string,
     userId: string,
@@ -175,7 +181,42 @@ export class OrdersService {
       resource: 'enterprise_lead',
       detail: { company, teamSize, contact, note },
     })
-    return { ok: true, message: '已收到咨询，演示环境将由专人（模拟）与你联系' }
+    this.sendLeadNotifyMail(tenantId, userId, { company, teamSize, contact, note })
+    return { ok: true, message: '已收到咨询，我们将尽快与你联系' }
+  }
+
+  /** 留资通知邮件（fire-and-forget，失败仅记日志不阻断提交） */
+  private sendLeadNotifyMail(
+    tenantId: string,
+    userId: string,
+    lead: { company: string; teamSize: string; contact: string; note: string },
+  ) {
+    const to = appConfig.mailer.leadNotifyEmail
+    if (!to) return
+    void (async () => {
+      const [tenant, user] = await Promise.all([
+        this.db.tenant.findUnique({ where: { id: tenantId }, select: { name: true, plan: true } }),
+        this.db.user.findUnique({ where: { id: userId }, select: { displayName: true, username: true, email: true } }),
+      ])
+      const lines = [
+        `收到一条新的商务咨询（企业版/席位增购留资），信息如下：`,
+        ``,
+        `公司名称：${lead.company}`,
+        `团队规模：${lead.teamSize || '未填写'}`,
+        `联系方式：${lead.contact}`,
+        `咨询备注：${lead.note || '无'}`,
+        ``,
+        `── 提交环境 ──`,
+        `提交人：${user?.displayName || user?.username || '未知'}（${user?.email || '无邮箱'}）`,
+        `所属空间：${tenant?.name || tenantId}（当前套餐：${tenant?.plan || '-'}）`,
+        `提交时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+      ]
+      await this.mailer.send({
+        to,
+        subject: '【ClauseMind】新商务咨询 - 企业版开通意向',
+        text: lines.join('\n'),
+      })
+    })().catch((err) => this.logger.warn(`留资通知邮件发送失败：${(err as Error).message}`))
   }
 
   // ── 内部：购买资格 / 权益生效补丁 ──────────────────────────────────────────

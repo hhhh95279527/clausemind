@@ -1,25 +1,42 @@
 // server/src/knowledge/knowledge.controller.ts
-// 知识库控制器：文档管理（上传/列表/删除）+ RAG 问答（流式）
-import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, OnModuleInit, Param, Post, Query, Req, Res } from '@nestjs/common'
+// 知识库控制器：文档管理（上传/列表/删除）+ 多会话 RAG 问答（流式）
+//
+// 文档范围（scope）：
+//   mine      仅当前租户自己上传的 GENERAL 文档（问答默认，不混入平台内容）
+//   platform  平台共享的 LEGAL 法规库（只读）
+//
+// 会话持久化：复用 ChatSession(role='knowledge') / Message(feature='knowledge')，
+// 按 userId 属主校验，天然做到每轮会话相互隔离、刷新不丢失。
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, OnModuleInit, Param, Post, Query, Req, Res } from '@nestjs/common'
 import type { Request, Response } from 'express'
 import path from 'path'
 import fs from 'fs/promises'
 import { assertRealFileType } from '../utils/file-guard.js'
 import { ingestDocument, ingestText, getDocRegistry, deleteDocument, setDatabase } from '../services/rag/ingest.js'
-import { ragQueryStream, ragQuery } from '../services/rag/query.js'
-import { clearSession } from '../services/rag/memory.js'
+import { ragQueryStream, ragQuery, type HistoryTurn } from '../services/rag/query.js'
 import { logger } from '../utils/logger.js'
 import { initSse } from '../utils/sse'
 import { DatabaseService } from '../database/database.service.js'
 import { TraceService } from '../observability/trace.service.js'
 import { QuotaService } from '../observability/quota.service.js'
 
-/**
- * RAG 会话历史存于进程内存，sessionId 由前端生成且无属主列。
- * 用 租户+用户 做键前缀命名空间，杜绝枚举/碰撞 sessionId 读写他人对话或清空他人会话。
- */
-function scopeSession(tenantId: string, userId: string, sessionId?: string) {
-  return sessionId ? `rt:${tenantId}:${userId}:${sessionId}` : undefined
+const SESSION_ROLE = 'knowledge'
+const DEFAULT_TITLE = '新会话'
+
+type Scope = 'mine' | 'platform'
+
+function normalizeScope(raw: any): Scope {
+  return raw === 'platform' ? 'platform' : 'mine'
+}
+
+/** scope → 检索参数 */
+function scopeRetrieve(scope: Scope, tenantId: string, category?: string, sessionId?: string) {
+  if (scope === 'platform') {
+    // 平台法规库：LEGAL 共享文档（pg-store 对 LEGAL 不做租户过滤）
+    return { docType: 'LEGAL' as const, category }
+  }
+  // 我的文档：严格只检索当前会话上传的 GENERAL 文档（会话级隔离）
+  return { docType: 'GENERAL' as const, ownOnly: true, tenantId, category, sessionId }
 }
 
 @Controller('api/knowledge')
@@ -36,9 +53,125 @@ export class KnowledgeController implements OnModuleInit {
     logger.info('KnowledgeController: Database injected into RAG module')
   }
 
+  // ── 会话管理 ─────────────────────────────────────────────────
+
+  /** 校验会话属于当前用户，返回会话实体 */
+  private async requireOwnedSession(userId: string, sessionId: string) {
+    const session = await this.db.chatSession.findFirst({
+      where: { id: sessionId, userId, role: SESSION_ROLE },
+    })
+    if (!session) throw new NotFoundException('会话不存在')
+    return session
+  }
+
+  // GET /api/knowledge/sessions —— 当前用户的知识问答会话列表
+  @Get('sessions')
+  async listSessions(@Req() req: Request) {
+    const userId: string = (req as any).user.userId
+    const sessions = await this.db.chatSession.findMany({
+      where: { userId, role: SESSION_ROLE },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { messages: true } },
+      },
+    })
+    return {
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        title: s.title,
+        messageCount: s._count.messages,
+        createdAt: s.createdAt.toISOString(),
+        updatedAt: s.updatedAt.toISOString(),
+      })),
+    }
+  }
+
+  // POST /api/knowledge/sessions —— 新建会话
+  @Post('sessions')
+  async createSession(@Req() req: Request, @Body() body: { title?: string } | undefined) {
+    const userId: string = (req as any).user.userId
+    const title = (body?.title || '').trim().slice(0, 200) || DEFAULT_TITLE
+    const session = await this.db.chatSession.create({
+      data: { userId, title, role: SESSION_ROLE },
+    })
+    return { session: { id: session.id, title: session.title, createdAt: session.createdAt.toISOString() } }
+  }
+
+  // GET /api/knowledge/sessions/:id —— 会话详情（含消息，切换会话时懒加载）
+  @Get('sessions/:id')
+  async sessionDetail(@Req() req: Request, @Param('id') id: string) {
+    const session = await this.requireOwnedSession((req as any).user.userId, id)
+    const messages = await this.db.message.findMany({
+      where: { sessionId: id, feature: 'knowledge' },
+      orderBy: { createdAt: 'asc' },
+      take: 200,
+    })
+    return {
+      session: {
+        id: session.id,
+        title: session.title,
+        createdAt: session.createdAt.toISOString(),
+      },
+      messages: messages.map((m) => ({
+        id: m.id,
+        role: m.role === 'USER' ? 'user' : 'assistant',
+        content: m.content,
+        time: m.createdAt.toISOString(),
+        sources: (m.metadata as any)?.sources || [],
+      })),
+    }
+  }
+
+  // DELETE /api/knowledge/sessions/:id — 删除整个会话（消息与本会话上传的文档均由外键级联删除）
+  @Delete('sessions/:id')
+  async removeSession(@Req() req: Request, @Param('id') id: string) {
+    await this.requireOwnedSession((req as any).user.userId, id)
+    await this.db.chatSession.delete({ where: { id } })
+    return { success: true }
+  }
+
+  /** 取会话最近的问答历史（不含当前问题），用于多轮改写与上下文 */
+  private async loadHistory(sessionId: string, max = 10): Promise<HistoryTurn[]> {
+    const rows = await this.db.message.findMany({
+      where: { sessionId, feature: 'knowledge' },
+      orderBy: { createdAt: 'desc' },
+      take: max,
+      select: { role: true, content: true },
+    })
+    return rows.reverse().map((r) => ({
+      role: r.role === 'USER' ? 'user' as const : 'assistant' as const,
+      content: r.content,
+    }))
+  }
+
+  /** 保存一条知识问答消息（来源片段存 metadata） */
+  private async saveKnowledgeMessage(args: {
+    sessionId: string
+    userId: string
+    role: 'USER' | 'ASSISTANT'
+    content: string
+    sources?: any[]
+  }) {
+    return this.db.message.create({
+      data: {
+        sessionId: args.sessionId,
+        userId: args.userId,
+        role: args.role,
+        content: args.content,
+        feature: 'knowledge',
+        metadata: args.sources ? { sources: args.sources } : undefined,
+      },
+    })
+  }
+
+  // ── 文档管理 ─────────────────────────────────────────────────
+
   // ── POST /api/knowledge/documents ─────────────────────────────
-  // 上传文档并入库
-  // 支持两种方式：1) 上传文件  2) 直接传文本内容
+  // 上传文档并入库（文件 / 纯文本两种方式，均归本租户私有）
   @Post('documents')
   async uploadDocument(@Req() req: Request, @Body() body: any) {
     try {
@@ -46,6 +179,11 @@ export class KnowledgeController implements OnModuleInit {
 
       const tenantId: string = (req as any).user.tenantId
       const userId: string = (req as any).user.userId
+
+      // 会话级隔离：上传文档必须归属到用户自己的一个知识问答会话
+      const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
+      if (!sessionId) throw new BadRequestException('请先新建会话后再上传文档')
+      await this.requireOwnedSession(userId, sessionId)
 
       if ((req as any).file) {
         // 方式1：上传文件（magic number 校验通过后才入库，不通过删除临时文件）
@@ -61,9 +199,10 @@ export class KnowledgeController implements OnModuleInit {
           fileName:   file.originalname,
           title:      body.title || file.originalname.replace(/\.[^.]+$/, ''),
           category:   body.category || '通用',
-          docType:    body.docType || 'GENERAL',
+          docType:    'GENERAL',
           tenantId,
           uploadedBy: userId,
+          sessionId,
         })
       } else if (body.content) {
         // 方式2：直接传文本（前端粘贴内容），走 ingestText 统一入库流程
@@ -71,9 +210,10 @@ export class KnowledgeController implements OnModuleInit {
           title:      body.title || '未命名文档',
           content:    body.content,
           category:   body.category || '通用',
-          docType:    body.docType || 'GENERAL',
+          docType:    'GENERAL',
           tenantId,
           uploadedBy: userId,
+          sessionId,
         })
       } else {
         throw new BadRequestException('请上传文件或提供文本内容')
@@ -88,22 +228,35 @@ export class KnowledgeController implements OnModuleInit {
   }
 
   // ── GET /api/knowledge/documents ──────────────────────────────
-  // 已入库文档列表（默认只看本租户 + 平台共享；docType=LEGAL 为平台法规库）
+  // 文档列表。scope=mine（默认）：本租户上传的私有文档；scope=platform：平台法规库
   @Get('documents')
-  async listDocuments(@Req() req: Request, @Query('category') category?: string, @Query('docType') docType?: any) {
+  async listDocuments(
+    @Req() req: Request,
+    @Query('category') category?: string,
+    @Query('scope') scopeRaw?: string,
+    @Query('sessionId') sessionId?: string,
+  ) {
     const tenantId: string = (req as any).user.tenantId
-    const docs = await getDocRegistry({ tenantId, docType })
+    const scope = normalizeScope(scopeRaw)
+    const docs = await getDocRegistry({ tenantId, scope, sessionId })
     const filtered = category
       ? docs.filter((d: any) => d.category === category)
       : docs
-    return { documents: filtered }
+    return { documents: filtered, scope }
   }
 
   // ── DELETE /api/knowledge/documents/:docId ─────────────────────
-  // 删除文档（从向量库和注册表中删除）
+  // 删除文档（只能删本租户私有文档；平台共享文档 deleteDocument 会以无权拒绝）
   @Delete('documents/:docId')
   async removeDocument(@Req() req: Request, @Param('docId') docId: string) {
     try {
+      const userId: string = (req as any).user.userId
+      // 防护：文档若归属于某个知识问答会话，须确认会话属主是当前用户
+      const doc = await this.db.document.findUnique({
+        where: { id: docId },
+        select: { tenantId: true, sessionId: true },
+      })
+      if (doc?.sessionId) await this.requireOwnedSession(userId, doc.sessionId)
       await deleteDocument(docId, (req as any).user.tenantId)
       return { success: true }
     } catch (err) {
@@ -114,17 +267,24 @@ export class KnowledgeController implements OnModuleInit {
   }
 
   // ── POST /api/knowledge/query/stream ──────────────────────────
-  // RAG 问答（流式）：先推送来源，再流式推送回答（支持历史记忆）
+  // RAG 问答（流式）：先推送来源，再流式推送回答；消息落库、会话隔离
   @Post('query/stream')
-  async queryStream(@Req() req: Request, @Body() body: { question: string; category?: string; docType?: any; sessionId?: string }, @Res() res: Response) {
-    const { question, category } = body
-    const docType = body.docType
+  async queryStream(
+    @Req() req: Request,
+    @Body() body: { question: string; category?: string; scope?: string; sessionId?: string },
+    @Res() res: Response,
+  ) {
+    const question = body.question?.trim()
+    const scope = normalizeScope(body.scope)
     const userId: string = (req as any).user.userId
     const tenantId: string = (req as any).user.tenantId
-    const sessionId = scopeSession(tenantId, userId, body.sessionId)
 
-    if (!question?.trim()) {
+    if (!question) {
       throw new BadRequestException('问题不能为空')
+    }
+    // "我的文档"必须在已创建的会话内提问（文档随会话隔离，不允许隐式会话绕过）
+    if (scope === 'mine' && !body.sessionId?.trim()) {
+      throw new BadRequestException('请先新建会话并上传文档后再提问')
     }
 
     const sse = initSse(res)
@@ -135,13 +295,36 @@ export class KnowledgeController implements OnModuleInit {
         { feature: 'knowledge', name: `知识库问答：${question.slice(0, 30)}`, tenantId, userId },
         async (handle) => {
           await this.quota.assert(tenantId)
+
+          // 会话：我的文档范围必须由前端先建会话；平台法规库允许首轮提问隐式创建
+          let sessionId = body.sessionId
+          if (sessionId) {
+            await this.requireOwnedSession(userId, sessionId)
+          } else {
+            const created = await this.db.chatSession.create({
+              data: { userId, title: DEFAULT_TITLE, role: SESSION_ROLE },
+            })
+            sessionId = created.id
+          }
+
+          const history = await this.loadHistory(sessionId)
+
+          // 当前问题先落库；默认标题的会话用首轮问题作为标题
+          await this.saveKnowledgeMessage({ sessionId, userId, role: 'USER', content: question })
+          const session = await this.db.chatSession.findUnique({ where: { id: sessionId }, select: { title: true } })
+          if (session?.title === DEFAULT_TITLE) {
+            await this.db.chatSession.update({
+              where: { id: sessionId },
+              data: { title: question.slice(0, 20) },
+            })
+          }
+          send('session', { sessionId, title: question.slice(0, 20) })
+
           send('status', { message: '正在检索相关文档...' })
 
           const { sources, streamAnswer, rewrittenQuestion } = await ragQueryStream(question, {
-            category,
-            docType,
-            tenantId,
-            sessionId,
+            ...scopeRetrieve(scope, tenantId, body.category, sessionId),
+            history,
             callbacks: handle.callbacks,
           })
 
@@ -151,17 +334,37 @@ export class KnowledgeController implements OnModuleInit {
           }
 
           if (!sources.length) {
-            send('token', { token: '知识库中未找到相关内容，请尝试上传相关文档后再提问。' })
+            const emptyAnswer = scope === 'platform'
+              ? '平台法规库中未找到相关内容，请尝试换一种提问方式。'
+              : '当前会话还没有上传文档。请先在左侧上传文档（仅本会话可用）后再提问。'
+            await this.saveKnowledgeMessage({ sessionId, userId, role: 'ASSISTANT', content: emptyAnswer })
+            send('token', { token: emptyAnswer })
             send('done', {})
             return
           }
 
           send('status', { message: '正在生成回答...' })
+          let fullAnswer = ''
           for await (const token of streamAnswer()) {
+            fullAnswer += token
             send('token', { token })
           }
+          const savedSources = sources.map((s: any) => ({
+            chunkId: s.chunkId,
+            docId: s.docId,
+            title: s.title,
+            score: s.score,
+            content: s.content,
+          }))
+          await this.saveKnowledgeMessage({
+            sessionId,
+            userId,
+            role: 'ASSISTANT',
+            content: fullAnswer,
+            sources: savedSources,
+          })
           send('done', {})
-          logger.info('knowledge: query done', { sessionId, question: question.slice(0, 40), sources: sources.length })
+          logger.info('knowledge: query done', { sessionId, scope, question: question.slice(0, 40), sources: sources.length })
         },
       )
     } catch (err) {
@@ -173,52 +376,81 @@ export class KnowledgeController implements OnModuleInit {
   }
 
   // ── POST /api/knowledge/query ─────────────────────────────────
-  // RAG 问答（非流式）：适用于短问题或不需要流式展示的场景（支持历史记忆）
+  // RAG 问答（非流式）：短问题场景，消息同样落库、会话隔离
   @Post('query')
-  async query(@Req() req: Request, @Body() body: { question: string; category?: string; docType?: any; sessionId?: string }) {
-    const { question, category, docType } = body
+  async query(
+    @Req() req: Request,
+    @Body() body: { question: string; category?: string; scope?: string; sessionId?: string },
+  ) {
+    const question = body.question?.trim()
+    const scope = normalizeScope(body.scope)
+    const userId: string = (req as any).user.userId
     const tenantId: string = (req as any).user.tenantId
-    const sessionId = scopeSession(tenantId, (req as any).user.userId, body.sessionId)
 
-    if (!question?.trim()) {
+    if (!question) {
       throw new BadRequestException('问题不能为空')
+    }
+    if (scope === 'mine' && !body.sessionId?.trim()) {
+      throw new BadRequestException('请先新建会话并上传文档后再提问')
     }
 
     return this.tracer.run(
-      { feature: 'knowledge', name: `知识库问答：${question.slice(0, 30)}`, tenantId, userId: (req as any).user.userId },
+      { feature: 'knowledge', name: `知识库问答：${question.slice(0, 30)}`, tenantId, userId },
       async (handle) => {
         await this.quota.assert(tenantId)
+
+        let sessionId = body.sessionId
+        if (sessionId) {
+          await this.requireOwnedSession(userId, sessionId)
+        } else {
+          const created = await this.db.chatSession.create({
+            data: { userId, title: question.slice(0, 20), role: SESSION_ROLE },
+          })
+          sessionId = created.id
+        }
+
+        const history = await this.loadHistory(sessionId)
+        await this.saveKnowledgeMessage({ sessionId, userId, role: 'USER', content: question })
+
         const { answer, sources } = await ragQuery(question, {
-          category,
-          docType,
-          tenantId,
-          sessionId,
+          ...scopeRetrieve(scope, tenantId, body.category, sessionId),
+          history,
           callbacks: handle.callbacks,
         })
-        return { answer, sources }
+        await this.saveKnowledgeMessage({
+          sessionId,
+          userId,
+          role: 'ASSISTANT',
+          content: answer,
+          sources: sources.map((s: any) => ({
+            chunkId: s.chunkId, docId: s.docId, title: s.title, score: s.score, content: s.content,
+          })),
+        })
+        return { sessionId, answer, sources }
       },
     )
   }
 
-  // ── DELETE /api/knowledge/session/:sessionId ───────────────────
-  // 清空指定会话的历史记录（sessionId 经租户+用户命名空间隔离）
-  @Delete('session/:sessionId')
-  clearSession(@Req() req: Request, @Param('sessionId') sessionId: string) {
-    const scoped = scopeSession((req as any).user.tenantId, (req as any).user.userId, sessionId)
-    clearSession(scoped!)
-    return { success: true, message: '会话历史已清空' }
-  }
-
   // ── GET /api/knowledge/categories ─────────────────────────────
-  // 获取可见分类（本租户 + 平台共享，前端筛选用）
+  // 当前范围下可见分类（前端筛选用）
   @Get('categories')
-  async categories(@Req() req: Request) {
-    const docs = await getDocRegistry({ tenantId: (req as any).user.tenantId })
+  async categories(
+    @Req() req: Request,
+    @Query('scope') scopeRaw?: string,
+    @Query('sessionId') sessionId?: string,
+  ) {
+    const scope = normalizeScope(scopeRaw)
+    const docs = await getDocRegistry({
+      tenantId: (req as any).user.tenantId,
+      scope,
+      sessionId,
+    })
     const categories = [...new Set(docs.map((d: any) => d.category))]
     return {
+      scope,
       categories: [
         { value: '', label: '全部文档' },
-        ...categories.map(c => ({ value: c, label: c })),
+        ...categories.map((c) => ({ value: c, label: c })),
       ],
     }
   }

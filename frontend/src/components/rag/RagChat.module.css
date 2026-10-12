@@ -18,7 +18,60 @@
   flex-shrink: 0;
 }
 .filter-label { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
-.filter-select { width: 160px; padding: 5px 10px; }
+.filter-select { width: 150px; padding: 5px 10px; }
+
+/* 范围切换 tab */
+.scope-tabs {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.scope-tab {
+  border: none;
+  background: var(--color-surface);
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--color-text-sub);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+  white-space: nowrap;
+}
+.scope-tab + .scope-tab { border-left: 1px solid var(--color-border); }
+.scope-tab:hover { color: var(--color-primary); }
+.scope-tab.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+/* 会话状态提示条 */
+.session-hint {
+  padding: 5px var(--space-xl);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+/* 空态：未上传文档引导 */
+.scope-switch-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-primary);
+}
+
+/* 输入区未上传提示 */
+.upload-hint {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #f59e0b 12%, white);
+  color: #92400e;
+  font-size: 12px;
+  line-height: 1.6;
+}
 
 /* 消息列表 */
 .message-list {

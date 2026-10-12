@@ -14,6 +14,7 @@ import { useRevisionStore } from '@/stores/revision.js'
 import { useAppStore } from '@/stores/app.js'
 import Paywall from '@/components/billing/Paywall.jsx'
 import FeatureLock from '@/components/personal/FeatureLock.jsx'
+import { trackFirstResultSeen } from '@/utils/analytics.js'
 import { sceneLabel, fmtDateCN } from './scene.js'
 import { getRecommendation } from '@/config/recommendations.js'
 import styles from './personal.module.css'
@@ -41,14 +42,21 @@ export default function ReviewResultView() {
   const [askLocked, setAskLocked] = useState(false)
   const [asking, setAsking] = useState(false)
   const autoStartedRef = useRef(false)
+  const resultSeenRef = useRef(false)
 
   const contract = detail?.contract
   const review = detail?.review
   const clauses = detail?.clauses || []
   const risks = review?.risks || []
   const stats = review?.stats
+  // deep 用于权益类 UI（导出/改稿/付费墙）；本次审查是否真跑了 AI 轨只认 review.isDeep
   const deep = !!(review?.isDeep || review?.couponUsed || entitlement?.features?.deep)
   const couponBalance = entitlement?.couponBalance ?? 0
+
+  // 真实审查三态：未审查 / 审查中（SSE 进行中或库内 RUNNING）/ 已出结果（stats 落库）
+  const reviewRunning = reviewing || contract?.status === 'REVIEWING' || review?.status === 'RUNNING'
+  const reviewDone = !!stats
+  const reviewDeep = !!(review?.isDeep || review?.couponUsed)
 
   // 初次加载
   const refresh = useCallback(() => loadDetail(id), [id, loadDetail])
@@ -57,12 +65,24 @@ export default function ReviewResultView() {
     refresh()
   }, [refresh, loadEntitlement])
 
+  // 手动发起 / 重新发起审查；PLAN_LIMIT 由 startReview 转成 blocked，页面弹付费墙
+  const beginReview = async ({ payWithCoupon = false } = {}) => {
+    const { blocked } = await startReview(id, { payWithCoupon })
+    await loadEntitlement()
+    if (blocked) setPaywall(true)
+  }
+
   // 解析轮询 + 自动开审（?start=1[&coupon=1]）
   useEffect(() => {
     if (!contract) return
     let timer
     if (['UPLOADED', 'PARSING'].includes(contract.status)) {
       timer = setTimeout(refresh, 1500)
+      return () => clearTimeout(timer)
+    }
+    // REVIEWING（含重进页面）持续轮询，stats 落库后自动呈现结果
+    if (contract.status === 'REVIEWING' && !reviewing) {
+      timer = setTimeout(refresh, 3000)
       return () => clearTimeout(timer)
     }
     const wantStart = params.get('start') === '1'
@@ -80,6 +100,14 @@ export default function ReviewResultView() {
       })()
     }
   }, [contract?.status])
+
+  // 漏斗：评分/风险清单首次生成即视为「看到结果」（刷新重进只记一次/会话）
+  useEffect(() => {
+    if (reviewDone && !resultSeenRef.current) {
+      resultSeenRef.current = true
+      trackFirstResultSeen(contract?.scene)
+    }
+  }, [reviewDone, contract?.scene])
 
   const runWithCoupon = async () => {
     const { blocked } = await startReview(id, { payWithCoupon: true })
@@ -143,6 +171,27 @@ export default function ReviewResultView() {
   const score = stats?.score
   const scoreClass = score == null ? '' : score >= 85 ? styles.scoreLow : score < 75 ? styles.scoreHigh : ''
 
+  // 阶段点：done=绿✓  run=橙 spinner  idle=灰·  lock=锁
+  const stageDot = (state) => {
+    if (state === 'done') return <span className={`${styles.stageDot} ${styles.stageDone}`}>✓</span>
+    if (state === 'run') return <span className={`${styles.stageDot} ${styles.stageRun}`}><Spin size="small" /></span>
+    if (state === 'lock') {
+      return (
+        <span className={`${styles.stageDot} ${styles.stageWait}`}><LockOutlined style={{ fontSize: 10 }} /></span>
+      )
+    }
+    return <span className={`${styles.stageDot} ${styles.stageIdle}`}>·</span>
+  }
+  // 四阶段真实状态：条款解析看 clauses；规则/清单/AI 看审查任务
+  const parseStage = clauses.length ? 'done' : parsing ? 'run' : 'idle'
+  const ruleStage = reviewDone ? 'done' : reviewRunning ? 'run' : 'idle'
+  const listStage = reviewDone ? 'done' : reviewRunning ? 'run' : 'idle'
+  const aiStage = reviewDone
+    ? (reviewDeep ? 'done' : 'lock')
+    : reviewRunning
+      ? (deep ? 'run' : 'lock')
+      : (deep ? 'idle' : 'lock')
+
   return (
     <div className={styles.wrap}>
       {/* 标题行 */}
@@ -203,24 +252,53 @@ export default function ReviewResultView() {
             <span className={`${styles.tag} ${styles.tagBlue}`}>{sceneLabel(contract.scene)}</span>
           </div>
 
-          {/* 评分摘要 */}
+          {/* 评分摘要：未审查 / 审查中 / 已完成 三态 */}
           <div className={styles.panel} style={{ marginBottom: 12 }}>
-            <div className={`${styles.panelBody} ${styles.scoreBox}`}>
-              <div className={`${styles.score} ${scoreClass}`}>
-                {score ?? '—'}
-                <small>{stats?.scoreLevel || '待审查'}</small>
+            {reviewDone ? (
+              <div className={`${styles.panelBody} ${styles.scoreBox}`}>
+                <div className={`${styles.score} ${scoreClass}`}>
+                  {score ?? '—'}
+                  <small>{stats?.scoreLevel || '已审查'}</small>
+                </div>
+                <div>
+                  <b style={{ fontSize: 14 }}>大白话摘要</b>
+                  <ul className={styles.sumList}>
+                    {(stats?.summary || []).map((s, i) => (
+                      <li key={i}><b>{s.title}：</b>{s.text}</li>
+                    ))}
+                    {stats.total === 0 && <li>没有发现明显风险点，仍建议逐条确认关键条款。</li>}
+                  </ul>
+                </div>
               </div>
-              <div>
-                <b style={{ fontSize: 14 }}>大白话摘要</b>
-                <ul className={styles.sumList}>
-                  {(stats?.summary || []).map((s, i) => (
-                    <li key={i}><b>{s.title}：</b>{s.text}</li>
-                  ))}
-                  {stats && stats.total === 0 && <li>没有发现明显风险点，仍建议逐条确认关键条款。</li>}
-                  {!stats && <li>审查完成后，这里会用大白话告诉你合同里最需要注意的 3 件事。</li>}
-                </ul>
+            ) : (
+              <div className={`${styles.panelBody} ${styles.scoreBox}`}>
+                <div className={styles.score} style={{ color: reviewRunning ? 'var(--color-warning)' : 'var(--color-text-muted)' }}>
+                  {reviewRunning ? <Spin size="default" /> : '—'}
+                  <small>{reviewRunning ? '审查中' : '待审查'}</small>
+                </div>
+                <div>
+                  <b style={{ fontSize: 14 }}>大白话摘要</b>
+                  <ul className={styles.sumList}>
+                    {reviewRunning ? (
+                      <li>正在审查合同条款，完成后这里会给出风险评分和最需要注意的 3 件事，请稍候…</li>
+                    ) : (
+                      <li>这份合同还没有审查记录。点击右侧「开始审查」，约 30 秒输出风险清单、大白话摘要与整体评分。</li>
+                    )}
+                  </ul>
+                  <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+                    {reviewRunning ? (
+                      <button className="btn btn-ghost btn-sm" disabled={reviewing} onClick={() => beginReview()}>
+                        重新审查（长时间无响应时）
+                      </button>
+                    ) : (
+                      <button className="btn btn-primary btn-sm" disabled={reviewing} onClick={() => beginReview()}>
+                        开始审查
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* 存档提示 */}
@@ -315,39 +393,52 @@ export default function ReviewResultView() {
           {rightTab === 'info' ? (
             <div className={styles.panelBody}>
               <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                <span className={`${styles.tag} ${styles.tagRed}`}>高 {stats?.high ?? 0}</span>
-                <span className={`${styles.tag} ${styles.tagOrange}`}>中 {stats?.med ?? 0}</span>
-                <span className={`${styles.tag} ${styles.tagBlue}`}>低 {stats?.low ?? 0}</span>
+                <span className={`${styles.tag} ${styles.tagRed}`}>高 {reviewDone ? stats.high : '—'}</span>
+                <span className={`${styles.tag} ${styles.tagOrange}`}>中 {reviewDone ? stats.med : '—'}</span>
+                <span className={`${styles.tag} ${styles.tagBlue}`}>低 {reviewDone ? stats.low : '—'}</span>
               </div>
               <div className={styles.stageLine}>
                 <div className={styles.stageItem}>
-                  <span className={`${styles.stageDot} ${styles.stageDone}`}>✓</span>
+                  {stageDot(parseStage)}
                   <div><b>文件解析</b><div className={`${styles.small} ${styles.muted}`}>{clauses.length} 条条款 · {(contract.charCount || 0).toLocaleString()} 字</div></div>
                 </div>
                 <div className={styles.stageItem}>
-                  <span className={`${styles.stageDot} ${styles.stageDone}`}>✓</span>
-                  <div><b>规则审查</b><div className={`${styles.small} ${styles.muted}`}>命中 {stats?.rule ?? risks.length} 条风险规则</div></div>
+                  {stageDot(ruleStage)}
+                  <div>
+                    <b>规则审查</b>
+                    <div className={`${styles.small} ${styles.muted}`}>
+                      {reviewDone ? `命中 ${stats.rule ?? risks.length} 条风险规则` : reviewRunning ? '正在匹配风险规则…' : '发起审查后匹配风险规则'}
+                    </div>
+                  </div>
                 </div>
                 <div className={styles.stageItem}>
-                  <span className={`${styles.stageDot} ${styles.stageDone}`}>✓</span>
-                  <div><b>风险清单</b><div className={`${styles.small} ${styles.muted}`}>风险清单已生成</div></div>
+                  {stageDot(listStage)}
+                  <div>
+                    <b>风险清单</b>
+                    <div className={`${styles.small} ${styles.muted}`}>
+                      {reviewDone ? '风险清单已生成' : reviewRunning ? '正在汇总风险清单…' : '审查完成后生成风险清单'}
+                    </div>
+                  </div>
                 </div>
                 <div className={styles.stageItem}>
-                  <span className={`${styles.stageDot} ${deep ? styles.stageDone : styles.stageWait}`}>
-                    {deep ? '✓' : <LockOutlined style={{ fontSize: 10 }} />}
-                  </span>
+                  {stageDot(aiStage)}
                   <div>
                     <b>AI 语义审查</b>
                     <div className={`${styles.small} ${styles.muted}`} style={{ margin: '2px 0 5px' }}>
-                      {deep ? '检索法规并生成修改建议与替代措辞' : '法条依据、修改建议、替代措辞'}
+                      {reviewDone
+                        ? (reviewDeep ? '检索法规并生成修改建议与替代措辞' : '法条依据、修改建议、替代措辞')
+                        : reviewRunning
+                          ? (deep ? 'AI 正在逐条语义审查…' : '法条依据、修改建议、替代措辞')
+                          : (deep ? '本次审查将进行 AI 语义分析' : '法条依据、修改建议、替代措辞')}
                     </div>
-                    {!deep && <button className="btn btn-primary btn-sm" onClick={() => setPaywall(true)}>个人版权益</button>}
+                    {aiStage === 'lock' && <button className="btn btn-primary btn-sm" onClick={() => setPaywall(true)}>个人版权益</button>}
                   </div>
                 </div>
               </div>
               <div style={{ borderTop: '1px solid var(--color-border-light)', margin: '16px 0' }} />
               <div className={`${styles.small} ${styles.muted}`} style={{ lineHeight: 2 }}>
-                审查方式：规则引擎（免费）{deep && <span> + AI 语义审查（个人版）</span>}<br />
+                审查状态：{reviewDone ? '审查完成' : reviewRunning ? '审查中' : '待审查'}<br />
+                审查方式：{review ? (reviewDeep ? '规则引擎 + AI 语义审查（个人版）' : '规则引擎（免费）') : '—'}<br />
                 审查时间：{review?.createdAt ? new Date(review.createdAt).toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-') : '—'}<br />
                 法规库版本：{new Date().toISOString().slice(0, 7)}
               </div>
@@ -420,6 +511,7 @@ export default function ReviewResultView() {
         open={paywall}
         onClose={() => setPaywall(false)}
         couponBalance={couponBalance}
+        source="review_result"
         onUseCoupon={runWithCoupon}
       />
 

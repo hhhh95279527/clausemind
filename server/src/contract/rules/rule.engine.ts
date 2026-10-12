@@ -82,8 +82,10 @@ function ruleHits(rule: ReviewRule, content: string): number {
 }
 
 export interface EngineOptions {
-  /** 合同是否属于劳动/用工类（决定 scope=LABOR 规则是否参与） */
+  /** 合同是否属于劳动关系类（决定 scope=LABOR 规则是否参与） */
   labor?: boolean
+  /** 是否为在校生实习协议（scope=INTERNSHIP 规则；不构成劳动关系，不跑 LABOR 域） */
+  internship?: boolean
 }
 
 export interface RuleTryMatch {
@@ -158,7 +160,12 @@ export function runRuleEngine(
 ): RuleFinding[] {
   const findings: RuleFinding[] = []
   const enabled = rules
-    .filter((r) => r.enabled && (r.scope !== 'LABOR' || opts.labor))
+    .filter((r) => r.enabled && (
+      // scope 为空（如 Playbook 适配规则）视同 ALL
+      !r.scope || r.scope === 'ALL'
+      || (r.scope === 'LABOR' && opts.labor)
+      || (r.scope === 'INTERNSHIP' && opts.internship)
+    ))
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
   for (const clause of clauses) {

@@ -5,6 +5,7 @@
 //   DELETE /feishu        移除配置
 //   POST   /feishu/test   发送真实测试卡片
 //   POST   /leads         其余 8 个「联系开通」留资
+import { createHmac } from 'node:crypto'
 import {
   BadGatewayException,
   BadRequestException,
@@ -19,10 +20,13 @@ import { IntegrationCryptoService } from './crypto.util.js'
 /** 仅允许飞书官方域名（精确或其子域），防止 Webhook 被指向内网/任意外部地址 */
 const ALLOWED_HOST_SUFFIXES = ['open.feishu.cn', 'feishu.cn', 'larksuite.com']
 
-/** 「联系开通」的 8 个集成（飞书为已上线，FEISHU_SUPPORT 为飞书问题反馈留资） */
+/** 钉钉群机器人官方域名（精确匹配） */
+const DINGTALK_HOST = 'oapi.dingtalk.com'
+
+/** 「联系开通」的集成（飞书/钉钉已上线，FEISHU_SUPPORT 为飞书问题反馈留资） */
 export const LEAD_INTEGRATIONS = [
   'FEISHU_SUPPORT',
-  'DINGTALK', 'WECHAT_WORK', 'ESIGN', 'OA', 'SSO', 'OPEN_API', 'WORD_PLUGIN', 'PRIVATE_DEPLOY',
+  'WECHAT_WORK', 'ESIGN', 'OA', 'SSO', 'OPEN_API', 'WORD_PLUGIN', 'PRIVATE_DEPLOY',
 ] as const
 
 const PHONE_RE = /^[0-9+\-\s]{6,20}$/
@@ -101,18 +105,20 @@ export class IntegrationsService {
     const url = this.parseFeishuWebhook(webhookUrl)
     const webhookCipher = this.crypto.encrypt(url)
 
+    // 与钉钉配置共存于同一行的 config jsonb：合并而非覆盖
+    const existing = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const merged = { ...((existing?.config as any) ?? {}), webhookCipher }
     await this.db.integrationConfig.upsert({
       where: { tenantId },
       create: {
         tenantId,
         provider: 'FEISHU',
         status: 'ACTIVE',
-        config: { webhookCipher },
+        config: merged,
       },
       update: {
-        provider: 'FEISHU',
         status: 'ACTIVE',
-        config: { webhookCipher },
+        config: merged,
       },
     })
 
@@ -130,10 +136,14 @@ export class IntegrationsService {
   async deleteFeishu(tenantId: string, userId: string) {
     await this.assertAccess(tenantId)
     const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
-    if (!cfg) throw new NotFoundException('尚未配置飞书集成')
+    if (!cfg || !(cfg.config as any)?.webhookCipher) throw new NotFoundException('尚未配置飞书集成')
+    // 只移除飞书子键，保留钉钉配置；两者都空时状态才回到 NOT_CONFIGURED
+    const rest = { ...(cfg.config as any) }
+    delete rest.webhookCipher
+    const hasOthers = !!rest.dingtalkWebhookCipher || !!rest.weworkWebhookCipher
     await this.db.integrationConfig.update({
       where: { tenantId },
-      data: { status: 'NOT_CONFIGURED', config: {} },
+      data: { status: hasOthers ? 'ACTIVE' : 'NOT_CONFIGURED', config: rest },
     })
     await this.audit.log({
       tenantId, userId,
@@ -224,6 +234,380 @@ export class IntegrationsService {
       throw new BadGatewayException(`飞书返回错误：${upstream?.msg || 'unknown'}（code ${upstream?.code ?? upstream?.StatusCode}）`)
     }
     return { ok: true, upstream: { code: upstream.code ?? upstream.StatusCode, msg: upstream.msg ?? 'success' } }
+  }
+
+  // ── 钉钉配置 ────────────────────────────────────────────────────────────
+
+  /** 校验并规范化钉钉机器人 Webhook（https + oapi.dingtalk.com + /robot/send + access_token） */
+  private parseDingtalkWebhook(raw: string): string {
+    const value = (raw ?? '').trim()
+    if (!value) throw new BadRequestException('请填写 Webhook URL')
+    let u: URL
+    try {
+      u = new URL(value)
+    } catch {
+      throw new BadRequestException('Webhook URL 格式不正确')
+    }
+    if (u.protocol !== 'https:') {
+      throw new BadRequestException('仅支持 https 的钉钉官方 Webhook')
+    }
+    if (u.hostname.toLowerCase() !== DINGTALK_HOST) {
+      throw new BadRequestException('仅允许配置 oapi.dingtalk.com 官方域名的 Webhook')
+    }
+    if (u.username || u.password) {
+      throw new BadRequestException('Webhook URL 中不允许携带用户名密码')
+    }
+    if (!u.pathname.startsWith('/robot/send')) {
+      throw new BadRequestException('请填写钉钉群机器人 Webhook（路径为 /robot/send）')
+    }
+    const token = u.searchParams.get('access_token') ?? ''
+    if (token.length < 10) {
+      throw new BadRequestException('Webhook 缺少有效的 access_token 参数')
+    }
+    // 丢弃多余 query，仅保留 access_token（签名参数由发送时计算）
+    return `https://${DINGTALK_HOST}/robot/send?access_token=${encodeURIComponent(token)}`
+  }
+
+  /** 钉钉脱敏展示：access_token 仅露末 4 位 */
+  private maskDingtalkWebhook(raw: string): string {
+    const u = new URL(raw)
+    const token = u.searchParams.get('access_token') ?? ''
+    return `${u.protocol}//${u.host}${u.pathname}?access_token=****${token.slice(-4)}`
+  }
+
+  private assertDingtalkSecret(raw: string): string | null {
+    const value = (raw ?? '').trim()
+    if (!value) return null
+    if (value.length > 128) throw new BadRequestException('加签密钥最长 128 字符')
+    return value
+  }
+
+  async getDingtalk(tenantId: string) {
+    await this.assertAccess(tenantId)
+    const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const conf = (cfg?.config as any) ?? {}
+    if (!cfg || cfg.status !== 'ACTIVE' || !conf.dingtalkWebhookCipher) {
+      return { configured: false, webhookMask: null, hasSecret: false, lastTestAt: null, updatedAt: null }
+    }
+    let webhookMask = null
+    try {
+      webhookMask = this.maskDingtalkWebhook(this.crypto.decrypt(conf.dingtalkWebhookCipher))
+    } catch {
+      webhookMask = null
+    }
+    return {
+      configured: true,
+      webhookMask,
+      hasSecret: !!conf.dingtalkSecretCipher,
+      lastTestAt: cfg.lastTestAt,
+      updatedAt: cfg.updatedAt,
+    }
+  }
+
+  async saveDingtalk(tenantId: string, userId: string, webhookUrl: string, secret?: string) {
+    await this.assertAccess(tenantId)
+    const url = this.parseDingtalkWebhook(webhookUrl)
+    const signSecret = this.assertDingtalkSecret(secret ?? '')
+    const dingtalkWebhookCipher = this.crypto.encrypt(url)
+
+    const existing = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const merged: any = { ...((existing?.config as any) ?? {}), dingtalkWebhookCipher }
+    // 空 secret 视为清除加签；非空则加密覆盖
+    if (signSecret) merged.dingtalkSecretCipher = this.crypto.encrypt(signSecret)
+    else delete merged.dingtalkSecretCipher
+
+    await this.db.integrationConfig.upsert({
+      where: { tenantId },
+      create: { tenantId, provider: 'FEISHU', status: 'ACTIVE', config: merged },
+      update: { status: 'ACTIVE', config: merged },
+    })
+
+    await this.audit.log({
+      tenantId, userId,
+      action: 'INTEGRATION_DINGTALK_SAVE',
+      resource: 'integration_config',
+      resourceId: tenantId,
+      detail: { provider: 'DINGTALK', host: DINGTALK_HOST, hasSecret: !!signSecret },
+    })
+
+    return { configured: true, webhookMask: this.maskDingtalkWebhook(url), hasSecret: !!signSecret }
+  }
+
+  async deleteDingtalk(tenantId: string, userId: string) {
+    await this.assertAccess(tenantId)
+    const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    if (!cfg || !(cfg.config as any)?.dingtalkWebhookCipher) throw new NotFoundException('尚未配置钉钉集成')
+    const rest = { ...(cfg.config as any) }
+    delete rest.dingtalkWebhookCipher
+    delete rest.dingtalkSecretCipher
+    const hasOthers = !!rest.webhookCipher || !!rest.weworkWebhookCipher
+    await this.db.integrationConfig.update({
+      where: { tenantId },
+      data: { status: hasOthers ? 'ACTIVE' : 'NOT_CONFIGURED', config: rest },
+    })
+    await this.audit.log({
+      tenantId, userId,
+      action: 'INTEGRATION_DINGTALK_REMOVE',
+      resource: 'integration_config',
+      resourceId: tenantId,
+      detail: { provider: 'DINGTALK' },
+    })
+    return { configured: false }
+  }
+
+  /** 发送真实钉钉 markdown 消息（测试通知；含加签支持） */
+  async sendDingtalkTest(tenantId: string, userId: string) {
+    await this.assertAccess(tenantId)
+    const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const conf = (cfg?.config as any) ?? {}
+    if (!cfg || cfg.status !== 'ACTIVE' || !conf.dingtalkWebhookCipher) {
+      throw new BadRequestException('请先保存 Webhook URL')
+    }
+
+    let webhook: string
+    let secret: string | null = null
+    try {
+      webhook = this.crypto.decrypt(conf.dingtalkWebhookCipher)
+      if (conf.dingtalkSecretCipher) secret = this.crypto.decrypt(conf.dingtalkSecretCipher)
+    } catch {
+      throw new BadRequestException('凭证解析失败，请重新保存 Webhook URL')
+    }
+
+    const payload = {
+      msgtype: 'markdown',
+      markdown: {
+        title: 'ClauseMind 测试通知',
+        text: [
+          '## ClauseMind 测试通知',
+          '',
+          '**Webhook 连通测试成功**',
+          '',
+          '来自 ClauseMind 集成中心：审查完成、额度 80% 预警将自动推送到本群。',
+          '',
+          `发送时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+        ].join('\n'),
+      },
+    }
+
+    let url = webhook
+    if (secret) {
+      const timestamp = Date.now()
+      const sign = createHmac('sha256', secret).update(`${timestamp}\n${secret}`).digest('base64')
+      url += `&timestamp=${timestamp}&sign=${encodeURIComponent(sign)}`
+    }
+
+    let upstream: any
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 8000)
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      upstream = await res.json().catch(() => ({ errcode: -1, errmsg: `HTTP ${res.status}` }))
+    } catch {
+      await this.audit.log({
+        tenantId, userId,
+        action: 'INTEGRATION_DINGTALK_TEST',
+        resource: 'integration_config',
+        resourceId: tenantId,
+        detail: { provider: 'DINGTALK', success: false, error: 'network_error' },
+      })
+      throw new BadGatewayException('测试通知发送失败：无法连接钉钉，请检查 Webhook 是否仍然有效')
+    }
+
+    const ok = upstream?.errcode === 0
+    await this.db.integrationConfig.update({
+      where: { tenantId },
+      data: { lastTestAt: new Date() },
+    })
+    await this.audit.log({
+      tenantId, userId,
+      action: 'INTEGRATION_DINGTALK_TEST',
+      resource: 'integration_config',
+      resourceId: tenantId,
+      detail: { provider: 'DINGTALK', success: ok, upstreamCode: upstream?.errcode ?? null },
+    })
+
+    if (!ok) {
+      throw new BadGatewayException(`钉钉返回错误：${upstream?.errmsg || 'unknown'}（errcode ${upstream?.errcode}）`)
+    }
+    return { ok: true, upstream: { errcode: 0, errmsg: upstream.errmsg ?? 'ok' } }
+  }
+
+  // ── 企业微信配置 ─────────────────────────────────────────────────────────
+
+  /** 校验并规范化企微机器人 Webhook（https + qyapi.weixin.qq.com + key 参数） */
+  private parseWeworkWebhook(raw: string): string {
+    const value = (raw ?? '').trim()
+    if (!value) throw new BadRequestException('请填写 Webhook URL')
+    let u: URL
+    try {
+      u = new URL(value)
+    } catch {
+      throw new BadRequestException('Webhook URL 格式不正确')
+    }
+    if (u.protocol !== 'https:') {
+      throw new BadRequestException('仅支持 https 的企业微信官方 Webhook')
+    }
+    if (u.hostname.toLowerCase() !== 'qyapi.weixin.qq.com') {
+      throw new BadRequestException('仅允许配置 qyapi.weixin.qq.com 官方域名的 Webhook')
+    }
+    if (u.username || u.password) {
+      throw new BadRequestException('Webhook URL 中不允许携带用户名密码')
+    }
+    if (!u.pathname.startsWith('/cgi-bin/webhook/send')) {
+      throw new BadRequestException('请填写企业微信群机器人 Webhook（路径为 /cgi-bin/webhook/send）')
+    }
+    const key = u.searchParams.get('key') ?? ''
+    if (key.length < 10) {
+      throw new BadRequestException('Webhook 缺少有效的 key 参数')
+    }
+    return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`
+  }
+
+  /** 企微脱敏展示：key 仅露末 4 位 */
+  private maskWeworkWebhook(raw: string): string {
+    const u = new URL(raw)
+    const key = u.searchParams.get('key') ?? ''
+    return `${u.protocol}//${u.host}${u.pathname}?key=****${key.slice(-4)}`
+  }
+
+  async getWework(tenantId: string) {
+    await this.assertAccess(tenantId)
+    const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const conf = (cfg?.config as any) ?? {}
+    if (!cfg || cfg.status !== 'ACTIVE' || !conf.weworkWebhookCipher) {
+      return { configured: false, webhookMask: null, lastTestAt: null, updatedAt: null }
+    }
+    let webhookMask = null
+    try {
+      webhookMask = this.maskWeworkWebhook(this.crypto.decrypt(conf.weworkWebhookCipher))
+    } catch {
+      webhookMask = null
+    }
+    return { configured: true, webhookMask, lastTestAt: cfg.lastTestAt, updatedAt: cfg.updatedAt }
+  }
+
+  async saveWework(tenantId: string, userId: string, webhookUrl: string) {
+    await this.assertAccess(tenantId)
+    const url = this.parseWeworkWebhook(webhookUrl)
+    const weworkWebhookCipher = this.crypto.encrypt(url)
+
+    const existing = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const merged: any = { ...((existing?.config as any) ?? {}), weworkWebhookCipher }
+    await this.db.integrationConfig.upsert({
+      where: { tenantId },
+      create: { tenantId, provider: 'FEISHU', status: 'ACTIVE', config: merged },
+      update: { status: 'ACTIVE', config: merged },
+    })
+
+    await this.audit.log({
+      tenantId, userId,
+      action: 'INTEGRATION_WEWORK_SAVE',
+      resource: 'integration_config',
+      resourceId: tenantId,
+      detail: { provider: 'WEWORK', host: 'qyapi.weixin.qq.com' },
+    })
+
+    return { configured: true, webhookMask: this.maskWeworkWebhook(url) }
+  }
+
+  async deleteWework(tenantId: string, userId: string) {
+    await this.assertAccess(tenantId)
+    const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    if (!cfg || !(cfg.config as any)?.weworkWebhookCipher) throw new NotFoundException('尚未配置企业微信集成')
+    const rest = { ...(cfg.config as any) }
+    delete rest.weworkWebhookCipher
+    const hasOthers = !!rest.webhookCipher || !!rest.dingtalkWebhookCipher
+    await this.db.integrationConfig.update({
+      where: { tenantId },
+      data: { status: hasOthers ? 'ACTIVE' : 'NOT_CONFIGURED', config: rest },
+    })
+    await this.audit.log({
+      tenantId, userId,
+      action: 'INTEGRATION_WEWORK_REMOVE',
+      resource: 'integration_config',
+      resourceId: tenantId,
+      detail: { provider: 'WEWORK' },
+    })
+    return { configured: false }
+  }
+
+  /** 发送真实企微 markdown 消息（测试通知） */
+  async sendWeworkTest(tenantId: string, userId: string) {
+    await this.assertAccess(tenantId)
+    const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
+    const conf = (cfg?.config as any) ?? {}
+    if (!cfg || cfg.status !== 'ACTIVE' || !conf.weworkWebhookCipher) {
+      throw new BadRequestException('请先保存 Webhook URL')
+    }
+
+    let webhook: string
+    try {
+      webhook = this.crypto.decrypt(conf.weworkWebhookCipher)
+    } catch {
+      throw new BadRequestException('凭证解析失败，请重新保存 Webhook URL')
+    }
+
+    const payload = {
+      msgtype: 'markdown',
+      markdown: {
+        content: [
+          '**ClauseMind 测试通知**',
+          '',
+          '**Webhook 连通测试成功**',
+          '',
+          '来自 ClauseMind 集成中心：审查完成、合同到期 digest、额度 80% 预警将自动推送到本群。',
+          '',
+          `发送时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+        ].join('\n'),
+      },
+    }
+
+    let upstream: any
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 8000)
+      const res = await fetch(webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+      clearTimeout(timer)
+      upstream = await res.json().catch(() => ({ errcode: -1, errmsg: `HTTP ${res.status}` }))
+    } catch {
+      await this.audit.log({
+        tenantId, userId,
+        action: 'INTEGRATION_WEWORK_TEST',
+        resource: 'integration_config',
+        resourceId: tenantId,
+        detail: { provider: 'WEWORK', success: false, error: 'network_error' },
+      })
+      throw new BadGatewayException('测试通知发送失败：无法连接企业微信，请检查 Webhook 是否仍然有效')
+    }
+
+    const ok = upstream?.errcode === 0
+    await this.db.integrationConfig.update({
+      where: { tenantId },
+      data: { lastTestAt: new Date() },
+    })
+    await this.audit.log({
+      tenantId, userId,
+      action: 'INTEGRATION_WEWORK_TEST',
+      resource: 'integration_config',
+      resourceId: tenantId,
+      detail: { provider: 'WEWORK', success: ok, upstreamCode: upstream?.errcode ?? null },
+    })
+
+    if (!ok) {
+      throw new BadGatewayException(`企业微信返回错误：${upstream?.errmsg || 'unknown'}（errcode ${upstream?.errcode}）`)
+    }
+    return { ok: true, upstream: { errcode: 0, errmsg: upstream.errmsg ?? 'ok' } }
   }
 
   // ── 联系开通留资 ────────────────────────────────────────────────────────

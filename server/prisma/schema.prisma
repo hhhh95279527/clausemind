@@ -13,19 +13,19 @@ datasource db {
 // ════════════════════════ 平台层：租户与用户 ════════════════════════
 
 model Tenant {
-  id                String         @id @default(cuid())
-  name              String         @db.VarChar(100)
-  plan              TenantPlan     @default(FREE)
-  workspaceType     WorkspaceType  @default(PERSONAL) @map("workspace_type")
-  status            TenantStatus   @default(ACTIVE)
-  couponBalance     Int            @default(0) @map("coupon_balance")
-  planUpdatedAt     DateTime?      @map("plan_updated_at")
-  planExpiresAt     DateTime?      @map("plan_expires_at") @db.Timestamptz(6)
+  id                String        @id @default(cuid())
+  name              String        @db.VarChar(100)
+  plan              TenantPlan    @default(FREE)
+  workspaceType     WorkspaceType @default(PERSONAL) @map("workspace_type")
+  status            TenantStatus  @default(ACTIVE)
+  couponBalance     Int           @default(0) @map("coupon_balance")
+  planUpdatedAt     DateTime?     @map("plan_updated_at")
+  planExpiresAt     DateTime?     @map("plan_expires_at") @db.Timestamptz(6)
   // 取消订阅（模拟）：权益保留至 planExpiresAt，到期后由定时任务降级 FREE
-  cancelAtPeriodEnd Boolean        @default(false) @map("cancel_at_period_end")
-  monthlyTokenQuota Int            @default(500000) @map("monthly_token_quota")
-  createdAt         DateTime       @default(now()) @map("created_at")
-  updatedAt         DateTime       @updatedAt @map("updated_at")
+  cancelAtPeriodEnd Boolean       @default(false) @map("cancel_at_period_end")
+  monthlyTokenQuota Int           @default(500000) @map("monthly_token_quota")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   users              User[]
   contracts          Contract[]
@@ -61,36 +61,47 @@ enum TenantStatus {
   DISABLED
 }
 
-model User {
-  id           String     @id @default(cuid())
-  username     String     @unique @db.VarChar(50)
-  email        String?    @unique @db.VarChar(100)
-  passwordHash String     @map("password_hash") @db.VarChar(255)
-  displayName  String?    @map("display_name") @db.VarChar(100)
-  avatar       String?    @db.VarChar(500)
-  role         UserRole   @default(USER)
-  status       UserStatus @default(ACTIVE)
-  tenantId     String     @map("tenant_id") @db.VarChar(50)
-  onboardingCompleted Boolean @default(false) @map("onboarding_completed")
-  emailVerified       Boolean @default(false) @map("email_verified")
-  metadata    Json?
-  lastLoginAt  DateTime?  @map("last_login_at")
-  lastLoginIp  String?    @map("last_login_ip") @db.VarChar(45)
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+// 平台级超级管理员：跨租户管理所有企业，独立于 users 表（不属于任何租户）
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  username     String   @unique @db.VarChar(50)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime @default(now()) @map("created_at")
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions      ChatSession[]
-  messages      Message[]
-  uploadedDocs  Document[]     @relation("DocumentUploader")
-  contracts     Contract[]     @relation("ContractUploader")
-  reviewTasks   ReviewTask[]   @relation("Reviewer")
-  auditLogs     AuditLog[]
-  traces        Trace[]
-  refreshTokens RefreshToken[]
-  ledgers       ContractLedger[]
-  playbookRules PlaybookRule[]
-  orders        Order[]
+  @@map("platform_admins")
+}
+
+model User {
+  id                  String     @id @default(cuid())
+  username            String     @unique @db.VarChar(50)
+  email               String?    @unique @db.VarChar(100)
+  passwordHash        String     @map("password_hash") @db.VarChar(255)
+  displayName         String?    @map("display_name") @db.VarChar(100)
+  avatar              String?    @db.VarChar(500)
+  role                UserRole   @default(USER)
+  status              UserStatus @default(ACTIVE)
+  tenantId            String     @map("tenant_id") @db.VarChar(50)
+  onboardingCompleted Boolean    @default(false) @map("onboarding_completed")
+  emailVerified       Boolean    @default(false) @map("email_verified")
+  metadata            Json?
+  lastLoginAt         DateTime?  @map("last_login_at")
+  lastLoginIp         String?    @map("last_login_ip") @db.VarChar(45)
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions         ChatSession[]
+  messages         Message[]
+  uploadedDocs     Document[]        @relation("DocumentUploader")
+  contracts        Contract[]        @relation("ContractUploader")
+  reviewTasks      ReviewTask[]      @relation("Reviewer")
+  auditLogs        AuditLog[]
+  traces           Trace[]
+  refreshTokens    RefreshToken[]
+  ledgers          ContractLedger[]
+  playbookRules    PlaybookRule[]
+  orders           Order[]
   integrationLeads IntegrationLead[] @relation("IntegrationLeadUser")
 
   @@index([tenantId])
@@ -98,9 +109,9 @@ model User {
 }
 
 enum UserRole {
-  ADMIN    // 平台管理员
-  MANAGER  // 审查负责人：分配/终审
-  USER     // 普通成员：发起审查
+  ADMIN // 平台管理员
+  MANAGER // 审查负责人：分配/终审
+  USER // 普通成员：发起审查
   READONLY
 }
 
@@ -136,8 +147,10 @@ model ChatSession {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  // 法规问答：本会话上传的文档（会话删除时级联删除，保证会话间文档隔离）
+  knowledgeDocs Document[] @relation("SessionDocuments")
 
   @@index([userId])
   @@map("chat_sessions")
@@ -190,7 +203,7 @@ model Trace {
   latencyMs    Int         @default(0) @map("latency_ms")
   error        String?     @db.Text
   createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -257,8 +270,8 @@ model EvalCase {
 }
 
 enum EvalType {
-  RISK_DETECT  // 风险检出：precision/recall/F1
-  RAG_RECALL   // 法规检索：recall@k
+  RISK_DETECT // 风险检出：precision/recall/F1
+  RAG_RECALL // 法规检索：recall@k
   FAITHFULNESS // 回答忠实度：LLM-as-Judge
 }
 
@@ -289,15 +302,15 @@ enum EvalRunStatus {
 }
 
 model EvalResult {
-  id           String   @id @default(cuid())
-  runId        String   @map("run_id")
-  caseId       String   @map("case_id")
-  passed       Boolean  @default(false)
-  score        Float    @default(0)
-  actual       Json?
-  judgeReason  String?  @map("judge_reason") @db.Text
-  latencyMs    Int      @default(0) @map("latency_ms")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  runId       String   @map("run_id")
+  caseId      String   @map("case_id")
+  passed      Boolean  @default(false)
+  score       Float    @default(0)
+  actual      Json?
+  judgeReason String?  @map("judge_reason") @db.Text
+  latencyMs   Int      @default(0) @map("latency_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
 
   run  EvalRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
   case EvalCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
@@ -321,18 +334,22 @@ model Document {
   preview    String   @db.VarChar(500)
   tenantId   String?  @map("tenant_id")
   uploadedBy String?  @map("uploaded_by")
+  // 法规问答会话隔离：GENERAL 文档归属到具体会话；LEGAL/TEMPLATE 平台库为 null
+  sessionId  String?  @map("session_id")
   createdAt  DateTime @default(now()) @map("created_at")
 
-  uploader User?       @relation("DocumentUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  uploader User?        @relation("DocumentUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  session  ChatSession? @relation("SessionDocuments", fields: [sessionId], references: [id], onDelete: Cascade)
   chunks   DocChunk[]
 
   @@index([tenantId])
   @@index([docType])
+  @@index([sessionId])
   @@map("documents")
 }
 
 enum DocType {
-  LEGAL    // 法规库
+  LEGAL // 法规库
   TEMPLATE // 公司合同模板库
   GENERAL
 }
@@ -342,7 +359,7 @@ model DocChunk {
   documentId String   @map("document_id")
   chunkIndex Int      @map("chunk_index")
   content    String   @db.Text
-  embedding  Json     // number[] 向量
+  embedding  Json // number[] 向量
   metadata   Json?
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -355,27 +372,29 @@ model DocChunk {
 // ════════════════════════ 业务层：合同风险审查 ════════════════════════
 
 model Contract {
-  id           String         @id @default(cuid())
-  tenantId     String         @map("tenant_id")
-  uploadedBy   String         @map("uploaded_by")
-  title        String         @db.VarChar(200)
-  fileName     String         @map("file_name") @db.VarChar(300)
-  status       ContractStatus @default(UPLOADED)
-  progress     Int            @default(0)
-  parseError   String?        @map("parse_error") @db.Text
-  fileType     String         @default("txt") @db.VarChar(20)
-  scene        ReviewScene    @default(LABOR)
-  charCount    Int            @default(0) @map("char_count")
-  clausesCount Int            @default(0) @map("clauses_count")
-  reportMd     String?        @map("report_md") @db.Text
+  id             String         @id @default(cuid())
+  tenantId       String         @map("tenant_id")
+  uploadedBy     String         @map("uploaded_by")
+  title          String         @db.VarChar(200)
+  fileName       String         @map("file_name") @db.VarChar(300)
+  // 上传原件在磁盘上的相对路径（uploads/xxx）；粘贴文本为 null。导出红划线稿时用于保留原版式
+  storagePath    String?        @map("storage_path") @db.VarChar(300)
+  status         ContractStatus @default(UPLOADED)
+  progress       Int            @default(0)
+  parseError     String?        @map("parse_error") @db.Text
+  fileType       String         @default("txt") @db.VarChar(20)
+  scene          ReviewScene    @default(LABOR)
+  charCount      Int            @default(0) @map("char_count")
+  clausesCount   Int            @default(0) @map("clauses_count")
+  reportMd       String?        @map("report_md") @db.Text
   // 企业审查台「结构化信息」卡（FR：金额/期限/付款节点/关键义务，AI 抽取并缓存；无 Key 不生成）
-  structuredInfo Json?        @map("structured_info")
-  retainUntil  DateTime?      @map("retain_until")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
+  structuredInfo Json?          @map("structured_info")
+  retainUntil    DateTime?      @map("retain_until")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  uploader    User         @relation("ContractUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploader    User             @relation("ContractUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
   clauses     Clause[]
   reviewTasks ReviewTask[]
   risks       Risk[]
@@ -396,13 +415,17 @@ enum ContractStatus {
   FAILED
 }
 
-// 审查场景：FREE 仅前四类，CUSTOM 非标合同仅深度套餐/深度券
+// 审查场景：FREE 支持 LABOR/INTERNSHIP/LEASE/SERVICE/NDA；SALE/LOAN/EQUITY/CUSTOM 仅深度套餐/深度券
 enum ReviewScene {
-  LABOR    // 劳动合同
-  LEASE    // 房屋租赁
-  SERVICE  // 兼职/劳务
-  NDA      // 保密协议
-  CUSTOM   // 非标合同
+  LABOR // 劳动合同
+  INTERNSHIP // 实习协议（在校生，不构成劳动关系）
+  LEASE // 房屋租赁
+  SERVICE // 兼职/劳务
+  NDA // 保密协议
+  SALE // 买卖合同
+  LOAN // 借款/民间借贷
+  EQUITY // 股权转让
+  CUSTOM // 非标合同
 }
 
 model Clause {
@@ -423,14 +446,14 @@ model Clause {
 }
 
 enum ClauseType {
-  PARTIES        // 缔约双方
-  AMOUNT         // 价款/支付
-  TERM           // 期限/交付
-  BREACH         // 违约责任
-  TERMINATION    // 解除/终止
-  GOVERNING_LAW  // 适用法律/争议解决
+  PARTIES // 缔约双方
+  AMOUNT // 价款/支付
+  TERM // 期限/交付
+  BREACH // 违约责任
+  TERMINATION // 解除/终止
+  GOVERNING_LAW // 适用法律/争议解决
   CONFIDENTIALITY
-  IP             // 知识产权
+  IP // 知识产权
   OTHER
 }
 
@@ -447,9 +470,9 @@ model ReviewTask {
   createdAt  DateTime         @default(now()) @map("created_at")
   updatedAt  DateTime         @updatedAt @map("updated_at")
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contract Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  reviewer User?     @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reviewer User?    @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   risks    Risk[]
 
   @@index([tenantId, status])
@@ -462,32 +485,33 @@ enum ReviewTaskStatus {
   WAITING_REVIEW
   APPROVED
   REJECTED
+  FAILED
 }
 
 model Risk {
-  id           String     @id @default(cuid())
-  reviewTaskId String     @map("review_task_id")
-  contractId   String     @map("contract_id")
-  clauseId     String?    @map("clause_id")
-  clauseTitle  String?    @map("clause_title") @db.VarChar(200)
-  quote        String     @db.Text // 命中的原文片段（强制引用，治幻觉）
-  severity     Severity
-  category     String     @db.VarChar(50)
-  title        String     @db.VarChar(200)
-  analysis     String     @db.Text
-  suggestion   String?    @db.Text
-  legalBasis   String?    @map("legal_basis") @db.Text // 法规/模板依据
+  id              String     @id @default(cuid())
+  reviewTaskId    String     @map("review_task_id")
+  contractId      String     @map("contract_id")
+  clauseId        String?    @map("clause_id")
+  clauseTitle     String?    @map("clause_title") @db.VarChar(200)
+  quote           String     @db.Text // 命中的原文片段（强制引用，治幻觉）
+  severity        Severity
+  category        String     @db.VarChar(50)
+  title           String     @db.VarChar(200)
+  analysis        String     @db.Text
+  suggestion      String?    @db.Text
+  legalBasis      String?    @map("legal_basis") @db.Text // 法规/模板依据
   // AI 改稿台（FR-9）：rewritten=可直接替换的改写句；revisionStatus=NONE/PENDING/ACCEPTED/REJECTED
-  rewritten    String?    @db.Text
-  revisionStatus String   @default("NONE") @map("revision_status") @db.VarChar(20)
-  refs         Json?      // RAG 来源 [{docTitle, chunkId, score}]
-  confidence   Float?
-  detectedBy   RiskSource @default(AGENT) @map("detected_by")
-  ruleId       String?    @map("rule_id") @db.VarChar(50)
-  status       RiskStatus @default(PENDING)
-  reviewerComment String? @map("reviewer_comment") @db.Text
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
+  rewritten       String?    @db.Text
+  revisionStatus  String     @default("NONE") @map("revision_status") @db.VarChar(20)
+  refs            Json? // RAG 来源 [{docTitle, chunkId, score}]
+  confidence      Float?
+  detectedBy      RiskSource @default(AGENT) @map("detected_by")
+  ruleId          String?    @map("rule_id") @db.VarChar(50)
+  status          RiskStatus @default(PENDING)
+  reviewerComment String?    @map("reviewer_comment") @db.Text
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
 
   reviewTask ReviewTask @relation(fields: [reviewTaskId], references: [id], onDelete: Cascade)
   contract   Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -616,11 +640,11 @@ model ContractLedger {
   createdAt        DateTime     @default(now()) @map("created_at")
   updatedAt        DateTime     @updatedAt @map("updated_at")
 
-  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  linkedContract  Contract?         @relation("LedgerLinkedContract", fields: [linkedContractId], references: [id], onDelete: SetNull)
-  renewedFrom     ContractLedger?   @relation("LedgerRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
-  renewals        ContractLedger[]  @relation("LedgerRenewal")
-  createdBy       User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  linkedContract Contract?        @relation("LedgerLinkedContract", fields: [linkedContractId], references: [id], onDelete: SetNull)
+  renewedFrom    ContractLedger?  @relation("LedgerRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
+  renewals       ContractLedger[] @relation("LedgerRenewal")
+  createdBy      User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([tenantId, status])
   @@index([tenantId, endDate])
@@ -659,10 +683,10 @@ model PlaybookRule {
 }
 
 enum PlaybookKind {
-  FORBIDDEN   // 红线规则（禁止条款）
-  PREFERENCE  // 偏好口径
-  STANDARD    // 企业标准合同库
-  INDUSTRY    // 行业专项包
+  FORBIDDEN // 红线规则（禁止条款）
+  PREFERENCE // 偏好口径
+  STANDARD // 企业标准合同库
+  INDUSTRY // 行业专项包
 }
 
 enum PlaybookSource {

@@ -152,14 +152,16 @@ export async function refineTypesWithLlm(
     .join('\n')
 
   try {
-    const model = createChatModel({ temperature: 0, streaming: false })
-    const structured = model.withStructuredOutput(TypeArray, { name: 'clause_types' })
+    // 微型分类任务走非思考轻量模型（v4-pro 做这件事要 30~60s，轻量模型 1~3s）
+    const model = createChatModel({ temperature: 0, streaming: false, model: config.ai.lightModel })
+    const structured = model.withStructuredOutput(TypeArray, { method: 'jsonMode' })
     const { types } = await structured.invoke(
       [
         ['system', '你是合同结构解析器。根据每条条款的标题与开头，从给定枚举中选择最准确的条款类型，按输入顺序返回等长数组。'],
         ['human', `条款列表：\n${items}\n\n可选类型：${TYPE_VALUES.join('、')}`],
       ] as any,
-      { callbacks },
+      // 30s 看门狗：超时直接回退词典分类，不阻塞解析
+      { callbacks, signal: AbortSignal.timeout(30_000) },
     )
     let changed = 0
     types.forEach((t, i) => {

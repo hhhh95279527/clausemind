@@ -11,6 +11,8 @@ export default function DocumentUploader() {
   const uploadProgress = useKnowledgeStore((s) => s.uploadProgress)
   const uploadFile = useKnowledgeStore((s) => s.uploadFile)
   const uploadText = useKnowledgeStore((s) => s.uploadText)
+  const scope = useKnowledgeStore((s) => s.scope)
+  const currentSessionId = useKnowledgeStore((s) => s.currentSessionId)
 
   const [showTextInput, setShowTextInput] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
@@ -20,7 +22,7 @@ export default function DocumentUploader() {
 
   const fileIcon = (() => {
     const ext = selectedFile?.name?.split('.').pop()?.toLowerCase()
-    return ext === 'pdf' ? '📄' : ext === 'md' ? '📝' : '📃'
+    return ext === 'pdf' ? '📄' : ext === 'docx' ? '📘' : ext === 'md' ? '📝' : '📃'
   })()
 
   function formatSize(bytes) {
@@ -79,6 +81,37 @@ export default function DocumentUploader() {
     </select>
   )
 
+  // 平台法规库为平台维护的共享只读内容，不提供上传入口
+  if (scope === 'platform') {
+    return (
+      <div className={styles['uploader-wrapper']}>
+        <div className={styles['section-header']}>
+          <h3 className={styles['section-title']}>平台法规库</h3>
+        </div>
+        <div style={{ padding: '4px 2px 12px', fontSize: 12, lineHeight: 1.7, color: 'var(--color-text-muted)' }}>
+          ⚖️ 此处为平台整理并持续更新的法律法规条文库，所有用户可检索提问，<b>不可上传或删除</b>。
+          如需基于自己的文档问答，请切换顶部「📂 我的文档」后上传。
+        </div>
+      </div>
+    )
+  }
+
+  // 我的文档：必须先选定/新建会话。文档按会话隔离，无会话时不展示上传入口
+  if (!currentSessionId) {
+    return (
+      <div className={styles['uploader-wrapper']}>
+        <div className={styles['section-header']}>
+          <h3 className={styles['section-title']}>添加文档</h3>
+        </div>
+        <div style={{ padding: '4px 2px 12px', fontSize: 12, lineHeight: 1.8, color: 'var(--color-text-muted)' }}>
+          💬 请先在中间栏点击 <b>「＋ 新建会话」</b> 或选择一个历史会话。
+          <br />
+          每轮会话上传的文档<b>相互独立</b>：仅在当前会话中可见、可问答；新建会话后需重新上传，删除会话时其文档一并删除。
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={styles['uploader-wrapper']}>
       {/* 标题栏 */}
@@ -112,7 +145,7 @@ export default function DocumentUploader() {
             <input
               ref={fileInput}
               type="file"
-              accept=".txt,.md,.pdf"
+              accept=".txt,.md,.pdf,.docx"
               hidden
               onChange={onFileChange}
             />
@@ -122,7 +155,7 @@ export default function DocumentUploader() {
               <div className={styles['drop-hint']}>
                 <div className={styles['drop-icon']}>📂</div>
                 <div className={styles['drop-text']}>拖拽文件到此处，或点击选择</div>
-                <div className={styles['drop-sub']}>支持 .txt、.md、.pdf，最大 10MB</div>
+                <div className={styles['drop-sub']}>支持 .txt、.md、.pdf、.docx，免费版 8MB / 会员 15MB</div>
               </div>
             ) : (
               /* 已选择文件 */

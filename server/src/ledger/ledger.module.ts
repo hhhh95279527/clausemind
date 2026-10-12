@@ -2,11 +2,12 @@
 // 合同台账（FR-16）。EntitlementsService 由全局 EntitlementsModule 提供。
 import { Module } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module.js'
+import { NotifyBroadcastModule } from '../services/notify/notify-broadcast.module.js'
 import { LedgerController } from './ledger.controller.js'
 import { LedgerService } from './ledger.service.js'
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, NotifyBroadcastModule],
   controllers: [LedgerController],
   providers: [LedgerService],
   exports: [LedgerService],

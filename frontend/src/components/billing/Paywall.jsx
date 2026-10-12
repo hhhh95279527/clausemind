@@ -1,10 +1,11 @@
 // frontend/src/components/billing/Paywall.jsx
 // 统一付费墙：深度券 / 月付 / 年付三入口。文案与 new-review/review/draft 原型一致。
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Modal, Button } from 'antd'
 import { LockOutlined, CheckOutlined } from '@ant-design/icons'
 import { PRICES } from '@/config/plans.js'
+import { trackPaywallShow, trackPaywallClickUpgrade } from '@/utils/analytics.js'
 
 const FEATS = [
   'AI 语义审查 + 法条依据，置信度透明',
@@ -18,16 +19,33 @@ export default function Paywall({
   onClose,
   couponBalance = 0,
   onUseCoupon,
+  source = 'unknown',
   description = '免费版已给出风险点、摘要与评分；深度内容让你知道依据是什么、具体怎么改。',
   cancelText = '暂不解锁，继续看免费结果',
 }) {
   const navigate = useNavigate()
   const [using, setUsing] = useState(false)
 
+  // 漏斗：付费墙曝光（每次打开记一次）
+  useEffect(() => {
+    if (open) trackPaywallShow(source)
+  }, [open, source])
+
+  const goCheckout = (target) => {
+    trackPaywallClickUpgrade(target, source)
+    if (target === 'COUPON_PACK') {
+      navigate('/checkout?item=COUPON_PACK')
+    } else if (target === 'PERSONAL_YEARLY') {
+      navigate('/checkout?plan=PERSONAL&period=yearly')
+    } else {
+      navigate('/checkout?plan=PERSONAL&period=monthly')
+    }
+  }
+
   const useCoupon = async () => {
     if (!couponBalance || couponBalance <= 0) {
       // 无券：第一入口转为购券（FR-12 统一付费墙三入口：券 / 月付 / 年付）
-      navigate('/checkout?item=COUPON_PACK')
+      goCheckout('COUPON_PACK')
       return
     }
     setUsing(true)
@@ -83,10 +101,10 @@ export default function Paywall({
               ? `使用 1 张深度券（余额 ${couponBalance} 张）`
               : `购买深度券 ¥${PRICES.COUPON_UNIT}/份（余额 0 张）`}
           </Button>
-          <Button size="large" block onClick={() => navigate('/checkout?plan=PERSONAL&period=monthly')}>
+          <Button size="large" block onClick={() => goCheckout('PERSONAL_MONTHLY')}>
             开通个人版 ¥{PRICES.PERSONAL_MONTHLY}/月
           </Button>
-          <Button type="link" block onClick={() => navigate('/checkout?plan=PERSONAL&period=yearly')}>
+          <Button type="link" block onClick={() => goCheckout('PERSONAL_YEARLY')}>
             年付 ¥{PRICES.PERSONAL_YEARLY}，省 48% →
           </Button>
         </div>

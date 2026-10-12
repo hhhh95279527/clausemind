@@ -3,7 +3,6 @@
 // 上传请求只入队不等待；Worker 提取文本 → 切条款 →（可选）LLM 类型精修 → 落库回写进度。
 import { Injectable, OnModuleInit } from '@nestjs/common'
 import type { Job } from 'bullmq'
-import fs from 'fs/promises'
 import { DatabaseService } from '../../database/database.service.js'
 import { QueueService, QUEUES } from '../../queue/queue.service.js'
 import { TraceService } from '../../observability/trace.service.js'
@@ -103,8 +102,9 @@ export class ContractParseService implements OnModuleInit {
         where: { id: contractId },
         data: { status: 'FAILED', progress: 0, parseError: (err as Error).message.slice(0, 1000) },
       })
-    } finally {
-      await fs.unlink(filePath).catch(() => {})
     }
+    // 注意：上传原件必须保留在磁盘（路径存 contracts.storage_path），
+    // 导出「保留原版式的红划线 Word」时要以它为底注入 w:ins/w:del。
+    // 文件生命周期跟随合同：主动删除接口与 retention TTL 清理时一并 unlink。
   }
 }

@@ -15,6 +15,13 @@ export interface RetrieveOptions {
   tenantId?: string | null
   /** 旧接口兼容：按 category 文本过滤 */
   category?: string
+  /**
+   * 仅检索本租户私有文档（严格 tenantId 相等，不混入 tenantId=null 的平台共享文档）。
+   * 法规问答页"我的文档"范围使用；默认 false 保持旧调用方行为不变。
+   */
+  ownOnly?: boolean
+  /** 会话级隔离：仅检索该会话上传的文档；须与 ownOnly 同时使用 */
+  sessionId?: string | null
 }
 
 export interface RetrievedChunk {
@@ -43,12 +50,54 @@ function cosine(a: number[], b: number[]): number {
   return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1)
 }
 
-/** 中文无分词器：按标点/空白切词，保留 2 字以上词元 */
-function tokenize(text: string): string[] {
-  return Array.from(new Set(
-    text.split(/[\s，。、？?！!,.；;：:""''（）()【】\[\]《》<>\/\\|\-—_]+/)
-      .filter((t) => t.length >= 2),
-  )).slice(0, 8)
+/**
+ * 轻量中文分词（无外部分词器依赖）：
+ * - 先按标点/空白/数字切片段；
+ * - 拉丁片段整体小写保留；
+ * - 中日韩片段生成 2~4 字滑动 n-gram（法律术语多为 3~4 字：试用期/经济补偿/竞业限制…）；
+ * - 剔除停用字覆盖率过高的噪声 gram，长 gram 优先，总量封顶。
+ */
+const CJK_RE = /[一-鿿]/
+const STOP_CHARS = new Set(
+  '的了是在我你他她它们和与及或者而但也都就很还不没要会能可这个那上下为对把被让给等之以于由',
+)
+const SPLIT_RE = /[\s，。、？?！!,.；;：:"“”'‘’（）()【】\[\]《》<>\/\\|\-—_~`@#$%^&*+=0-9]+/
+
+function stopRatio(gram: string): number {
+  let n = 0
+  for (const ch of gram) if (STOP_CHARS.has(ch)) n++
+  return n / gram.length
+}
+
+export function tokenize(text: string): string[] {
+  const grams34: string[] = []
+  const grams2: string[] = []
+  for (const rawSeg of text.split(SPLIT_RE)) {
+    const seg = rawSeg.trim()
+    if (!seg) continue
+    if (!CJK_RE.test(seg)) {
+      if (seg.length >= 2) grams34.push(seg.toLowerCase())
+      continue
+    }
+    const chars = Array.from(seg)
+    // 短中文片段（2 字）直接作为 bigram
+    if (chars.length === 2) {
+      if (stopRatio(seg) < 1) grams2.push(seg)
+      continue
+    }
+    for (let n = 2; n <= Math.min(4, chars.length); n++) {
+      for (let i = 0; i + n <= chars.length; i++) {
+        const gram = chars.slice(i, i + n).join('')
+        // 超过一半是停用字（如"可以的"）的 gram 没有区分度
+        if (stopRatio(gram) > 0.5) continue
+        if (n >= 3) grams34.push(gram)
+        else grams2.push(gram)
+      }
+    }
+  }
+  const uniq = (arr: string[]) => Array.from(new Set(arr))
+  // 长词元优先（更长的匹配更具区分度），总量控制 SQL OR 规模
+  return [...uniq(grams34).sort((a, b) => b.length - a.length), ...uniq(grams2)].slice(0, 32)
 }
 
 /**
@@ -70,7 +119,12 @@ export async function retrieveFromPg(
   const docWhere: any = {}
   if (opts.docType) docWhere.docType = opts.docType
   if (opts.category) docWhere.category = opts.category
-  if (opts.docType !== 'LEGAL' && opts.docType !== 'TEMPLATE') {
+  if (opts.ownOnly) {
+    // 严格租户私有：只看本租户文档，绝不含平台共享（tenantId=null）
+    docWhere.tenantId = opts.tenantId ?? '__none__'
+    // 会话级隔离：只检索当前会话上传的文档；无会话上下文时永不命中
+    docWhere.sessionId = opts.sessionId || '__none__'
+  } else if (opts.docType !== 'LEGAL' && opts.docType !== 'TEMPLATE') {
     docWhere.OR = opts.tenantId
       ? [{ tenantId: opts.tenantId }, { tenantId: null }]
       : [{ tenantId: null }]
@@ -131,8 +185,8 @@ export async function retrieveFromPg(
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, k)
-    // 归一化到 0~1 区间，仅用于前端展示
-    .map((x) => ({ c: x.c, score: Math.min(0.9, x.score / 20) }))
+    // 归一化到 0~1 区间，仅用于前端展示（n-gram 命中按字数计分，12 字即近满分）
+    .map((x) => ({ c: x.c, score: Math.min(0.92, 0.35 + x.score / 12) }))
 
   const out = scored.map(({ c, score }) => toResult(c, score, 'keyword'))
   await recordRetrieverSpan(

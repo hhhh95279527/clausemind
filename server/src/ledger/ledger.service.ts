@@ -15,6 +15,8 @@ import { AuditService } from '../audit/audit.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
 import { config as appConfig, isValidAiKey } from '../config/index.js'
 import { createChatModel } from '../services/model.js'
+import { NotifyBroadcastService } from '../services/notify/notify-broadcast.service.js'
+import { logger } from '../utils/logger.js'
 import { z } from 'zod'
 
 // 7 类字符串枚举（schema.prisma ContractLedger.contractType 注释同源）
@@ -92,7 +94,40 @@ export class LedgerService {
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
     private readonly entitlements: EntitlementsService,
+    private readonly notify: NotifyBroadcastService,
   ) {}
+
+  /**
+   * 台账生命周期事件群推送（飞书/钉钉/企微三通道，fire-and-forget）。
+   * 操作人姓名查询与发送均在后台完成，绝不阻塞接口响应。
+   */
+  private pushLedgerEvent(
+    tenantId: string,
+    userId: string,
+    spec: { template: 'blue' | 'red' | 'green' | 'orange'; title: string; lines: string[] },
+  ) {
+    void (async () => {
+      const operator = await this.db.user.findUnique({
+        where: { id: userId },
+        select: { displayName: true, username: true },
+      })
+      const base = (appConfig.app.baseUrl || '').replace(/\/+$/, '')
+      await this.notify.send(tenantId, {
+        ...spec,
+        lines: [...spec.lines, `操作人：${operator?.displayName || operator?.username || '未知'}`],
+        url: base ? `${base}/ledger` : null,
+      })
+    })().catch((err) => logger.warn('ledger: notify push failed', { error: (err as Error).message }))
+  }
+
+  /** 台账行通用描述行：员工 / 类型 / 期限 */
+  private ledgerLines(r: ContractLedger): string[] {
+    return [
+      `员工：**${r.employeeName}**`,
+      `合同类型：${(LEDGER_TYPES as any)[r.contractType] ?? r.contractType}`,
+      `合同期限：${toDateStr(r.startDate) ?? '-'} ~ ${toDateStr(r.endDate) ?? '无固定期限'}`,
+    ]
+  }
 
   private serialize(r: ContractLedger & {
     linkedContract?: { id: string; title: string; status: string } | null
@@ -262,6 +297,9 @@ export class LedgerService {
       tenantId, userId, action: 'LEDGER_CREATE', resource: 'contract_ledger', resourceId: row.id,
       detail: { employeeName: row.employeeName, contractType: row.contractType },
     })
+    this.pushLedgerEvent(tenantId, userId, {
+      template: 'green', title: `台账新增：${row.employeeName}`, lines: this.ledgerLines(row),
+    })
     return { item: this.serialize(row, startOfToday()) }
   }
 
@@ -283,6 +321,9 @@ export class LedgerService {
     await this.audit.log({
       tenantId, userId, action: 'LEDGER_UPDATE', resource: 'contract_ledger', resourceId: id,
       detail: { employeeName: row.employeeName },
+    })
+    this.pushLedgerEvent(tenantId, userId, {
+      template: 'blue', title: `台账编辑：${row.employeeName}`, lines: this.ledgerLines(row),
     })
     return { item: this.serialize(row, startOfToday()) }
   }
@@ -310,6 +351,10 @@ export class LedgerService {
       tenantId, userId, action: 'LEDGER_RENEW', resource: 'contract_ledger', resourceId: row.id,
       detail: { employeeName: row.employeeName, renewedFrom: id },
     })
+    this.pushLedgerEvent(tenantId, userId, {
+      template: 'green', title: `合同续签：${row.employeeName}`,
+      lines: [...this.ledgerLines(row), `原记录（${old.employeeName}，至 ${toDateStr(old.endDate) ?? '无固定期限'}）已标记为已续签`],
+    })
     return { item: this.serialize(row, startOfToday()) }
   }
 
@@ -323,6 +368,10 @@ export class LedgerService {
       tenantId, userId, action: 'LEDGER_TERMINATE', resource: 'contract_ledger', resourceId: id,
       detail: { employeeName: existing.employeeName },
     })
+    this.pushLedgerEvent(tenantId, userId, {
+      template: 'orange', title: `协商解除：${existing.employeeName}`,
+      lines: [...this.ledgerLines(existing), '该合同已标记为**协商解除**'],
+    })
     return { ok: true }
   }
 
@@ -332,6 +381,10 @@ export class LedgerService {
     await this.audit.log({
       tenantId, userId, action: 'LEDGER_DELETE', resource: 'contract_ledger', resourceId: id,
       detail: { employeeName: existing.employeeName },
+    })
+    this.pushLedgerEvent(tenantId, userId, {
+      template: 'red', title: `台账删除：${existing.employeeName}`,
+      lines: [...this.ledgerLines(existing), '该台账记录已**永久删除**'],
     })
     return { ok: true }
   }
@@ -370,7 +423,7 @@ export class LedgerService {
       note: z.string().max(500).describe('需要 HR 关注的事项，一句话；没有返回空字符串'),
     })
     const model = createChatModel({ temperature: 0, streaming: false })
-    const structured = model.withStructuredOutput(ExtractSchema, { name: 'ledger_extract' })
+    const structured = model.withStructuredOutput(ExtractSchema, { method: 'jsonMode' })
     const out = await structured.invoke([
       ['human', `你是劳动用工合同台账录入助手。请从下列合同条款中抽取台账字段，只依据合同原文，禁止编造姓名与日期；
 拿不准的字段一律返回空字符串。日期统一输出 YYYY-MM-DD。

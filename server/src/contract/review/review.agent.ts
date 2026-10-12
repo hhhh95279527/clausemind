@@ -69,6 +69,12 @@ const State = Annotation.Root({
 })
 
 const BATCH_SIZE = 6
+// 各批条款相互独立，2 路并发可把 N 批串行等待压缩到约最慢一路（DeepSeek 并发额度有限，不宜过高）
+const REVIEW_CONCURRENCY = 2
+// 每批法条检索的最大工具往返轮次（模型应在一轮内并行发起全部检索）
+const RESEARCH_ROUNDS = 2
+// 单批 LLM 整体看门狗：覆盖 thinking 模型长推理与连接静默，超时后该批降级跳过，不拖垮整份审查
+const BATCH_LLM_TIMEOUT_MS = 180_000
 const REVIEW_TOOLS = [legalSearchTool, calculateTool]
 const reviewToolNode = new ToolNode(REVIEW_TOOLS)
 
@@ -112,16 +118,19 @@ async function ruleScan(state: ReviewState, cfg: any) {
     db!.playbookRule.findMany({ where: { tenantId: state.tenantId, enabled: true } }),
   ])
   const haystack = contract.title + state.clauses.map((c) => c.title + c.content).join('')
-  const labor = LABOR_MARKER.test(haystack)
+  // 规则域：实习协议不构成劳动关系，明确排除 LABOR 域（社保/试用期等规则对实习是误报）；
+  // 其余场景保留"正文用工特征词"文本兜底，覆盖用户类型选择不精确的情况
+  const scene = contract.scene || 'LABOR'
+  const internship = scene === 'INTERNSHIP'
+  const labor = scene === 'LABOR' || (!internship && LABOR_MARKER.test(haystack))
   const findings = runRuleEngine(
     state.clauses.map((c) => ({ id: c.id, indexNo: c.indexNo, title: c.title, content: c.content })),
     rules,
-    { labor },
+    { labor, internship },
   )
 
   // ── Playbook 公司红线/偏好规则并行扫描（FR-17）─────────────────────
   // 合同场景过滤：contractTypes 为空=全类型；'ALL' 通用；否则须包含合同 scene
-  const scene = contract.scene || 'LABOR'
   const pbApplicable = playbookRules.filter(
     (r) => !r.contractTypes.length || r.contractTypes.includes('ALL') || r.contractTypes.includes(scene),
   )
@@ -269,12 +278,26 @@ async function agentReview(state: ReviewState, cfg: any) {
     return {}
   }
 
-  const rules = await db!.reviewRule.findMany({ where: { enabled: true }, orderBy: { sortOrder: 'asc' } })
-  const ruleHints = rules.map((r) => `- 【${r.severity}】${r.name}：${r.prompt}`).join('\n')
+  const [rules, contract] = await Promise.all([
+    db!.reviewRule.findMany({ where: { enabled: true }, orderBy: { sortOrder: 'asc' } }),
+    db!.contract.findUniqueOrThrow({ where: { id: state.contractId }, select: { title: true, scene: true } }),
+  ])
+  // Agent 轨的规则提示与规则引擎保持同一套域过滤，避免劳动域规则误导实习协议语义审查
+  const agentScene = contract.scene || 'LABOR'
+  const agentInternship = agentScene === 'INTERNSHIP'
+  const agentHaystack = contract.title + state.clauses.map((c) => c.title + c.content).join('')
+  const agentLabor = agentScene === 'LABOR' || (!agentInternship && LABOR_MARKER.test(agentHaystack))
+  const scopedRules = rules.filter((r) =>
+    !r.scope || r.scope === 'ALL'
+    || (r.scope === 'LABOR' && agentLabor)
+    || (r.scope === 'INTERNSHIP' && agentInternship),
+  )
+  const ruleHints = scopedRules.map((r) => `- 【${r.severity}】${r.name}：${r.prompt}`).join('\n')
   const ruleRisks = await db!.risk.findMany({ where: { reviewTaskId: state.reviewTaskId, detectedBy: 'RULE' } })
 
   const model = createChatModel({ temperature: 0.1, streaming: false })
-  const structuredModel = model.withStructuredOutput(FindingsSchema, { name: 'contract_risks' })
+  // v4-pro 等 thinking 模型不支持强制 tool_choice（functionCalling 模式），结构化输出走 JSON mode
+  const structuredModel = model.withStructuredOutput(FindingsSchema, { method: 'jsonMode' })
   const callbacks: BaseCallbackHandler[] = cfg.configurable?.traceCallbacks ?? []
 
   // 飞书 P1 MCP 工具：无凭证/加载失败返回 []，不影响审查主链路
@@ -290,114 +313,181 @@ ${ruleHints}
 ## 硬性要求
 1. 只报告真实存在、对委托方（通常是乙方/劳动者/承租方等弱势一方，依合同角色判断）不利的风险；没问题的条款一律不输出，宁缺毋滥
 2. quote 必须逐字复制输入条款中的连续原文片段，严禁改写、拼接或脑补；系统会逐字校验，编造的条目会被丢弃
-3. 凡涉及法律强制性规定（期限上限、比例、必备条款、无效情形）必须先调用 legal_search 检索真实法条，把查到的法条名称与条款号写入 legalBasis；检索不到就留空，禁止凭记忆杜撰
+3. 凡涉及法律强制性规定（期限上限、比例、必备条款、无效情形）必须先调用 legal_search 检索真实法条：在同一轮中一次性并行发起全部待查法条的检索（不要分多轮逐条查），工具往返最多 2 轮；把查到的法条名称与条款号写入 legalBasis；检索不到就留空，禁止凭记忆杜撰
 4. category 只能从以下分类选择：${CATEGORIES.join('、')}
 5. 同一条款可有多个不同风险，但不要重复报告同一问题`
 
-  let accepted = 0
-  let dropped = 0
-
+  // 条款分批：过短条款无审查价值
+  const batches: ClauseSnapshot[][] = []
   for (let i = 0; i < state.clauses.length; i += BATCH_SIZE) {
     const batch = state.clauses.slice(i, i + BATCH_SIZE).filter((c) => c.content.trim().length >= 10)
-    if (!batch.length) continue
+    if (batch.length) batches.push(batch)
+  }
 
+  emit(cfg, 'stage', {
+    stage: 'agent_review',
+    message: `AI 语义审查中（共 ${batches.length} 批，${Math.min(REVIEW_CONCURRENCY, batches.length)} 路并行）`,
+  })
+
+  interface RawFinding { batch: ClauseSnapshot[]; finding: z.infer<typeof FindingSchema> }
+
+  // 单批：研究循环 + 结构化抽取。仅产出内存结果，不写库——
+  // 多批并发时 ruleRisks 的 splice/update 与 risk.create 必须在汇合后串行执行，避免竞态
+  const runBatch = async (batch: ClauseSnapshot[], batchNo: number): Promise<RawFinding[]> => {
     const batchText = batch
       .map((c) => `【第${c.indexNo}条｜${c.title}｜${c.clauseType}】\n${c.content.slice(0, 1500)}`)
       .join('\n\n')
-    emit(cfg, 'stage', {
-      stage: 'agent_review',
-      message: `AI 语义审查中（${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(state.clauses.length / BATCH_SIZE)} 批）`,
-    })
-
+    const invokeOptions = { callbacks, signal: AbortSignal.timeout(BATCH_LLM_TIMEOUT_MS) }
     try {
-      // ── 研究循环：模型可调用 legal_search / calculate（最多 3 轮）──
+      emit(cfg, 'stage', {
+        stage: 'agent_review',
+        message: `第 ${batchNo}/${batches.length} 批开始审查（第 ${batch[0].indexNo}~${batch[batch.length - 1].indexNo} 条），AI 推理中…`,
+      })
+      // ── 研究循环：模型可调用 legal_search / calculate（最多 RESEARCH_ROUNDS 轮）──
       const messages: any[] = [
         new SystemMessage(systemPrompt),
         new HumanMessage(`请审查以下合同条款，需要法条依据时先检索：\n\n${batchText}`),
       ]
-      for (let round = 0; round < 3; round++) {
-        const aiMsg = await model.bindTools(runTools).invoke(messages, { callbacks })
+      let searched = false
+      for (let round = 0; round < RESEARCH_ROUNDS; round++) {
+        const aiMsg = await model.bindTools(runTools).invoke(messages, invokeOptions)
         messages.push(aiMsg)
         if (!(aiMsg as any).tool_calls?.length) break
-        const toolResult = await runToolNode.invoke({ messages: [aiMsg] }, { callbacks })
+        searched = true
+        emit(cfg, 'stage', {
+          stage: 'agent_review',
+          message: `第 ${batchNo}/${batches.length} 批：法条检索完成，继续推理…`,
+        })
+        const toolResult = await runToolNode.invoke({ messages: [aiMsg] }, invokeOptions)
         messages.push(...toolResult.messages)
       }
 
       // ── 结构化抽取 ──
+      emit(cfg, 'stage', {
+        stage: 'agent_review',
+        message: `第 ${batchNo}/${batches.length} 批：${searched ? '推理完成，' : ''}正在生成结构化风险结论…`,
+      })
       messages.push(new HumanMessage(
         '现在把你确认的风险按结构化格式输出。只输出经原文核实的风险，每条 quote 必须能在上面的条款原文中逐字找到；没有风险就返回空数组。',
       ))
-      const parsed = await structuredModel.invoke(messages, { callbacks }) as z.infer<typeof FindingsSchema>
-
-      for (const f of parsed.findings || []) {
-        const clause = batch.find((c) => c.indexNo === f.clauseIndex)
-        if (!clause) { dropped++; continue }
-
-        const quote = extractVerifiedQuote(clause.content, f.quote)
-        if (!quote) {
-          dropped++
-          logger.warn('review: agent finding dropped (quote mismatch)', { taskId: state.reviewTaskId, title: f.title })
-          continue
-        }
-
-        const severity: Severity = ['HIGH', 'MED', 'LOW'].includes(f.severity) ? f.severity : 'MED'
-        const category = CATEGORIES.includes(f.category) ? f.category : '其他'
-
-        // 与规则轨去重合并：同条款 + 同分类/同主题词 → 升级为 BOTH
-        const dup = ruleRisks.find((r) => r.clauseId === clause.id && (
-          r.category === category
-          || MERGE_KEYWORDS.some((k) => (r.title + f.title).includes(k) && r.clauseId === clause.id && (r.title.includes(k) || f.title.includes(k)))
-        ))
-        if (dup && (dup.detectedBy === 'RULE' || dup.detectedBy === 'BOTH')) {
-          await db!.risk.update({
-            where: { id: dup.id },
-            data: {
-              detectedBy: 'BOTH',
-              confidence: 0.95,
-              // AI 提供了更具体的建议/依据时补全规则条目
-              suggestion: dup.suggestion || f.suggestion,
-              legalBasis: dup.legalBasis || (f.legalBasis || null),
-            },
-          })
-          ruleRisks.splice(ruleRisks.indexOf(dup), 1)
-          accepted++
-          continue
-        }
-
-        const created: Risk = await db!.risk.create({
-          data: {
-            reviewTaskId: state.reviewTaskId,
-            contractId: state.contractId,
-            clauseId: clause.id,
-            clauseTitle: clause.title,
-            quote,
-            severity,
-            category,
-            title: f.title.slice(0, 200),
-            analysis: f.analysis,
-            suggestion: f.suggestion || null,
-            legalBasis: f.legalBasis || null,
-            detectedBy: 'AGENT',
-            confidence: f.legalBasis ? 0.9 : 0.7,
-          },
-        })
-        accepted++
-        emit(cfg, 'risk', serializeRisk(created))
-      }
+      const parsed = await structuredModel.invoke(messages, invokeOptions) as z.infer<typeof FindingsSchema>
+      return (parsed.findings || []).map((finding) => ({ batch, finding }))
     } catch (e) {
-      // 单批失败不拖垮整份审查：规则结果仍可交付
-      logger.warn('review: agent batch failed, keep rule results', {
-        taskId: state.reviewTaskId, batch: Math.floor(i / BATCH_SIZE) + 1, error: (e as Error).message,
-      })
-      emit(cfg, 'stage', { stage: 'agent_batch_error', message: `第 ${Math.floor(i / BATCH_SIZE) + 1} 批 AI 审查失败，已跳过` })
+      // 账户级错误（余额不足/密钥失效）不是单批偶发：标记致命，停止调度后续批次
+      const msg = (e as Error).message || ''
+      if (/402|insufficient balance|401|unauthorized|invalid.*api.?key/i.test(msg)) {
+        accountError = /402|insufficient balance/i.test(msg)
+          ? 'AI 模型账户额度不足（402），深度审查无法继续'
+          : 'AI 服务密钥无效或未授权（401），深度审查无法继续'
+        logger.warn('review: agent aborted by account error', { taskId: state.reviewTaskId, batch: batchNo, error: msg })
+      } else {
+        // 单批失败/超时不拖垮整份审查：规则结果仍可交付
+        logger.warn('review: agent batch failed, keep rule results', {
+          taskId: state.reviewTaskId, batch: batchNo, error: msg,
+        })
+        emit(cfg, 'stage', { stage: 'agent_batch_error', message: `第 ${batchNo} 批 AI 审查失败，已跳过` })
+      }
+      return []
     }
   }
 
-  logger.info('review: agent review done', { taskId: state.reviewTaskId, accepted, dropped })
-  emit(cfg, 'stage', {
-    stage: 'agent_done',
-    message: `AI 语义审查完成：新增/确认 ${accepted} 项，引用校验拦截 ${dropped} 项不可靠结论`,
-  })
+  // 有界并发池：各批相互独立，把 N 批串行等待压缩为最慢一路的耗时
+  let cursor = 0
+  let finished = 0
+  // 账户级致命错误（402 余额不足 / 401 密钥失效）：置位后不再调度新批次
+  let accountError: string | null = null
+  const batchResults: RawFinding[][] = new Array(batches.length)
+  const worker = async () => {
+    while (cursor < batches.length && !accountError) {
+      const idx = cursor++
+      batchResults[idx] = await runBatch(batches[idx], idx + 1)
+      if (accountError) break
+      finished++
+      emit(cfg, 'stage', {
+        stage: 'agent_review',
+        message: `AI 语义审查中（已完成 ${finished}/${batches.length} 批）`,
+      })
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(REVIEW_CONCURRENCY, batches.length) }, () => worker()),
+  )
+
+  // ── 汇合后顺序落库 + 规则轨去重合并（ruleRisks 只允许串行读写；致命错误时未调度批次为空洞）──
+  let accepted = 0
+  let dropped = 0
+  for (const items of batchResults) {
+    if (!items) continue
+    for (const { batch, finding: f } of items) {
+      const clause = batch.find((c) => c.indexNo === f.clauseIndex)
+      if (!clause) { dropped++; continue }
+
+      const quote = extractVerifiedQuote(clause.content, f.quote)
+      if (!quote) {
+        dropped++
+        logger.warn('review: agent finding dropped (quote mismatch)', { taskId: state.reviewTaskId, title: f.title })
+        continue
+      }
+
+      const severity: Severity = ['HIGH', 'MED', 'LOW'].includes(f.severity) ? f.severity : 'MED'
+      const category = CATEGORIES.includes(f.category) ? f.category : '其他'
+
+      // 与规则轨去重合并：同条款 + 同分类/同主题词 → 升级为 BOTH
+      const dup = ruleRisks.find((r) => r.clauseId === clause.id && (
+        r.category === category
+        || MERGE_KEYWORDS.some((k) => (r.title + f.title).includes(k) && r.clauseId === clause.id && (r.title.includes(k) || f.title.includes(k)))
+      ))
+      if (dup && (dup.detectedBy === 'RULE' || dup.detectedBy === 'BOTH')) {
+        await db!.risk.update({
+          where: { id: dup.id },
+          data: {
+            detectedBy: 'BOTH',
+            confidence: 0.95,
+            // AI 提供了更具体的建议/依据时补全规则条目
+            suggestion: dup.suggestion || f.suggestion,
+            legalBasis: dup.legalBasis || (f.legalBasis || null),
+          },
+        })
+        ruleRisks.splice(ruleRisks.indexOf(dup), 1)
+        accepted++
+        continue
+      }
+
+      const created: Risk = await db!.risk.create({
+        data: {
+          reviewTaskId: state.reviewTaskId,
+          contractId: state.contractId,
+          clauseId: clause.id,
+          clauseTitle: clause.title,
+          quote,
+          severity,
+          category,
+          title: f.title.slice(0, 200),
+          analysis: f.analysis,
+          suggestion: f.suggestion || null,
+          legalBasis: f.legalBasis || null,
+          detectedBy: 'AGENT',
+          confidence: f.legalBasis ? 0.9 : 0.7,
+        },
+      })
+      accepted++
+      emit(cfg, 'risk', serializeRisk(created))
+    }
+  }
+
+  logger.info('review: agent review done', { taskId: state.reviewTaskId, accepted, dropped, accountError })
+  if (accountError) {
+    // 账户级错误：规则轨结果仍展示，但必须明确告知用户 AI 轨未完成，不能假装"审查完成"
+    emit(cfg, 'stage', {
+      stage: 'agent_skip',
+      message: `${accountError}；本次仅输出规则引擎结果${accepted ? `（中止前已确认 ${accepted} 项）` : ''}，请联系管理员充值/检查密钥后重新审查`,
+    })
+  } else {
+    emit(cfg, 'stage', {
+      stage: 'agent_done',
+      message: `AI 语义审查完成：新增/确认 ${accepted} 项，引用校验拦截 ${dropped} 项不可靠结论`,
+    })
+  }
   return {}
 }
 

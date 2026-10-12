@@ -2,18 +2,19 @@
 // 定价页（FR-2）：四档套餐 + 月付/年付纯前端切换 + 深度审查券 + 权益对比表 + FAQ + 企业留资弹窗
 // 文案唯一来源 docs/prototype/pricing.html
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Modal, Form, Input, message } from 'antd'
 import { TagOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
 import { homePath } from '@/utils/persona.js'
+import http from '@/utils/http.js'
 import PublicChrome from './PublicChrome.jsx'
 import styles from './PricingView.module.css'
 
 const PLAN_FREE_FEATS = [
   '每月 2 份审查额度',
   '单份 3000 字以内',
-  '劳动 / 租赁 / 劳务 / NDA 四类合同',
+  '劳动 / 实习 / 租赁 / 劳务 / NDA 五类合同',
   '风险点 + 大白话摘要 + 风险评分',
   '水印版摘要 PDF',
   '审查记录保留 7 天',
@@ -49,7 +50,7 @@ const PLAN_ENT_FEATS = [
 // 权益明细对比：行 = 权益，列 = FREE/PERSONAL/TEAM/ENTERPRISE；'yes' 显示 ✓，'no' 显示 ✕，字符串直接展示
 const COMPARE_ROWS = [
   { name: '月度额度', cells: ['每月 2 份', '不限份数', '不限份数（按席位）', '不限席位与额度'] },
-  { name: '合同类型', cells: ['劳动 / 租赁 / 劳务 / NDA', '不限，含非标与长文档', '不限，含非标与长文档', '不限，含行业专项包'] },
+  { name: '合同类型', cells: ['劳动 / 实习 / 租赁 / 劳务 / NDA', '不限，含买卖借款股权与长文档', '不限，含买卖借款股权与长文档', '不限，含行业专项包'] },
   { name: '风险点与摘要评分', cells: ['yes', 'yes', 'yes', 'yes'] },
   { name: '法条依据 / 修改建议 / 替代措辞', cells: ['no', 'yes', 'yes', 'yes'] },
   { name: 'AI 多轮改稿', cells: ['no', 'yes', 'yes', 'yes'] },
@@ -83,8 +84,10 @@ function Cell({ v }) {
 }
 
 export default function PricingView() {
+  const navigate = useNavigate()
   const [period, setPeriod] = useState('monthly') // monthly | yearly
   const [contactOpen, setContactOpen] = useState(false)
+  const [contactSubmitting, setContactSubmitting] = useState(false)
   const [contactForm] = Form.useForm()
   const user = useAuthStore((s) => s.user)
 
@@ -93,11 +96,29 @@ export default function PricingView() {
   const teamHref = user ? homePath(user) : '/register#form-team'
   const freeHref = user ? homePath(user) : '/register'
 
-  const submitContact = () => {
-    // 演示环境：静态留资，不产生真实工单（原型明示）
-    setContactOpen(false)
-    contactForm.resetFields()
-    message.success('需求已记录（演示环境，不产生真实工单）')
+  // 企业顾问留资：真实提交（审计落库 + 邮件通知管理员）；未登录引导先注册/登录
+  const submitContact = async () => {
+    if (!user) {
+      message.info('请先注册或登录后再提交咨询')
+      navigate('/register')
+      return
+    }
+    const v = await contactForm.validateFields()
+    setContactSubmitting(true)
+    try {
+      await http.post('/billing/enterprise-lead', {
+        company: v.company,
+        contact: v.contact,
+        note: v.note,
+      })
+      setContactOpen(false)
+      contactForm.resetFields()
+      message.success('需求已提交，我们会尽快与你联系')
+    } catch (err) {
+      message.error(err.response?.data?.error?.message || '提交失败，请稍后重试')
+    } finally {
+      setContactSubmitting(false)
+    }
   }
 
   return (
@@ -241,20 +262,21 @@ export default function PricingView() {
         open={contactOpen}
         onCancel={() => setContactOpen(false)}
         onOk={submitContact}
+        confirmLoading={contactSubmitting}
         okText="提交需求"
         cancelText="取消"
       >
         <Form form={contactForm} layout="vertical" style={{ marginTop: 12 }}>
-          <Form.Item name="name" label="姓名" rules={[{ required: true, message: '请输入您的姓名' }]}>
-            <Input placeholder="请输入您的姓名" />
+          <Form.Item name="company" label="公司名称" rules={[{ required: true, message: '请填写公司名称' }]}>
+            <Input placeholder="例如：北京某某科技有限公司" maxLength={100} />
           </Form.Item>
-          <Form.Item name="phone" label="电话" rules={[{ required: true, message: '请输入手机号或座机' }]}>
-            <Input placeholder="请输入手机号或座机" />
+          <Form.Item name="contact" label="联系方式（手机 / 邮箱）" rules={[{ required: true, message: '请填写联系方式' }]}>
+            <Input placeholder="便于顾问与你联系" maxLength={100} />
           </Form.Item>
-          <Form.Item name="demand" label="需求">
-            <Input.TextArea rows={3} placeholder="团队规模、关注的合同类型、是否需要私有化 / 集成等" />
+          <Form.Item name="note" label="需求描述">
+            <Input.TextArea rows={3} maxLength={500} placeholder="团队规模、关注的合同类型、是否需要私有化 / 集成等" />
           </Form.Item>
-          <p className={styles.formNote}>演示环境：提交仅为静态展示，不产生真实工单。</p>
+          <p className={styles.formNote}>提交后管理员将收到邮件通知，我们会尽快与你联系。</p>
         </Form>
       </Modal>
     </PublicChrome>

@@ -185,6 +185,8 @@ export interface IngestInput {
   docType?: DocType
   tenantId?: string | null
   uploadedBy?: string | null
+  /** 法规问答会话隔离：GENERAL 文档归属的会话 ID（LEGAL/TEMPLATE 平台库不传） */
+  sessionId?: string | null
   /** 指定文档 ID（种子数据幂等用）；不传则自动生成 */
   docId?: string
   /** 入库后是否删除临时文件，默认删除 */
@@ -242,6 +244,7 @@ export async function ingestDocument(input: IngestInput) {
       preview: rawText.slice(0, 500).replace(/\s+/g, ' '),
       tenantId: input.tenantId ?? null,
       uploadedBy: input.uploadedBy ?? null,
+      sessionId: input.sessionId ?? null,
     },
   })
   await db.docChunk.createMany({
@@ -285,16 +288,36 @@ export async function ingestText(input: Omit<IngestInput, 'filePath' | 'fileName
 }
 
 // ── 文档注册表（按租户/类型过滤）──────────────────────────────
-export async function getDocRegistry(filter: { tenantId?: string | null; docType?: DocType } = {}) {
+// scope:
+//   'mine'      仅本租户上传的 GENERAL 文档（严格 tenantId 相等，不含平台共享）
+//   'platform'  仅平台共享的 LEGAL 法规库（tenantId=null）
+//   undefined   旧行为：本租户 + 全部平台共享（LEGAL/TEMPLATE），仅非问答页调用方使用
+export async function getDocRegistry(
+  filter: { tenantId?: string | null; docType?: DocType; scope?: 'mine' | 'platform'; sessionId?: string | null } = {},
+) {
   if (!db) return []
-  const docs = await db.document.findMany({
-    where: {
+  let where: any = {}
+  if (filter.scope === 'mine') {
+    // 会话级隔离：我的文档只返回当前会话上传的 GENERAL 文档；
+    // 未指定会话时给一个永不匹配的值（而不是退回租户全量，防止跨会话泄漏）
+    where = {
+      docType: 'GENERAL',
+      tenantId: filter.tenantId ?? '__none__',
+      sessionId: filter.sessionId || '__none__',
+    }
+  } else if (filter.scope === 'platform') {
+    where = { docType: 'LEGAL', tenantId: null }
+  } else {
+    where = {
       ...(filter.docType ? { docType: filter.docType } : {}),
       // 法规/模板为平台共享；普通库只看本租户 + 共享文档
       ...(filter.tenantId
         ? { OR: [{ tenantId: filter.tenantId }, { tenantId: null }] }
         : {}),
-    },
+    }
+  }
+  const docs = await db.document.findMany({
+    where,
     orderBy: { createdAt: 'desc' },
   })
   return docs.map((d) => ({

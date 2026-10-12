@@ -1,7 +1,7 @@
 // frontend/src/components/rag/DocumentList.jsx
 // 文档列表：展示已入库的文档，支持删除和分类筛选
-import { useState } from 'react'
-import { Modal } from 'antd'
+import { useState, useEffect } from 'react'
+import { App as AntdApp } from 'antd'
 import { useKnowledgeStore } from '@/stores/knowledge.js'
 import styles from './DocumentList.module.css'
 
@@ -29,8 +29,16 @@ export default function DocumentList() {
   const categories = useKnowledgeStore((s) => s.categories)
   const loadDocuments = useKnowledgeStore((s) => s.loadDocuments)
   const deleteDocument = useKnowledgeStore((s) => s.deleteDocument)
+  const scope = useKnowledgeStore((s) => s.scope)
+  const currentSessionId = useKnowledgeStore((s) => s.currentSessionId)
+  const isPlatform = scope === 'platform'
+  // React 19 下 antd 静态方法 Modal.confirm 无法弹框，必须用 App 上下文的 modal
+  const { modal } = AntdApp.useApp()
 
   const [activeCategory, setActiveCategory] = useState('')
+
+  // 切换范围或会话时重置本地分类 tab（每个会话文档独立）
+  useEffect(() => { setActiveCategory('') }, [scope, currentSessionId])
 
   const filteredDocs = !activeCategory
     ? documents
@@ -42,7 +50,7 @@ export default function DocumentList() {
   }
 
   function confirmDelete(doc) {
-    Modal.confirm({
+    modal.confirm({
       title: '删除文档',
       content: `确定删除「${doc.title}」？删除后无法恢复。`,
       okText: '删除',
@@ -59,7 +67,7 @@ export default function DocumentList() {
   return (
     <div className={styles['doc-list-wrapper']}>
       <div className={styles['list-header']}>
-        <span className={styles['list-title']}>知识库文档</span>
+        <span className={styles['list-title']}>{isPlatform ? '平台法规库' : '本会话文档'}</span>
         <span className={styles['doc-count']}>{filteredDocs.length} 篇</span>
       </div>
 
@@ -81,9 +89,15 @@ export default function DocumentList() {
       {/* 空状态 */}
       {!filteredDocs.length ? (
         <div className={styles['empty-state']}>
-          <div className={styles.icon}>📭</div>
-          <div>还没有文档</div>
-          <div className={styles.sub}>上传文档后可以进行问答</div>
+          <div className={styles.icon}>{isPlatform ? '⚖️' : '📭'}</div>
+          <div>{isPlatform ? '平台法规库暂无条文' : currentSessionId ? '本会话还没有文档' : '未选择会话'}</div>
+          <div className={styles.sub}>
+            {isPlatform
+              ? '请稍后再来查看'
+              : currentSessionId
+                ? '在上方上传文档后即可基于文档问答，文档仅本会话可见'
+                : '新建或选择一个会话后，可为其上传独立文档'}
+          </div>
         </div>
       ) : (
         /* 文档列表 */
@@ -102,13 +116,15 @@ export default function DocumentList() {
                 {/* 预览文本 */}
                 <div className={styles['doc-preview']}>{doc.preview}</div>
               </div>
-              <button
-                className={styles['btn-delete']}
-                onClick={() => confirmDelete(doc)}
-                title="删除文档"
-              >
-                🗑
-              </button>
+              {!isPlatform && (
+                <button
+                  className={styles['btn-delete']}
+                  onClick={() => confirmDelete(doc)}
+                  title="删除文档"
+                >
+                  🗑
+                </button>
+              )}
             </div>
           ))}
         </div>

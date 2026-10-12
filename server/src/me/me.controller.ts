@@ -13,7 +13,7 @@ import { PlanLimitException } from '../billing/plan-limit.exception.js'
 export const FOLLOW_RISK_OPTIONS = ['押金', '定金 / 订金', '违约金', '试用期', '社保', '竞业限制', '争议管辖']
 const TONES = ['RIGOROUS', 'PLAIN'] as const
 const STANCES = ['LESSEE', 'LESSOR'] as const
-const SCENES = ['LABOR', 'LEASE', 'SERVICE', 'NDA', 'CUSTOM']
+const SCENES = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM']
 const FREE_LIBRARY_LIMIT = 3
 
 export interface ClauseLibraryItem {

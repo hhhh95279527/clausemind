@@ -6,7 +6,7 @@ import {
   ClockCircleOutlined, MessageOutlined, CheckCircleFilled,
   FileTextOutlined, HomeOutlined, SolutionOutlined, LockOutlined,
   SafetyCertificateOutlined, EditOutlined, CameraOutlined, CalendarOutlined,
-  UserOutlined, BankOutlined, TagOutlined,
+  UserOutlined, BankOutlined, TagOutlined, ReadOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
 import { homePath } from '@/utils/persona.js'
@@ -33,6 +33,7 @@ const FREE_CARDS = [
 
 const SCENES = [
   { icon: <FileTextOutlined />, title: '劳动合同', desc: '试用期、违约金、社保、竞业限制，入职前先过一遍。' },
+  { icon: <ReadOutlined />, title: '实习协议', desc: '实习工时、补贴、责任险与高危岗位，在校生签约前看清。' },
   { icon: <HomeOutlined />, title: '房屋租赁', desc: '押金、维修责任、提前退租、涨租条款，租房不吃哑巴亏。' },
   { icon: <SolutionOutlined />, title: '兼职劳务', desc: '劳务报酬、结算周期、工伤责任，接私活也要看明白。' },
   { icon: <LockOutlined />, title: '保密与竞业 NDA', desc: '保密范围、补偿金、竞业期限，签字前搞清代价。' },
@@ -80,7 +81,7 @@ const REPORT_ROWS = [
 ]
 
 const PRICE_CARDS = [
-  { code: 'FREE', name: 'FREE', price: '¥0', priceSmall: '', desc: '每月 2 份 · 3000 字以内 · 四类合同 · 风险点 + 摘要 + 评分 · 记录保留 7 天', cta: '免费开始' },
+  { code: 'FREE', name: 'FREE', price: '¥0', priceSmall: '', desc: '每月 2 份 · 3000 字以内 · 五类合同 · 风险点 + 摘要 + 评分 · 记录保留 7 天', cta: '免费开始' },
   { code: 'PERSONAL', name: 'PERSONAL', price: '¥19', priceSmall: '/月', desc: '或 ¥99/年（省 48%）· 不限份数与长度 · 深度报告 · 多轮改稿 · 永久存档', cta: '查看个人版' },
   { code: 'TEAM', name: 'TEAM', price: '¥99', priceSmall: '/席/月', desc: '5 席位 · 企业 Playbook · 审批流转 · 不限台账 · 飞书通知', cta: '查看团队版' },
   { code: 'ENTERPRISE', name: 'ENTERPRISE', price: '定制', priceSmall: '', desc: '不限席位 · 行业专项包 · SSO / 私有化 / API · 审计存证 · 专属客户成功', cta: '联系我们' },
@@ -155,8 +156,8 @@ export default function LandingView() {
       {/* 场景入口 */}
       <section className={`${styles.section} ${styles.sectionTight}`}>
         <h2 className={styles.sectionTitle}>你手上是哪种合同？</h2>
-        <p className={styles.sectionSub}>免费版覆盖四类高频合同，上传即审</p>
-        <div className={styles.grid4}>
+        <p className={styles.sectionSub}>免费版覆盖五类高频合同，上传即审</p>
+        <div className={styles.grid5}>
           {SCENES.map((s) => (
             <Link key={s.title} to="/register" className={`${styles.cardFlat} ${styles.sceneCard}`}>
               <div className={styles.cardIcon}>{s.icon}</div>

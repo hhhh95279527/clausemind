@@ -20,9 +20,10 @@
 .panelHead h3 { font-size: 14.5px; font-weight: 600; }
 .panelBody { padding: 16px 18px; }
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.grid5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-@media (max-width: 1200px) { .grid4 { grid-template-columns: repeat(2, 1fr); } .grid3 { grid-template-columns: 1fr; } }
+@media (max-width: 1200px) { .grid4, .grid5 { grid-template-columns: repeat(2, 1fr); } .grid3 { grid-template-columns: 1fr; } }
 
 .cardFlat {
   display: block; background: var(--color-surface);
@@ -136,7 +137,7 @@
 .homeEmpty { text-align: center; padding: 22px 0 6px; }
 
 /* ═══════════════ NEW REVIEW ═══════════════ */
-.types { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 @media (max-width: 1200px) { .types { grid-template-columns: repeat(2, 1fr); } }
 .typeCard {
   position: relative; display: flex; flex-direction: column; gap: 8px;
@@ -264,6 +265,8 @@
 }
 .stageDone { background: color-mix(in srgb, var(--color-success) 14%, transparent); color: var(--color-success); }
 .stageWait { background: var(--color-primary-bg); color: var(--color-primary); }
+.stageRun { background: color-mix(in srgb, var(--color-warning) 16%, transparent); color: var(--color-warning); }
+.stageIdle { background: var(--color-border-light, #e5e7eb); color: var(--color-text-muted); }
 
 .bottomBar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .disclaimer { text-align: center; font-size: 12px; color: var(--color-text-muted); }

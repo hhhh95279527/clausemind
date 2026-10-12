@@ -70,7 +70,15 @@ export const useRevisionStore = create((set) => ({
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `修订稿.docx`
+    // 优先用后端下发的文件名（原文档名（修订后）.docx）
+    const cd = resp.headers.get('Content-Disposition') || ''
+    const star = cd.match(/filename\*=UTF-8''([^;]+)/i)
+    const plain = cd.match(/filename="?([^";]+)"?/i)
+    a.download = star
+      ? decodeURIComponent(star[1])
+      : plain
+        ? plain[1]
+        : '修订稿.docx'
     document.body.appendChild(a)
     a.click()
     a.remove()

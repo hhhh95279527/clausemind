@@ -104,7 +104,7 @@ export class EntitlementsService {
     if (!def.allowedScenes.includes(input.scene)) {
       throw new PlanLimitException(
         'CONTRACT_TYPE',
-        '免费版仅支持劳动 / 租赁 / 劳务 / NDA 四类合同，非标合同请升级或用深度券',
+        '免费版支持劳动 / 实习 / 租赁 / 劳务 / NDA 五类合同，买卖、借款、股权转让及非标合同请升级或用深度券',
         'review.scene',
       )
     }

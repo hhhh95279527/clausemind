@@ -18,6 +18,19 @@ export const RECOMMENDATIONS = {
       { docId: 'tpl_labor_fixed', title: '标准劳动合同（固定期限）' },
       { docId: 'tpl_renew_notice', title: '劳动合同续签通知书' },
       { docId: 'tpl_offer', title: '录用通知书 Offer' },
+    ],
+  },
+  INTERNSHIP: {
+    guide: {
+      title: '实习协议避坑要点',
+      bullets: [
+        '在校生实习不构成劳动关系，协议里不应约定"试用期"，可改为实习考核',
+        '单位不得安排实习生加班、夜班和通宵作业，跟岗实习每日不超 8 小时',
+        '实习单位应为你投保实习责任保险，保险费用不能甩给学生',
+        '高空、井下、有毒有害、易燃易爆等高危岗位实习可直接拒绝',
+      ],
+    },
+    templates: [
       { docId: 'tpl_intern', title: '实习协议（在校生）' },
     ],
   },
@@ -62,6 +75,48 @@ export const RECOMMENDATIONS = {
     templates: [
       { docId: 'tpl_nda', title: '保密与竞业限制协议 NDA' },
       { docId: 'tpl_confidentiality', title: '保密协议' },
+    ],
+  },
+  SALE: {
+    guide: {
+      title: '买卖合同避坑要点',
+      bullets: [
+        '标的物名称、规格、数量与质量标准要写具体，避免"按样品"却不留存样品',
+        '约定明确的检验期间与质量异议期，超期未提异议可能被视为合格',
+        '定金不超过合同总额 20%，定金与违约金原则上只能择一主张',
+        '交付时间、地点与风险转移节点要和运费承担条款对应清楚',
+      ],
+    },
+    templates: [
+      { docId: 'tpl_sale', title: '货物买卖合同（通用版）' },
+    ],
+  },
+  LOAN: {
+    guide: {
+      title: '借款合同避坑要点',
+      bullets: [
+        '约定利率不得超过合同成立时一年期 LPR 的四倍，超出部分法院不支持',
+        '利息不得预先在本金中扣除（砍头息按实际出借金额算本金）',
+        '大额借款建议银行转账并备注"借款"，保留对方身份信息',
+        '有保证人的要写明"连带保证"还是"一般保证"及保证期间',
+      ],
+    },
+    templates: [
+      { docId: 'tpl_loan', title: '民间借贷合同' },
+    ],
+  },
+  EQUITY: {
+    guide: {
+      title: '股权转让避坑要点',
+      bullets: [
+        '对外转让需书面通知其他股东，注意其他股东 30 日优先购买权',
+        '核实转让股权是否已实缴出资，认缴出资义务通常由受让方承继',
+        '约定转让款分期与工商变更登记的先后顺序，防止"钱股两空"',
+        '交割前的公司债务、或有负债与税务责任要设赔偿兜底条款',
+      ],
+    },
+    templates: [
+      { docId: 'tpl_equity_transfer', title: '股权转让协议' },
     ],
   },
   CUSTOM: {

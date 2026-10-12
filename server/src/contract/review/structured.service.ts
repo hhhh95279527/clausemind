@@ -56,7 +56,7 @@ export class StructuredService {
     if (!text.trim()) throw new BadRequestException('该合同尚未解析出条款文本，无法抽取结构化信息')
 
     const model = createChatModel({ temperature: 0, streaming: false })
-    const structured = model.withStructuredOutput(StructuredSchema, { name: 'contract_structured' })
+    const structured = model.withStructuredOutput(StructuredSchema, { method: 'jsonMode' })
     const out = await structured.invoke([
       ['human', `你是合同结构化信息抽取助手。请从下列合同条款中抽取业务方最关心的结构化字段：
 - 只依据合同原文，禁止编造金额与日期；拿不准的字段返回空字符串或空数组。

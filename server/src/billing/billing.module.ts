@@ -3,12 +3,13 @@
 // EntitlementsService 由全局 EntitlementsModule 提供；AuditService 需导入 AuditModule。
 import { Module } from '@nestjs/common'
 import { AuditModule } from '../audit/audit.module.js'
+import { AuthModule } from '../auth/auth.module.js'
 import { OrdersController } from './orders.controller.js'
 import { OrdersService } from './orders.service.js'
 import { SubscriptionLifecycleService } from './subscription-lifecycle.service.js'
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, AuthModule],
   controllers: [OrdersController],
   providers: [OrdersService, SubscriptionLifecycleService],
 })

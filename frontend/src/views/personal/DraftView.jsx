@@ -296,6 +296,7 @@ export default function DraftView() {
         open={paywall}
         onClose={() => setPaywall(false)}
         couponBalance={couponBalance}
+        source="draft"
         onUseCoupon={unlockWithCoupon}
         description="深度券与个人版均可解锁本份合同的 AI 多轮改稿与 Word 红划线导出。"
         cancelText="暂不解锁"

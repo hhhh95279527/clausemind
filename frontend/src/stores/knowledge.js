@@ -1,11 +1,14 @@
 // frontend/src/stores/knowledge.js
-// 知识库模块状态：文档列表、上传、问答
+// 知识库模块状态：文档范围（我的文档/平台法规库）、多会话管理、文档上传、问答
 import { create } from 'zustand'
 import http, { fetchStream } from '@/utils/http.js'
 import { useAppStore } from './app.js'
 import { useAuthStore } from './auth.js'
 
 let msgId = 0
+
+// 无会话/空分类时的默认下拉项
+const DEFAULT_CATEGORIES = [{ value: '', label: '全部文档' }]
 
 export const useKnowledgeStore = create((set, get) => {
   // 局部更新某条问答消息
@@ -14,31 +17,66 @@ export const useKnowledgeStore = create((set, get) => {
   }))
 
   return {
-    // ── 文档管理 ───────────────────────────────────────────────
+    // ── 文档范围 ───────────────────────────────────────────────
+    // mine：仅当前用户上传的私有文档（默认，问答只基于这些文档）
+    // platform：平台维护的共享法规库（只读）
+    scope: 'mine',
     documents: [],
-    categories: [],
+    categories: DEFAULT_CATEGORIES,
     uploading: false,
     uploadProgress: 0,  // 0-100
 
+    setScope: async (scope) => {
+      if (scope === get().scope) return
+      set({ scope, filterCategory: '' })
+      await Promise.all([get().loadDocuments(), get().loadCategories()])
+    },
+
+    // 文档严格按"范围 + 当前会话"加载：
+    // - 我的文档：只加载当前会话上传的文档；无会话时直接为空，绝不展示其他会话的文档
+    // - 平台法规库：加载平台共享的 6 部法规（与会话无关）
     loadDocuments: async (category = '') => {
-      const params = category ? `?category=${category}` : ''
-      const data = await http.get(`/knowledge/documents${params}`)
+      const scope = get().scope
+      const params = new URLSearchParams({ scope })
+      if (category) params.set('category', category)
+      if (scope === 'mine') {
+        const sessionId = get().currentSessionId
+        if (!sessionId) {
+          set({ documents: [] })
+          return
+        }
+        params.set('sessionId', sessionId)
+      }
+      const data = await http.get(`/knowledge/documents?${params}`)
       set({ documents: data.documents })
     },
 
     loadCategories: async () => {
-      const data = await http.get('/knowledge/categories')
+      const scope = get().scope
+      if (scope === 'mine' && !get().currentSessionId) {
+        set({ categories: DEFAULT_CATEGORIES })
+        return
+      }
+      const params = new URLSearchParams({ scope })
+      if (scope === 'mine') params.set('sessionId', get().currentSessionId)
+      const data = await http.get(`/knowledge/categories?${params}`)
       set({ categories: data.categories })
     },
 
-    // 上传文件
+    // 上传文件（归入当前会话的"我的文档"，会话间隔离）
     uploadFile: async (file, { title, category }) => {
+      const sessionId = get().currentSessionId
+      if (!sessionId) {
+        useAppStore.getState().toast.error('请先新建会话后再上传文档')
+        throw new Error('no session')
+      }
       set({ uploading: true, uploadProgress: 0 })
 
       const formData = new FormData()
       formData.append('file', file)
       formData.append('title', title || file.name.replace(/\.[^.]+$/, ''))
       formData.append('category', category || '通用')
+      formData.append('sessionId', sessionId)
 
       try {
         // 用原生 XMLHttpRequest 监听上传进度；
@@ -84,6 +122,8 @@ export const useKnowledgeStore = create((set, get) => {
           result = await sendXhr(data.accessToken)
         }
 
+        // 上传后确保停留在"我的文档"并刷新
+        set({ scope: 'mine' })
         await get().loadDocuments()
         await get().loadCategories()
         useAppStore.getState().toast.success(`「${result.document.title}」已成功入库，共 ${result.document.chunks} 个片段`)
@@ -96,11 +136,17 @@ export const useKnowledgeStore = create((set, get) => {
       }
     },
 
-    // 上传纯文本内容
+    // 上传纯文本内容（归入当前会话）
     uploadText: async ({ title, category, content }) => {
+      const sessionId = get().currentSessionId
+      if (!sessionId) {
+        useAppStore.getState().toast.error('请先新建会话后再上传文档')
+        throw new Error('no session')
+      }
       set({ uploading: true })
       try {
-        const data = await http.post('/knowledge/documents', { title, category, content })
+        const data = await http.post('/knowledge/documents', { title, category, content, sessionId })
+        set({ scope: 'mine' })
         await get().loadDocuments()
         await get().loadCategories()
         useAppStore.getState().toast.success(`「${data.document.title}」已成功入库`)
@@ -120,19 +166,86 @@ export const useKnowledgeStore = create((set, get) => {
       useAppStore.getState().toast.success(`「${doc?.title}」已删除`)
     },
 
-    // ── RAG 问答 ───────────────────────────────────────────────
-    messages: [],   // 问答历史
+    // ── 会话管理（每会话独立历史，持久化在后端）─────────────────
+    sessions: [],
+    sessionsLoaded: false,
+    currentSessionId: null,
+    messages: [],
     querying: false,
     filterCategory: '',
 
     setFilterCategory: (cat) => set({ filterCategory: cat }),
 
+    loadSessions: async () => {
+      const data = await http.get('/knowledge/sessions')
+      set({ sessions: data.sessions, sessionsLoaded: true })
+    },
+
+    // 新建会话并切换（不立即落库则首轮提问时由后端隐式创建；这里先建保证列表即时反馈）
+    newSession: async () => {
+      if (get().querying) return
+      const data = await http.post('/knowledge/sessions', {})
+      set((s) => ({
+        sessions: [data.session, ...s.sessions],
+        currentSessionId: data.session.id,
+        messages: [],
+        filterCategory: '',
+        // 切到全新会话：我的文档面板必须清空，不沿用上一会话的文档
+        ...(s.scope === 'mine' ? { documents: [], categories: DEFAULT_CATEGORIES } : {}),
+      }))
+      return data.session.id
+    },
+
+    // 切换会话：懒加载历史消息（含来源片段）+ 该会话自己的文档列表
+    selectSession: async (sessionId) => {
+      if (!sessionId || sessionId === get().currentSessionId || get().querying) return
+      const data = await http.get(`/knowledge/sessions/${sessionId}`)
+      set({
+        currentSessionId: data.session.id,
+        messages: data.messages.map((m) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          time: m.time,
+          sources: m.sources || [],
+        })),
+        filterCategory: '',
+      })
+      // 我的文档范围：加载目标会话的文档；平台法规库全局共享，无需重载
+      if (get().scope === 'mine') {
+        await Promise.all([get().loadDocuments(), get().loadCategories()])
+      }
+    },
+
+    removeSession: async (sessionId) => {
+      await http.delete(`/knowledge/sessions/${sessionId}`)
+      set((s) => {
+        const rest = s.sessions.filter((x) => x.id !== sessionId)
+        const wasCurrent = s.currentSessionId === sessionId
+        return {
+          sessions: rest,
+          currentSessionId: wasCurrent ? null : s.currentSessionId,
+          messages: wasCurrent ? [] : s.messages,
+          ...(wasCurrent && s.scope === 'mine'
+            ? { documents: [], categories: DEFAULT_CATEGORIES, filterCategory: '' }
+            : {}),
+        }
+      })
+    },
+
+    // ── RAG 问答（自动绑定当前会话；平台库无会话时由后端隐式创建）──
     query: async (question) => {
       if (!question.trim() || get().querying) return
+      // 我的文档必须在会话内提问（文档随会话隔离）：防御性兜底，正常流程 UI 已拦截
+      if (get().scope === 'mine' && !get().currentSessionId) {
+        await get().newSession()
+      }
       set({ querying: true })
 
-      const userMsg = { id: ++msgId, role: 'user', content: question, time: new Date().toISOString() }
-      const aiId = ++msgId
+      const scope = get().scope
+      const sessionId = get().currentSessionId
+      const userMsg = { id: `local_${++msgId}`, role: 'user', content: question, time: new Date().toISOString() }
+      const aiId = `local_${++msgId}`
       const aiMsg = {
         id: aiId,
         role: 'assistant',
@@ -143,16 +256,31 @@ export const useKnowledgeStore = create((set, get) => {
       }
       set((s) => ({ messages: [...s.messages, userMsg, aiMsg] }))
 
+      let boundSessionId = sessionId
       await fetchStream(
         '/api/knowledge/query/stream',
-        { question, category: get().filterCategory || undefined },
         {
-          onToken: (token) => {
-            patchMsg(aiId, (m) => ({ content: m.content + token, status: '' }))
-          },
+          question,
+          scope,
+          category: get().filterCategory || undefined,
+          ...(sessionId ? { sessionId } : {}),
+        },
+        {
           onEvent: (event, data) => {
+            if (event === 'session') {
+              boundSessionId = data.sessionId
+              set((s) => ({
+                currentSessionId: data.sessionId,
+                sessions: s.sessions.some((x) => x.id === data.sessionId)
+                  ? s.sessions
+                  : [{ id: data.sessionId, title: data.title, updatedAt: new Date().toISOString() }, ...s.sessions],
+              }))
+            }
             if (event === 'sources') patchMsg(aiId, () => ({ sources: data.sources }))
             if (event === 'status')  patchMsg(aiId, () => ({ status: data.message }))
+          },
+          onToken: (token) => {
+            patchMsg(aiId, (m) => ({ content: m.content + token, status: '' }))
           },
           onDone: () => {
             patchMsg(aiId, () => ({ streaming: false, status: '' }))
@@ -168,9 +296,11 @@ export const useKnowledgeStore = create((set, get) => {
         }
       )
 
+      // 刷新会话列表（标题/排序更新）
+      if (boundSessionId) {
+        get().loadSessions().catch(() => {})
+      }
       set({ querying: false })
     },
-
-    clearMessages: () => set({ messages: [] }),
   }
 })

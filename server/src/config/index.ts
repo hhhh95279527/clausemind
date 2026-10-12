@@ -16,6 +16,8 @@ export const config = {
     zhipuKey:      process.env.ZHIPU_API_KEY,
     tavilyKey:     process.env.TAVILY_API_KEY,
     primaryModel:  process.env.PRIMARY_MODEL  || 'deepseek-chat',
+    // 轻量（非思考）模型：条款类型精修等微型结构化任务，避免 v4-pro 长推理白白等几十秒
+    lightModel:    process.env.LIGHT_MODEL    || 'deepseek-chat',
     // 视觉/OCR 模型：deepseek-flash 支持图片输入（同一个 DEEPSEEK_API_KEY）
     visionModel:   process.env.VISION_MODEL   || 'deepseek-flash',
     embedModel:    process.env.EMBED_MODEL    || 'BAAI/bge-m3',
@@ -40,6 +42,11 @@ export const config = {
     refreshSecret:   process.env.JWT_REFRESH_SECRET || 'workmind-refresh-secret',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   },
+  // 平台级超级管理员（跨租户）：启动时种子到 platform_admins 表，独立于租户用户体系
+  platformAdmin: {
+    username: process.env.PLATFORM_ADMIN_USERNAME || 'platform',
+    password: process.env.PLATFORM_ADMIN_PASSWORD || 'Platform@2026',
+  },
   mailer: {
     // dev 演示通道：验证码打印控制台 + 接受固定码。
     // 未显式设置时：仅非生产环境默认开启；生产环境必须显式 MAILER_CONSOLE=false（且固定码通道硬禁用）
@@ -55,6 +62,8 @@ export const config = {
       pass:   process.env.SMTP_PASS || '',
       from:   process.env.SMTP_FROM || 'ClauseMind <no-reply@clausemind.example>',
     },
+    // 商务咨询（企业版留资等）通知邮箱：未配置时回退为 SMTP 发件邮箱（个人开发场景=自己的邮箱）
+    leadNotifyEmail: process.env.LEAD_NOTIFY_EMAIL || process.env.SMTP_USER || '',
   },
 }
 

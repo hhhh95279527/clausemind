@@ -104,7 +104,7 @@ const EvalSchema = z.object({
 })
 
 export async function scoreAbTest({ question, answerA, answerB }) {
-  const evalModel = scoreModel.withStructuredOutput(EvalSchema)
+  const evalModel = scoreModel.withStructuredOutput(EvalSchema, { method: 'jsonMode' })
 
   // 同时对 A、B 各自评分
   const [evalA, evalB] = await Promise.all([
@@ -122,7 +122,7 @@ export async function scoreAbTest({ question, answerA, answerB }) {
   const compareModel = scoreModel.withStructuredOutput(z.object({
     winner: z.enum(['A', 'B', 'tie']),
     reason: z.string().describe('对比理由，30字以内'),
-  }))
+  }), { method: 'jsonMode' })
 
   const comparison = await compareModel.invoke([
     { role: 'system', content: '比较两个回答，选出更好的那个。评分相差0.5分以内视为平局。' },

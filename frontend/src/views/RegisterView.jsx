@@ -1,7 +1,7 @@
 // frontend/src/views/RegisterView.jsx
-// 注册分流页：先选身份（我是个人 / 我们是企业），再走对应表单；均需邮箱验证码 + 协议勾选
-// 支持落地页 CTA hash 直达：/register#form-personal、/register#form-team（AC-1）
-import { useState, useEffect, useRef } from 'react'
+// 注册分流页：先选身份（我是个人 / 我们是企业），再走对应表单；用户名+密码即可注册，
+// 邮箱用于绑定后接收验证码登录（注册时不强制验证码）；支持落地页 CTA hash 直达
+import { useState } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { Form, Input, Button, Select, Checkbox, message } from 'antd'
 import {
@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
 import http from '@/utils/http.js'
+import { trackSignUp } from '@/utils/analytics.js'
 import { homePath } from '@/utils/persona.js'
 import styles from './auth/AuthPages.module.css'
 
@@ -66,51 +67,11 @@ export default function RegisterView() {
   )
 }
 
-// ── 验证码输入 + 发送按钮（个人/企业表单共用）──────────────────────────────
-function CodeField({ form }) {
-  const [cooldown, setCooldown] = useState(0)
-  const timerRef = useRef(null)
-  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current) }, [])
-
-  const sendCode = async () => {
-    try {
-      await form.validateFields(['email'])
-    } catch {
-      return
-    }
-    try {
-      await http.post('/auth/email-code', { email: form.getFieldValue('email') })
-      message.success('验证码已发送（演示环境见后端控制台，或使用固定码 123456）')
-      setCooldown(60)
-      timerRef.current = setInterval(() => {
-        setCooldown((c) => {
-          if (c <= 1) { clearInterval(timerRef.current); return 0 }
-          return c - 1
-        })
-      }, 1000)
-    } catch {
-      // 拦截器已提示
-    }
-  }
-
-  return (
-    <Form.Item name="emailCode" label="验证码" rules={[
-      { required: true, message: '请输入验证码' },
-      { pattern: /^\d{6}$/, message: '验证码为 6 位数字' },
-    ]}>
-      <Input
-        prefix={<SafetyOutlined />}
-        placeholder="请输入 6 位验证码（演示固定码 123456）"
-        maxLength={6}
-        addonAfter={
-          <Button type="link" size="small" disabled={cooldown > 0} onClick={sendCode} style={{ padding: 0 }}>
-            {cooldown > 0 ? `${cooldown}s` : '获取验证码'}
-          </Button>
-        }
-      />
-    </Form.Item>
-  )
-}
+// ── 用户名规则（前后端保持一致：3-20 位字母、数字、下划线）──────────────────
+const USERNAME_RULES = [
+  { required: true, message: '请设置用户名' },
+  { pattern: /^[a-zA-Z0-9_]{3,20}$/, message: '3-20 位字母、数字或下划线' },
+]
 
 // ── 协议勾选 ────────────────────────────────────────────────────────────────
 function Agreement() {
@@ -139,13 +100,14 @@ function PersonalForm({ onBack }) {
     try {
       const data = await http.post('/auth/register', {
         persona: 'PERSONAL',
+        username: values.username,
         email: values.email,
-        emailCode: values.emailCode,
         password: values.password,
         displayName: values.displayName || undefined,
       })
       setAuth(data)
       message.success('开通成功')
+      trackSignUp('PERSONAL')
       navigate(homePath(data.user), { replace: true })
     } catch {
       // 拦截器已提示
@@ -161,13 +123,15 @@ function PersonalForm({ onBack }) {
       <Form form={form} onFinish={submit} size="large" autoComplete="off"
         layout="horizontal" labelCol={{ flex: '74px' }} colon={false}
         initialValues={{ agreed: true }}>
+        <Form.Item name="username" label="用户名" rules={USERNAME_RULES}>
+          <Input prefix={<UserOutlined />} placeholder="3-20 位字母、数字或下划线" />
+        </Form.Item>
         <Form.Item name="email" label="邮箱" rules={[
           { required: true, message: '请输入邮箱' },
           { type: 'email', message: '邮箱格式不正确' },
         ]}>
-          <Input prefix={<MailOutlined />} placeholder="用于登录与接收审查结果" />
+          <Input prefix={<MailOutlined />} placeholder="绑定后可用邮箱验证码登录" />
         </Form.Item>
-        <CodeField form={form} />
         <Form.Item name="password" label="密码" rules={[
           { required: true, message: '请设置密码' },
           { min: 8, message: '密码至少 8 位，建议含字母与数字' },
@@ -201,8 +165,8 @@ function TeamForm({ onBack }) {
     try {
       const data = await http.post('/auth/register', {
         persona: 'TEAM',
+        username: values.username,
         email: values.email,
-        emailCode: values.emailCode,
         password: values.password,
         orgName: values.orgName,
         companySize: values.companySize,
@@ -210,6 +174,7 @@ function TeamForm({ onBack }) {
       })
       setAuth(data)
       message.success('团队空间已创建')
+      trackSignUp('TEAM')
       navigate(homePath(data.user), { replace: true })
     } catch {
       // 拦截器已提示
@@ -223,7 +188,7 @@ function TeamForm({ onBack }) {
       <a className={styles.back} onClick={onBack} href="#back">← 重新选择身份</a>
       <h3 style={{ fontSize: 15, marginBottom: 14 }}>创建企业团队空间</h3>
       <Form form={form} onFinish={submit} size="large" autoComplete="off"
-        layout="horizontal" labelCol={{ flex: '74px' }} colon={false}
+        layout="horizontal" labelCol={{ flex: '92px' }} colon={false}
         initialValues={{ agreed: true, companySize: COMPANY_SIZES[0], position: POSITIONS[0] }}>
         <Form.Item name="orgName" label="企业名称" rules={[{ required: true, message: '请填写企业名称' }]}>
           <Input prefix={<BankOutlined />} placeholder="例如：杭州星辰科技有限公司" />
@@ -234,13 +199,15 @@ function TeamForm({ onBack }) {
         <Form.Item name="position" label="你的岗位">
           <Select options={POSITIONS.map((v) => ({ value: v, label: v }))} />
         </Form.Item>
+        <Form.Item name="username" label="管理员账号" rules={USERNAME_RULES}>
+          <Input prefix={<UserOutlined />} placeholder="3-20 位字母、数字或下划线" />
+        </Form.Item>
         <Form.Item name="email" label="工作邮箱" rules={[
           { required: true, message: '请输入工作邮箱' },
           { type: 'email', message: '邮箱格式不正确' },
         ]}>
-          <Input prefix={<MailOutlined />} placeholder="用于登录与团队管理" />
+          <Input prefix={<MailOutlined />} placeholder="绑定后可用邮箱验证码登录" />
         </Form.Item>
-        <CodeField form={form} />
         <Form.Item name="password" label="密码" rules={[
           { required: true, message: '请设置密码' },
           { min: 8, message: '密码至少 8 位，建议含字母与数字' },

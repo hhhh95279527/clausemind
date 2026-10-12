@@ -24,16 +24,24 @@ export const FREE_LIMITS = {
   maxChars: 3000,
   retentionDays: 7,
   ledgerMaxItems: 10,
-  // 免费可审四类场景（非标合同付费）
-  allowedScenes: ['LABOR', 'LEASE', 'SERVICE', 'NDA'],
+  // 免费可审五类个人高频场景（买卖/借款/股权及非标合同付费）
+  allowedScenes: ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA'],
 }
 
+// 合同文件上传大小上限（MB），与后端 PlanDef.maxUploadBytes 对齐
+// FREE=8MB；PERSONAL / TEAM / ENTERPRISE 等会员档=15MB
+export const UPLOAD_MAX_MB = { FREE: 8, PAID: 15 }
+
 export const SCENE_OPTIONS = [
-  { code: 'LABOR',  label: '劳动合同' },
-  { code: 'LEASE',  label: '租赁合同' },
-  { code: 'SERVICE', label: '劳务/兼职' },
-  { code: 'NDA',    label: 'NDA 保密协议' },
-  { code: 'CUSTOM', label: '非标合同' },
+  { code: 'LABOR',      label: '劳动合同' },
+  { code: 'INTERNSHIP', label: '实习协议' },
+  { code: 'SERVICE',    label: '劳务/兼职' },
+  { code: 'LEASE',      label: '租赁合同' },
+  { code: 'NDA',        label: 'NDA 保密协议' },
+  { code: 'SALE',       label: '买卖合同' },
+  { code: 'LOAN',       label: '借款合同' },
+  { code: 'EQUITY',     label: '股权转让' },
+  { code: 'CUSTOM',     label: '非标合同' },
 ]
 
 // 特性 key 与后端 Feature 对齐

@@ -18,13 +18,24 @@ import css from './playbook.module.css'
 const { TextArea } = Input
 
 const TYPE_OPTIONS = [
-  { label: '商务', value: 'SERVICE' },
-  { label: '租赁', value: 'LEASE' },
   { label: '劳动', value: 'LABOR' },
+  { label: '实习', value: 'INTERNSHIP' },
+  { label: '劳务/兼职', value: 'SERVICE' },
+  { label: '租赁', value: 'LEASE' },
+  { label: '保密 NDA', value: 'NDA' },
+  { label: '买卖', value: 'SALE' },
+  { label: '借款', value: 'LOAN' },
+  { label: '股权转让', value: 'EQUITY' },
+  { label: '非标', value: 'CUSTOM' },
   { label: '通用', value: 'ALL' },
 ]
 const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]))
-const TYPE_TAG_CLASS = { SERVICE: shared.tagOrange, LEASE: shared.tagOrange, LABOR: shared.tagBlue, ALL: shared.tagPurple }
+const TYPE_TAG_CLASS = {
+  LABOR: shared.tagBlue, INTERNSHIP: shared.tagBlue,
+  SERVICE: shared.tagOrange, LEASE: shared.tagOrange, NDA: shared.tagOrange,
+  SALE: shared.tagOrange, LOAN: shared.tagOrange, EQUITY: shared.tagOrange,
+  CUSTOM: shared.tagGray, ALL: shared.tagPurple,
+}
 
 const TABS = [
   { key: 'FORBIDDEN', label: '红线规则' },

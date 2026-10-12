@@ -21,15 +21,17 @@ import { OnboardingService } from './onboarding/onboarding.service.js'
 import { ContractAssistantService } from './assistant/contract-assistant.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
 import { PlanLimitException } from '../billing/plan-limit.exception.js'
-import { FREE_RETENTION_DAYS, type ReviewScene } from '../billing/plans.config.js'
+import { FREE_RETENTION_DAYS, getPlanDef, type ReviewScene } from '../billing/plans.config.js'
 import { Prisma } from '@prisma/client'
 import { setReviewDatabase, startReview, resumeReview, serializeRisk } from './review/review.agent.js'
 import { buildOpinionDocx } from './review/report-docx.js'
 import { StructuredService } from './review/structured.service.js'
 import { AuditService } from '../audit/audit.service.js'
 import { FeishuNotifyService } from '../services/feishu/feishu-notify.service.js'
+import { DingtalkNotifyService } from '../services/dingtalk/dingtalk-notify.service.js'
+import { WeworkNotifyService } from '../services/wework/wework-notify.service.js'
 
-const SCENES: ReviewScene[] = ['LABOR', 'LEASE', 'SERVICE', 'NDA', 'CUSTOM']
+const SCENES: ReviewScene[] = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM']
 
 @Controller('api')
 export class ContractController implements OnModuleInit {
@@ -44,6 +46,8 @@ export class ContractController implements OnModuleInit {
     private readonly structured: StructuredService,
     private readonly audit: AuditService,
     private readonly feishu: FeishuNotifyService,
+    private readonly dingtalk: DingtalkNotifyService,
+    private readonly wework: WeworkNotifyService,
   ) {}
 
   onModuleInit() {
@@ -89,6 +93,19 @@ export class ContractController implements OnModuleInit {
     const ext = path.extname(file.originalname).toLowerCase()
     const scene = this.parseScene(body.scene)
 
+    // 按套餐校验文件大小（免费 8MB / 会员 15MB）；超限立即删除临时文件
+    const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } })
+    const maxBytes = getPlanDef(tenant.plan).maxUploadBytes
+    if (file.size > maxBytes) {
+      await fs.unlink(file.path).catch(() => {})
+      const maxMB = Math.round(maxBytes / (1024 * 1024))
+      throw new BadRequestException(
+        tenant.plan === 'FREE'
+          ? `免费版单文件不能超过 ${maxMB}MB，升级会员版可上传 15MB`
+          : `单文件不能超过 ${maxMB}MB`,
+      )
+    }
+
     // magic number 校验：防改后缀伪造；不通过立即删除临时文件，不进解析队列
     try {
       await assertRealFileType(file.path, ext)
@@ -101,6 +118,7 @@ export class ContractController implements OnModuleInit {
       data: await this.buildCreateData(tenantId, userId, {
         title: (body.title || file.originalname.replace(/\.[^.]+$/, '')).slice(0, 200),
         fileName: file.originalname,
+        storagePath: file.path,
         fileType: ext.slice(1) || 'txt',
         scene,
         status: 'UPLOADED' as const,
@@ -234,7 +252,7 @@ export class ContractController implements OnModuleInit {
         }
         if (reviewStatus === 'WAITING_REVIEW') return c.review?.status === 'WAITING_REVIEW'
         if (reviewStatus === 'APPROVED') return c.review?.status === 'APPROVED'
-        if (reviewStatus === 'FAILED') return c.status === 'FAILED' || c.review?.status === 'REJECTED'
+        if (reviewStatus === 'FAILED') return c.status === 'FAILED' || c.review?.status === 'REJECTED' || c.review?.status === 'FAILED'
         return true
       })
     }
@@ -304,8 +322,14 @@ export class ContractController implements OnModuleInit {
   @Delete('contracts/:id')
   async remove(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
+    const existing = await this.db.contract.findFirst({
+      where: { id, tenantId },
+      select: { storagePath: true },
+    })
     const result = await this.db.contract.deleteMany({ where: { id, tenantId } })
     if (!result.count) throw new NotFoundException('合同不存在')
+    // 文件生命周期跟随合同：DB 记录删除后清理上传原件
+    if (existing?.storagePath) await fs.unlink(existing.storagePath).catch(() => {})
     return { success: true }
   }
 
@@ -322,8 +346,30 @@ export class ContractController implements OnModuleInit {
     const userId = (req as any).user.userId
     const payWithCoupon = !!body.payWithCoupon
 
-    const contract = await this.db.contract.findFirst({ where: { id, tenantId } })
+    let contract = await this.db.contract.findFirst({ where: { id, tenantId } })
     if (!contract) throw new NotFoundException('合同不存在')
+
+    // 僵死任务自愈：服务重启 / SSE 异常断开会把合同永久留在 REVIEWING、任务留在 RUNNING。
+    // 最近一次任务 RUNNING 超过 10 分钟仍未汇总（stats 为空）即判定中断残留，复位后允许重新发起。
+    if (contract.status === 'REVIEWING') {
+      const latestTask = await this.db.reviewTask.findFirst({
+        where: { contractId: contract.id },
+        orderBy: { createdAt: 'desc' },
+      })
+      const STALE_MS = 10 * 60 * 1000
+      const isStale = !!latestTask
+        && latestTask.status === 'RUNNING'
+        && !latestTask.stats
+        && latestTask.createdAt.getTime() < Date.now() - STALE_MS
+      if (isStale) {
+        await this.db.reviewTask.update({ where: { id: latestTask!.id }, data: { status: 'FAILED' } })
+        contract = await this.db.contract.update({ where: { id: contract.id }, data: { status: 'READY' } })
+        logger.warn('review: stale RUNNING task reset to allow re-review', {
+          contractId: contract.id, staleTaskId: latestTask!.id,
+        })
+      }
+    }
+
     if (!['READY', 'WAITING_REVIEW', 'COMPLETED'].includes(contract.status)) {
       throw new BadRequestException(`合同当前状态（${contract.status}）不可发起审查，请等待解析完成或处理解析失败`)
     }
@@ -389,6 +435,10 @@ export class ContractController implements OnModuleInit {
       // 额度 80% 预警（FR-24）：异步检查，未达阈值 / 未配置均静默，不阻塞 SSE
       this.feishu.notifyQuota80(tenantId).catch((err) =>
         logger.warn('feishu: quota80 trigger failed', { error: (err as Error).message }))
+      this.dingtalk.notifyQuota80(tenantId).catch((err) =>
+        logger.warn('dingtalk: quota80 trigger failed', { error: (err as Error).message }))
+      this.wework.notifyQuota80(tenantId).catch((err) =>
+        logger.warn('wework: quota80 trigger failed', { error: (err as Error).message }))
     } catch (err) {
       // 券已扣但审查未实际启动：原子退还 1 张深度券，避免用户承担系统失败
       if (couponCharged && !reviewLaunched) {
@@ -503,6 +553,24 @@ export class ContractController implements OnModuleInit {
       where: { id: taskId },
       include: { contract: true, risks: true },
     })
+
+    // 终审通过：飞书 + 钉钉双通道群推送（异步，未配置/失败均静默，不影响审批响应）
+    if (body.finalDecision === 'APPROVED') {
+      const stats = (updated.stats as any) ?? {}
+      const notifyParams = {
+        tenantId,
+        contractId: updated.contractId,
+        contractTitle: updated.contract.title,
+        stats: { total: stats.total, high: stats.high, med: stats.med, low: stats.low },
+      }
+      this.feishu.notifyReviewApproved(notifyParams).catch((err) =>
+        logger.warn('feishu: review-approved trigger failed', { error: (err as Error).message }))
+      this.dingtalk.notifyReviewApproved(notifyParams).catch((err) =>
+        logger.warn('dingtalk: review-approved trigger failed', { error: (err as Error).message }))
+      this.wework.notifyReviewApproved(notifyParams).catch((err) =>
+        logger.warn('wework: review-approved trigger failed', { error: (err as Error).message }))
+    }
+
     return {
       status: updated.status,
       contractStatus: updated.contract.status,
