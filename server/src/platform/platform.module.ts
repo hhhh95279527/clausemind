@@ -5,11 +5,15 @@ import { JwtModule } from '@nestjs/jwt'
 import { PlatformController } from './platform.controller.js'
 import { PlatformService } from './platform.service.js'
 import { BillingModule } from '../billing/billing.module.js'
+import { MonitorModule } from '../monitor/monitor.module.js'
+import { AnalyticsModule } from '../analytics/analytics.module.js'
 import { config } from '../config/index.js'
 
 @Module({
   imports: [
     BillingModule,
+    MonitorModule,
+    AnalyticsModule,
     JwtModule.register({
       secret: config.jwt.secret,
       signOptions: { expiresIn: config.jwt.expiresIn as any },

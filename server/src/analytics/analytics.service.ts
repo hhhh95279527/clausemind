@@ -149,16 +149,31 @@ export class AnalyticsService {
     return { accepted: events.length }
   }
 
-  /** 六步漏斗：COUNT DISTINCT user_id + 相邻/相对注册转化率；另附「访客→注册」前置环节 */
-  async getFunnel(from: Date, to: Date) {
-    const rows: FunnelRow[] = await this.db.$queryRaw(Prisma.sql`
-      SELECT type, COUNT(DISTINCT user_id)::int AS count
-      FROM analytics_events
-      WHERE type = ANY(${FUNNEL_STEPS}::text[])
-        AND created_at >= ${from}
-        AND created_at <= ${to}
-      GROUP BY type
-    `)
+  /** 六步漏斗：COUNT DISTINCT user_id + 相邻/相对注册转化率；另附「访客→注册」前置环节
+   *  plan 可选：限定某套餐（FREE/PERSONAL/TEAM/ENTERPRISE），用于超管平台分个人版/企业版查看 */
+  async getFunnel(from: Date, to: Date, plan?: string) {
+    const validPlan = ['FREE', 'PERSONAL', 'TEAM', 'ENTERPRISE'].includes(plan || '') ? plan : null
+    // 漏斗步骤计数：限定套餐时 join users/tenants 过滤
+    const rows: FunnelRow[] = validPlan
+      ? await this.db.$queryRaw(Prisma.sql`
+          SELECT e.type, COUNT(DISTINCT e.user_id)::int AS count
+          FROM analytics_events e
+          JOIN users u ON u.id = e.user_id
+          JOIN tenants t ON t.id = u.tenant_id
+          WHERE e.type = ANY(${FUNNEL_STEPS}::text[])
+            AND e.created_at >= ${from}
+            AND e.created_at <= ${to}
+            AND t.plan = ${validPlan}::"TenantPlan"
+          GROUP BY e.type
+        `)
+      : await this.db.$queryRaw(Prisma.sql`
+          SELECT type, COUNT(DISTINCT user_id)::int AS count
+          FROM analytics_events
+          WHERE type = ANY(${FUNNEL_STEPS}::text[])
+            AND created_at >= ${from}
+            AND created_at <= ${to}
+          GROUP BY type
+        `)
     const counts = new Map(rows.map((r) => [r.type, Number(r.count)]))
     const top = counts.get(FUNNEL_STEPS[0]) ?? 0
     const steps = FUNNEL_STEPS.map((step, i) => {
@@ -172,27 +187,28 @@ export class AnalyticsService {
       }
     })
 
-    // 访客口径：page_view 的 distinct 匿名设备（无匿名ID的历史数据回退 user_id）
-    const visitorRows: Array<{ visitors: number; signups: number }> = await this.db.$queryRaw(Prisma.sql`
-      SELECT
-        (SELECT COUNT(DISTINCT COALESCE(anonymous_id, user_id))::int
-         FROM analytics_events
-         WHERE type = 'page_view' AND created_at >= ${from} AND created_at <= ${to}) AS visitors,
-        (SELECT COUNT(DISTINCT COALESCE(user_id, anonymous_id))::int
-         FROM analytics_events
-         WHERE type = 'sign_up' AND created_at >= ${from} AND created_at <= ${to}) AS signups
-    `)
-    const visitors = Number(visitorRows[0]?.visitors ?? 0)
-    const signups = Number(visitorRows[0]?.signups ?? 0)
+    // 访客口径：仅全量漏斗展示（plan 过滤时匿名访客无套餐归属，返回 null 由前端隐藏）
+    let visitor: { visitors: number; signups: number; signupRate: number | null } | null = null
+    if (!validPlan) {
+      const visitorRows: Array<{ visitors: number; signups: number }> = await this.db.$queryRaw(Prisma.sql`
+        SELECT
+          (SELECT COUNT(DISTINCT COALESCE(anonymous_id, user_id))::int
+           FROM analytics_events
+           WHERE type = 'page_view' AND created_at >= ${from} AND created_at <= ${to}) AS visitors,
+          (SELECT COUNT(DISTINCT COALESCE(user_id, anonymous_id))::int
+           FROM analytics_events
+           WHERE type = 'sign_up' AND created_at >= ${from} AND created_at <= ${to}) AS signups
+      `)
+      const visitors = Number(visitorRows[0]?.visitors ?? 0)
+      const signups = Number(visitorRows[0]?.signups ?? 0)
+      visitor = { visitors, signups, signupRate: visitors === 0 ? null : Number((signups / visitors).toFixed(4)) }
+    }
 
     return {
       from: from.toISOString(),
       to: to.toISOString(),
-      visitor: {
-        visitors,
-        signups,
-        signupRate: visitors === 0 ? null : Number((signups / visitors).toFixed(4)),
-      },
+      plan: validPlan,
+      visitor,
       steps,
     }
   }

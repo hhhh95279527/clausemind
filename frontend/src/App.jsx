@@ -52,7 +52,6 @@ const TeamView          = lazy(() => import('@/views/team/TeamView.jsx'))
 const IntegrationsView  = lazy(() => import('@/views/team/IntegrationsView.jsx'))
 const TemplatesView     = lazy(() => import('@/views/team/TemplatesView.jsx'))
 
-const AnalyticsView   = lazy(() => import('@/views/admin/AnalyticsView.jsx'))
 
 // ── 平台超管（独立账号体系，不进主导航，直接访问 URL）───────────────────────
 const PlatformLoginPage = lazy(() => import('@/views/platform/PlatformLoginPage.jsx'))
@@ -153,7 +152,6 @@ export default function App() {
             <Route path="/admin/eval" element={<AuthGuard><TeamLayout><EvalView /></TeamLayout></AuthGuard>} />
             <Route path="/admin/billing" element={<AuthGuard><TeamLayout><BillingView /></TeamLayout></AuthGuard>} />
             <Route path="/admin/rules" element={<AuthGuard><TeamLayout><RuleAdminView /></TeamLayout></AuthGuard>} />
-            <Route path="/admin/analytics" element={<AuthGuard><TeamLayout><AnalyticsView /></TeamLayout></AuthGuard>} />
             <Route path="/agent" element={<AuthGuard><TeamLayout><AgentView /></TeamLayout></AuthGuard>} />
             <Route path="/monitor/traces" element={<AuthGuard><TeamLayout><TraceWaterfall /></TeamLayout></AuthGuard>} />
             <Route path="/monitor/billing" element={<AuthGuard><TeamLayout><BillingView /></TeamLayout></AuthGuard>} />

@@ -69,7 +69,6 @@ export const systemAdminNav = [
   { path: '/agent',             icon: RobotOutlined,      label: '任务 Agent',  group: '系统管理' },
   { path: '/monitor/traces',    icon: BarChartOutlined,   label: '调用链路',    group: '系统管理' },
   { path: '/monitor/billing',   icon: CreditCardOutlined, label: '租户账单',    group: '系统管理' },
-  { path: '/admin/analytics',   icon: BellOutlined,       label: '埋点漏斗',    group: '系统管理' },
 ]
 
 // ── 顶部栏页面元信息（覆盖所有路由）──────────────────────────────────────
@@ -107,7 +106,6 @@ export const pageMeta = {
   '/admin/rules':     { title: '规则后台',     icon: SafetyCertificateOutlined, desc: 'review_rules 规则 CRUD 与试运行' },
   '/admin/eval':      { title: '离线评测',     icon: LineChartOutlined,  desc: 'precision/recall/F1、recall@k、忠实度' },
   '/admin/billing':   { title: '租户账单',     icon: CreditCardOutlined, desc: '全租户配额、峰谷费用与超额账期' },
-  '/admin/analytics': { title: '埋点漏斗',     icon: BellOutlined,       desc: '注册→首审→付费墙→升级→支付' },
   '/agent':           { title: '任务 Agent',  icon: RobotOutlined,      desc: '复杂任务自动拆解，工具调用可视化' },
   '/monitor':         { title: '用量看板',     icon: BarChartOutlined,   desc: 'Token 消耗、费用、缓存命中率' },
   '/monitor/traces':  { title: '调用链路',     icon: BarChartOutlined,   desc: 'LLM/工具/检索 Span 时间轴' },
