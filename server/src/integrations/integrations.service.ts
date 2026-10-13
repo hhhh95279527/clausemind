@@ -24,7 +24,7 @@ const ALLOWED_HOST_SUFFIXES = ['open.feishu.cn', 'feishu.cn', 'larksuite.com']
 const DINGTALK_HOST = 'oapi.dingtalk.com'
 
 /** 「联系开通」的集成（飞书/钉钉已上线，FEISHU_SUPPORT 为飞书问题反馈留资） */
-export const LEAD_INTEGRATIONS = [
+const LEAD_INTEGRATIONS = [
   'FEISHU_SUPPORT',
   'WECHAT_WORK', 'ESIGN', 'OA', 'SSO', 'OPEN_API', 'WORD_PLUGIN', 'PRIVATE_DEPLOY',
 ] as const
@@ -47,8 +47,8 @@ export class IntegrationsService {
     return tenant
   }
 
-  /** 校验并规范化飞书机器人 Webhook（仅 https + 官方域名 + /hook/ 路径） */
-  private parseFeishuWebhook(raw: string): string {
+  /** 三家 Webhook 公共校验：非空/可解析/https/禁带账号密码；厂商专属域名与路径由调用方继续校验 */
+  private parseWebhookBase(raw: string, vendor: string): URL {
     const value = (raw ?? '').trim()
     if (!value) throw new BadRequestException('请填写 Webhook URL')
     let u: URL
@@ -58,15 +58,52 @@ export class IntegrationsService {
       throw new BadRequestException('Webhook URL 格式不正确')
     }
     if (u.protocol !== 'https:') {
-      throw new BadRequestException('仅支持 https 的飞书官方 Webhook')
+      throw new BadRequestException(`仅支持 https 的${vendor}官方 Webhook`)
     }
+    if (u.username || u.password) {
+      throw new BadRequestException('Webhook URL 中不允许携带用户名密码')
+    }
+    return u
+  }
+
+  /** 8s 超时的 JSON POST（三家测试通知共用；响应体解析与错误口径由调用方处理） */
+  private async postWebhook(url: string, payload: unknown) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000)
+    try {
+      return await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  /** 测试发送后回写最后测试时间（三家一致） */
+  private touchLastTest(tenantId: string) {
+    return this.db.integrationConfig.update({
+      where: { tenantId },
+      data: { lastTestAt: new Date() },
+    })
+  }
+
+  /** query-token 型 Webhook（钉钉 access_token / 企微 key）的统一脱敏：token 仅露末 4 位 */
+  private maskTokenWebhook(raw: string, param: string): string {
+    const u = new URL(raw)
+    const token = u.searchParams.get(param) ?? ''
+    return `${u.protocol}//${u.host}${u.pathname}?${param}=****${token.slice(-4)}`
+  }
+
+  /** 校验并规范化飞书机器人 Webhook（仅 https + 官方域名 + /hook/ 路径） */
+  private parseFeishuWebhook(raw: string): string {
+    const u = this.parseWebhookBase(raw, '飞书')
     const host = u.hostname.toLowerCase()
     const allowed = ALLOWED_HOST_SUFFIXES.some((s) => host === s || host.endsWith(`.${s}`))
     if (!allowed) {
       throw new BadRequestException('仅允许配置 open.feishu.cn / feishu.cn / larksuite.com 官方域名的 Webhook')
-    }
-    if (u.username || u.password) {
-      throw new BadRequestException('Webhook URL 中不允许携带用户名密码')
     }
     if (!u.pathname.includes('/hook/')) {
       throw new BadRequestException('请填写飞书群机器人 Webhook（路径需包含 /hook/）')
@@ -196,17 +233,9 @@ export class IntegrationsService {
 
     let upstream: any
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 8000)
-      const res = await fetch(webhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      })
-      clearTimeout(timer)
+      const res = await this.postWebhook(webhook, payload)
       upstream = await res.json().catch(() => ({ code: -1, msg: `HTTP ${res.status}` }))
-    } catch (err) {
+    } catch {
       await this.audit.log({
         tenantId, userId,
         action: 'INTEGRATION_FEISHU_TEST',
@@ -218,10 +247,7 @@ export class IntegrationsService {
     }
 
     const ok = upstream?.code === 0 || upstream?.StatusCode === 0
-    await this.db.integrationConfig.update({
-      where: { tenantId },
-      data: { lastTestAt: new Date() },
-    })
+    await this.touchLastTest(tenantId)
     await this.audit.log({
       tenantId, userId,
       action: 'INTEGRATION_FEISHU_TEST',
@@ -240,22 +266,9 @@ export class IntegrationsService {
 
   /** 校验并规范化钉钉机器人 Webhook（https + oapi.dingtalk.com + /robot/send + access_token） */
   private parseDingtalkWebhook(raw: string): string {
-    const value = (raw ?? '').trim()
-    if (!value) throw new BadRequestException('请填写 Webhook URL')
-    let u: URL
-    try {
-      u = new URL(value)
-    } catch {
-      throw new BadRequestException('Webhook URL 格式不正确')
-    }
-    if (u.protocol !== 'https:') {
-      throw new BadRequestException('仅支持 https 的钉钉官方 Webhook')
-    }
+    const u = this.parseWebhookBase(raw, '钉钉')
     if (u.hostname.toLowerCase() !== DINGTALK_HOST) {
       throw new BadRequestException('仅允许配置 oapi.dingtalk.com 官方域名的 Webhook')
-    }
-    if (u.username || u.password) {
-      throw new BadRequestException('Webhook URL 中不允许携带用户名密码')
     }
     if (!u.pathname.startsWith('/robot/send')) {
       throw new BadRequestException('请填写钉钉群机器人 Webhook（路径为 /robot/send）')
@@ -266,13 +279,6 @@ export class IntegrationsService {
     }
     // 丢弃多余 query，仅保留 access_token（签名参数由发送时计算）
     return `https://${DINGTALK_HOST}/robot/send?access_token=${encodeURIComponent(token)}`
-  }
-
-  /** 钉钉脱敏展示：access_token 仅露末 4 位 */
-  private maskDingtalkWebhook(raw: string): string {
-    const u = new URL(raw)
-    const token = u.searchParams.get('access_token') ?? ''
-    return `${u.protocol}//${u.host}${u.pathname}?access_token=****${token.slice(-4)}`
   }
 
   private assertDingtalkSecret(raw: string): string | null {
@@ -291,7 +297,7 @@ export class IntegrationsService {
     }
     let webhookMask = null
     try {
-      webhookMask = this.maskDingtalkWebhook(this.crypto.decrypt(conf.dingtalkWebhookCipher))
+      webhookMask = this.maskTokenWebhook(this.crypto.decrypt(conf.dingtalkWebhookCipher), 'access_token')
     } catch {
       webhookMask = null
     }
@@ -330,7 +336,7 @@ export class IntegrationsService {
       detail: { provider: 'DINGTALK', host: DINGTALK_HOST, hasSecret: !!signSecret },
     })
 
-    return { configured: true, webhookMask: this.maskDingtalkWebhook(url), hasSecret: !!signSecret }
+    return { configured: true, webhookMask: this.maskTokenWebhook(url, 'access_token'), hasSecret: !!signSecret }
   }
 
   async deleteDingtalk(tenantId: string, userId: string) {
@@ -398,15 +404,7 @@ export class IntegrationsService {
 
     let upstream: any
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 8000)
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      })
-      clearTimeout(timer)
+      const res = await this.postWebhook(url, payload)
       upstream = await res.json().catch(() => ({ errcode: -1, errmsg: `HTTP ${res.status}` }))
     } catch {
       await this.audit.log({
@@ -420,10 +418,7 @@ export class IntegrationsService {
     }
 
     const ok = upstream?.errcode === 0
-    await this.db.integrationConfig.update({
-      where: { tenantId },
-      data: { lastTestAt: new Date() },
-    })
+    await this.touchLastTest(tenantId)
     await this.audit.log({
       tenantId, userId,
       action: 'INTEGRATION_DINGTALK_TEST',
@@ -442,22 +437,9 @@ export class IntegrationsService {
 
   /** 校验并规范化企微机器人 Webhook（https + qyapi.weixin.qq.com + key 参数） */
   private parseWeworkWebhook(raw: string): string {
-    const value = (raw ?? '').trim()
-    if (!value) throw new BadRequestException('请填写 Webhook URL')
-    let u: URL
-    try {
-      u = new URL(value)
-    } catch {
-      throw new BadRequestException('Webhook URL 格式不正确')
-    }
-    if (u.protocol !== 'https:') {
-      throw new BadRequestException('仅支持 https 的企业微信官方 Webhook')
-    }
+    const u = this.parseWebhookBase(raw, '企业微信')
     if (u.hostname.toLowerCase() !== 'qyapi.weixin.qq.com') {
       throw new BadRequestException('仅允许配置 qyapi.weixin.qq.com 官方域名的 Webhook')
-    }
-    if (u.username || u.password) {
-      throw new BadRequestException('Webhook URL 中不允许携带用户名密码')
     }
     if (!u.pathname.startsWith('/cgi-bin/webhook/send')) {
       throw new BadRequestException('请填写企业微信群机器人 Webhook（路径为 /cgi-bin/webhook/send）')
@@ -469,13 +451,6 @@ export class IntegrationsService {
     return `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${encodeURIComponent(key)}`
   }
 
-  /** 企微脱敏展示：key 仅露末 4 位 */
-  private maskWeworkWebhook(raw: string): string {
-    const u = new URL(raw)
-    const key = u.searchParams.get('key') ?? ''
-    return `${u.protocol}//${u.host}${u.pathname}?key=****${key.slice(-4)}`
-  }
-
   async getWework(tenantId: string) {
     await this.assertAccess(tenantId)
     const cfg = await this.db.integrationConfig.findUnique({ where: { tenantId } })
@@ -485,7 +460,7 @@ export class IntegrationsService {
     }
     let webhookMask = null
     try {
-      webhookMask = this.maskWeworkWebhook(this.crypto.decrypt(conf.weworkWebhookCipher))
+      webhookMask = this.maskTokenWebhook(this.crypto.decrypt(conf.weworkWebhookCipher), 'key')
     } catch {
       webhookMask = null
     }
@@ -513,7 +488,7 @@ export class IntegrationsService {
       detail: { provider: 'WEWORK', host: 'qyapi.weixin.qq.com' },
     })
 
-    return { configured: true, webhookMask: this.maskWeworkWebhook(url) }
+    return { configured: true, webhookMask: this.maskTokenWebhook(url, 'key') }
   }
 
   async deleteWework(tenantId: string, userId: string) {
@@ -570,15 +545,7 @@ export class IntegrationsService {
 
     let upstream: any
     try {
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 8000)
-      const res = await fetch(webhook, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      })
-      clearTimeout(timer)
+      const res = await this.postWebhook(webhook, payload)
       upstream = await res.json().catch(() => ({ errcode: -1, errmsg: `HTTP ${res.status}` }))
     } catch {
       await this.audit.log({
@@ -592,10 +559,7 @@ export class IntegrationsService {
     }
 
     const ok = upstream?.errcode === 0
-    await this.db.integrationConfig.update({
-      where: { tenantId },
-      data: { lastTestAt: new Date() },
-    })
+    await this.touchLastTest(tenantId)
     await this.audit.log({
       tenantId, userId,
       action: 'INTEGRATION_WEWORK_TEST',

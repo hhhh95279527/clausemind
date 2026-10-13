@@ -10,14 +10,14 @@ import { DatabaseService } from '../database/database.service.js'
 // ── 事件类型白名单 ──────────────────────────────────────────────
 // 内置：PV / 点击 / 性能 / 异常 / API 异常 / SSE 断连
 // 增长：注册 → 首审 → 看到结果 → 付费墙曝光 → 点击升级 → 支付成功
-// 飞书：测试发送结果、业务推送结果
+// 转账下单/确认两个事件由 orders.service 经 Prisma 直埋（不经 HTTP 白名单），
+// 列在此处仅为统一事件名册
 export const EVENT_TYPES = new Set<string>([
   'page_view', 'click', 'performance', 'error', 'api_error', 'sse_disconnect',
   'sign_up', 'first_review_start', 'first_result_seen',
   'paywall_show', 'paywall_click_upgrade', 'checkout_success',
   'login_success', 'review_completed', 'parse_failed', 'report_exported',
-  'trial_exhausted', 'transfer_submitted', 'order_confirmed',
-  'feishu_test_sent', 'feishu_notify_sent', 'playbook_rule_created',
+  'transfer_submitted', 'order_confirmed',
 ])
 
 // 转化漏斗六步（顺序即展示顺序，不可调整）

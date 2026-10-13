@@ -20,6 +20,12 @@ const ALLOWED_ROLES = ['ADMIN', 'MANAGER', 'USER'] as const
 type MemberRole = (typeof ALLOWED_ROLES)[number]
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+// 成员返回字段（列表/创建/改角色三处统一，与 serialize 入参形状一致）
+const MEMBER_SELECT = {
+  id: true, username: true, email: true, displayName: true,
+  role: true, status: true, lastLoginAt: true, createdAt: true,
+} as const
+
 @Injectable()
 export class TeamService {
   constructor(
@@ -33,6 +39,14 @@ export class TeamService {
     if (!tenant) throw new NotFoundException('工作空间不存在')
     this.entitlements.assertTeamSpace(tenant.plan)
     return tenant
+  }
+
+  /** 降级/移除负责人前的红线：团队至少保留一名启用状态的负责人 */
+  private async assertNotLastAdmin(tenantId: string, memberId: string) {
+    const otherAdmins = await this.db.user.count({
+      where: { tenantId, role: 'ADMIN', status: { not: 'DISABLED' }, id: { not: memberId } },
+    })
+    if (otherAdmins === 0) throw new BadRequestException('团队至少保留一名负责人')
   }
 
   private serialize(u: {
@@ -57,10 +71,7 @@ export class TeamService {
     const [users, snap] = await Promise.all([
       this.db.user.findMany({
         where: { tenantId },
-        select: {
-          id: true, username: true, email: true, displayName: true,
-          role: true, status: true, lastLoginAt: true, createdAt: true,
-        },
+        select: MEMBER_SELECT,
         orderBy: [{ role: 'asc' }, { createdAt: 'asc' }],
       }),
       this.entitlements.getEntitlementSnapshot(tenantId),
@@ -91,7 +102,7 @@ export class TeamService {
     if (!ALLOWED_ROLES.includes(role)) throw new BadRequestException('角色不合法')
 
     // 平台级唯一性：email 跨租户唯一（登录凭证），因此 findFirst 不带 tenantId
-    const exists = await this.db.user.findFirst({ where: { OR: [{ email }] } })
+    const exists = await this.db.user.findFirst({ where: { email } })
     if (exists) throw new ConflictException('该邮箱已被账号使用')
 
     // 席位拦截（SEAT_LIMIT → 403 PLAN_LIMIT，前端引导增购）
@@ -123,10 +134,7 @@ export class TeamService {
         passwordHash: await bcrypt.hash(password, 12),
         tenantId,
       },
-      select: {
-        id: true, username: true, email: true, displayName: true,
-        role: true, status: true, lastLoginAt: true, createdAt: true,
-      },
+      select: MEMBER_SELECT,
     })
 
     await this.audit.log({
@@ -154,19 +162,13 @@ export class TeamService {
       throw new BadRequestException('不能修改自己的负责人角色')
     }
     if (member.role === 'ADMIN' && role !== 'ADMIN') {
-      const otherAdmins = await this.db.user.count({
-        where: { tenantId, role: 'ADMIN', status: { not: 'DISABLED' }, id: { not: member.id } },
-      })
-      if (otherAdmins === 0) throw new BadRequestException('团队至少保留一名负责人')
+      await this.assertNotLastAdmin(tenantId, member.id)
     }
 
     const updated = await this.db.user.update({
       where: { id: member.id },
       data: { role: role as MemberRole },
-      select: {
-        id: true, username: true, email: true, displayName: true,
-        role: true, status: true, lastLoginAt: true, createdAt: true,
-      },
+      select: MEMBER_SELECT,
     })
     await this.audit.log({
       tenantId,
@@ -187,10 +189,7 @@ export class TeamService {
     const member = await this.db.user.findFirst({ where: { id: memberId, tenantId } })
     if (!member) throw new NotFoundException('成员不存在')
     if (member.role === 'ADMIN') {
-      const otherAdmins = await this.db.user.count({
-        where: { tenantId, role: 'ADMIN', status: { not: 'DISABLED' }, id: { not: member.id } },
-      })
-      if (otherAdmins === 0) throw new BadRequestException('团队至少保留一名负责人')
+      await this.assertNotLastAdmin(tenantId, member.id)
     }
 
     await this.db.user.delete({ where: { id: member.id } })

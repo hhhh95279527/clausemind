@@ -168,7 +168,6 @@ export const useKnowledgeStore = create((set, get) => {
 
     // ── 会话管理（每会话独立历史，持久化在后端）─────────────────
     sessions: [],
-    sessionsLoaded: false,
     currentSessionId: null,
     messages: [],
     querying: false,
@@ -178,7 +177,7 @@ export const useKnowledgeStore = create((set, get) => {
 
     loadSessions: async () => {
       const data = await http.get('/knowledge/sessions')
-      set({ sessions: data.sessions, sessionsLoaded: true })
+      set({ sessions: data.sessions })
     },
 
     // 新建会话并切换（不立即落库则首轮提问时由后端隐式创建；这里先建保证列表即时反馈）

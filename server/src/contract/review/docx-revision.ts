@@ -10,12 +10,12 @@
 //   （绝不静默丢修订，也不破坏 OOXML 合法性）
 import JSZip from 'jszip'
 
-export interface DocxEdit {
+interface DocxEdit {
   quote: string
   ins: string
 }
 
-export interface DocxInjectResult {
+interface DocxInjectResult {
   buffer: Buffer
   applied: number
   unmatched: DocxEdit[]
@@ -138,19 +138,15 @@ function rewriteParagraph(paraInner: string, ranges: Range[]): string {
   let m: RegExpExecArray | null
   RUN_RE.lastIndex = 0
   // 全局字符坐标 = 段内各 run 的 w:t 顺序拼接
-  let offset = 0
   while ((m = RUN_RE.exec(paraInner))) {
     const outer = m[0]
     let leafCount = 0
-    let len = 0
     let tm: RegExpExecArray | null
     T_RE.lastIndex = 0
-    while ((tm = T_RE.exec(outer))) { leafCount++; len += unesc(tm[1]).length }
+    while ((tm = T_RE.exec(outer))) { leafCount++ }
     if (!leafCount) continue
     runs.push({ outer, start: m.index, end: m.index + outer.length, leafCount })
-    offset += len
   }
-  void offset
 
   const located = [...ranges].sort((a, b) => a.start - b.start)
 

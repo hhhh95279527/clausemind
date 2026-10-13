@@ -78,20 +78,6 @@ export function trackPageView(pageName, data = {}) {
   })
 }
 
-// 功能点击
-export function trackClick(feature, detail = {}) {
-  track('click', { feature, ...detail })
-}
-
-// 性能指标（Web Vitals）
-export function trackPerformance(metric) {
-  track('performance', {
-    name: metric.name,    // FCP, LCP, CLS, FID, INP
-    value: metric.value,
-    rating: metric.rating, // good, needs-improvement, poor
-  })
-}
-
 // 异常上报
 export function trackError(error, context = {}) {
   track('error', {
@@ -106,14 +92,9 @@ export function trackApiError(url, status, message) {
   track('api_error', { url, status, message })
 }
 
-// SSE 断连上报
-export function trackSseDisconnect(feature, reason) {
-  track('sse_disconnect', { feature, reason })
-}
-
 // ── 增长漏斗事件（与后端 FUNNEL_STEPS 一一对应）──────────────────
 // 聚合按 COUNT(DISTINCT userId) 去重，重复触发不影响漏斗人数；
-// persona / scene 是后端维度下钻（/admin/analytics/breakdown）的数据源
+// persona / scene 是平台超管维度下钻（/platform/analytics/breakdown）的数据源
 
 // 注册完成（persona: PERSONAL / TEAM）
 export function trackSignUp(persona) {
@@ -176,25 +157,3 @@ export function trackReportExported(kind, scene) {
   })
 }
 
-// ── 路由监听（自动 PV）─────────────────────────────────────────
-export function setupRouteTracking() {
-  let lastPath = ''
-  const observer = new MutationObserver(() => {
-    const currentPath = window.location.pathname
-    if (currentPath !== lastPath) {
-      lastPath = currentPath
-      trackPageView(currentPath)
-    }
-  })
-  observer.observe(document.body, { childList: true, subtree: true })
-  return () => observer.disconnect()
-}
-
-export default {
-  trackPageView, trackClick, trackPerformance, trackError, trackApiError, trackSseDisconnect,
-  trackSignUp, trackFirstReviewStart, trackFirstResultSeen,
-  trackPaywallShow, trackPaywallClickUpgrade, trackCheckoutSuccess,
-  trackLoginSuccess, trackReviewCompleted, trackParseFailed, trackReportExported,
-  getAnonymousId,
-  setupRouteTracking,
-}

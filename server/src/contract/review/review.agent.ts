@@ -28,7 +28,7 @@ export function setReviewDatabase(client: DatabaseService) {
   setToolsDatabase(client)
 }
 
-export type ReviewEventFn = (type: string, data: unknown) => void
+type ReviewEventFn = (type: string, data: unknown) => void
 
 // ── 图状态 ─────────────────────────────────────────────────────
 interface ClauseSnapshot {
@@ -76,7 +76,6 @@ const RESEARCH_ROUNDS = 2
 // 单批 LLM 整体看门狗：覆盖 thinking 模型长推理与连接静默，超时后该批降级跳过，不拖垮整份审查
 const BATCH_LLM_TIMEOUT_MS = 180_000
 const REVIEW_TOOLS = [legalSearchTool, calculateTool]
-const reviewToolNode = new ToolNode(REVIEW_TOOLS)
 
 // 确定性风险评分辅助（个人结果页评分卡，FR-7）
 function clampScore(n: number): number {
@@ -435,7 +434,7 @@ ${ruleHints}
       // 与规则轨去重合并：同条款 + 同分类/同主题词 → 升级为 BOTH
       const dup = ruleRisks.find((r) => r.clauseId === clause.id && (
         r.category === category
-        || MERGE_KEYWORDS.some((k) => (r.title + f.title).includes(k) && r.clauseId === clause.id && (r.title.includes(k) || f.title.includes(k)))
+        || MERGE_KEYWORDS.some((k) => (r.title + f.title).includes(k) && (r.title.includes(k) || f.title.includes(k)))
       ))
       if (dup && (dup.detectedBy === 'RULE' || dup.detectedBy === 'BOTH')) {
         await db!.risk.update({
@@ -494,6 +493,10 @@ ${ruleHints}
 // ── 节点4：汇总并挂起等待人工终审 ─────────────────────────────
 async function aggregate(state: ReviewState, cfg: any) {
   const risks = await db!.risk.findMany({ where: { reviewTaskId: state.reviewTaskId } })
+  // 确定性风险评分（无模型成本，FREE 可看）：HIGH 扣 14 / MED 扣 8 / LOW 扣 4
+  const score = clampScore(
+    100 - risks.reduce((s, r) => s + (r.severity === 'HIGH' ? 14 : r.severity === 'MED' ? 8 : 4), 0),
+  )
   const stats = {
     total: risks.length,
     high: risks.filter((r) => r.severity === 'HIGH').length,
@@ -502,11 +505,8 @@ async function aggregate(state: ReviewState, cfg: any) {
     rule: risks.filter((r) => r.detectedBy === 'RULE').length,
     agent: risks.filter((r) => r.detectedBy === 'AGENT').length,
     both: risks.filter((r) => r.detectedBy === 'BOTH').length,
-    // 确定性风险评分（无模型成本，FREE 可看）：HIGH 扣 14 / MED 扣 8 / LOW 扣 4
-    score: clampScore(100 - risks.reduce((s, r) => s + (r.severity === 'HIGH' ? 14 : r.severity === 'MED' ? 8 : 4), 0)),
-    scoreLevel: scoreLevel(
-      clampScore(100 - risks.reduce((s, r) => s + (r.severity === 'HIGH' ? 14 : r.severity === 'MED' ? 8 : 4), 0)),
-    ),
+    score,
+    scoreLevel: scoreLevel(score),
     // 大白话摘要：取高→中最多 3 条，标题 + 规则分析（确定性，不调模型）
     summary: risks
       .slice()
@@ -594,7 +594,7 @@ function getGraph() {
   return graphPromise
 }
 
-export interface StartReviewParams {
+interface StartReviewParams {
   contract: Contract
   reviewTask: ReviewTask
   /** 是否走 Agent 深度轨（FREE 未解锁时 false→仅规则轨） */
@@ -633,7 +633,7 @@ export async function startReview(params: StartReviewParams): Promise<void> {
   }
 }
 
-export interface ResumeReviewParams {
+interface ResumeReviewParams {
   reviewTask: ReviewTask
   actions: Array<{ riskId: string; status: RiskStatus; comment?: string | null }>
   finalDecision: 'APPROVED' | 'REJECTED'

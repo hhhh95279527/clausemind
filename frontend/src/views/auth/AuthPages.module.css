@@ -80,28 +80,6 @@
   font-size: 13px;
 }
 
-.muted {
-  color: var(--color-text-muted);
-}
-
-.demo {
-  margin-top: 14px;
-  padding: 10px 12px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  font-size: 12px;
-  color: var(--color-text-muted);
-  line-height: 1.9;
-}
-
-.demo code {
-  background: #f3f4f6;
-  padding: 0 5px;
-  border-radius: 4px;
-  color: var(--color-text-sub);
-}
-
 .tip {
   margin-top: 10px;
   padding: 9px 11px;

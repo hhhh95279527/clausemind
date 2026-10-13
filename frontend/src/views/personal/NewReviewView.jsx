@@ -13,7 +13,7 @@ import { useMeStore } from '@/stores/me.js'
 import { useAppStore } from '@/stores/app.js'
 import { FREE_LIMITS, UPLOAD_MAX_MB } from '@/config/plans.js'
 import Paywall from '@/components/billing/Paywall.jsx'
-import { ANCHOR_TO_SCENE } from './scene.js'
+import { ANCHOR_TO_SCENE, SCENE_ANCHORS } from './scene.js'
 import styles from './personal.module.css'
 
 const TYPES = [
@@ -68,6 +68,11 @@ export default function NewReviewView() {
 
   const pickScene = (code) => {
     setScene(code)
+    // 同步 URL hash，刷新/分享时能恢复选中场景
+    const anchor = SCENE_ANCHORS[code]
+    if (anchor && location.hash !== `#${anchor}`) {
+      navigate(`/new#${anchor}`, { replace: true })
+    }
     // 免费五类之外的商事/非标类型，免费用户直接弹付费墙（最终判定以后端权益接口为准）
     if (!deepPlan && !FREE_LIMITS.allowedScenes.includes(code)) setPaywall(true)
   }

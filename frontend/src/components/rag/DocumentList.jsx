@@ -56,11 +56,7 @@ export default function DocumentList() {
       okText: '删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
-      onOk: async () => {
-        try {
-          await deleteDocument(doc.id)
-        } catch {}
-      },
+      onOk: () => deleteDocument(doc.id).catch(() => {}),
     })
   }
 

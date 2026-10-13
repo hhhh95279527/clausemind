@@ -99,7 +99,6 @@ export class BillingService {
       row.calls += r.calls
       byDate.set(r.date, row)
     }
-    const [yy, mm] = period.split('-').map(Number)
     const daily = []
     for (let d = 1; d <= this.beijingDayOfMonth(); d++) {
       const key = `${period}-${String(d).padStart(2, '0')}`
@@ -114,7 +113,6 @@ export class BillingService {
         calls: row?.calls ?? 0,
       })
     }
-    void yy; void mm
 
     // ── 功能占比（按费用）──
     const totalFeatureCost = featureGroups.reduce((s, g) => s + Number(g._sum.costCny ?? 0), 0)

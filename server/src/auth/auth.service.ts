@@ -12,9 +12,9 @@ import type { UserRole, WorkspaceType, TenantPlan } from '@prisma/client'
 import { VerificationCodeService } from './verification-code.service.js'
 import { MailerService } from './mailer.service.js'
 
-export type RegisterPersona = 'PERSONAL' | 'TEAM'
+type RegisterPersona = 'PERSONAL' | 'TEAM'
 
-interface RegisterDto {
+export interface RegisterDto {
   persona: RegisterPersona
   username: string
   email: string
@@ -30,7 +30,7 @@ interface RegisterDto {
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/
 
 /** 返回给前端的用户体：携带套餐与空间类型，供 persona 路由与权益展示 */
-export interface AuthUserPayload {
+interface AuthUserPayload {
   id: string
   username: string
   email: string | null
@@ -45,15 +45,14 @@ export interface AuthUserPayload {
 }
 
 /** 签发 refresh token 时记录的客户端信息（用于审计与异常排查） */
-export interface TokenMeta {
+interface TokenMeta {
   ip?: string
   userAgent?: string
 }
 
 /** jsonwebtoken 风格 TTL（如 30d/12h/30m）→ 秒 */
-function ttlSeconds(v: string | number): number {
-  if (typeof v === 'number') return v
-  const m = /^(\d+)\s*([smhd])$/.exec(String(v).trim())
+function ttlSeconds(v: string): number {
+  const m = /^(\d+)\s*([smhd])$/.exec(v.trim())
   if (!m) return 30 * 24 * 3600
   const mult = { s: 1, m: 60, h: 3600, d: 86400 }[m[2] as 's' | 'm' | 'h' | 'd']
   return Number(m[1]) * mult
@@ -77,13 +76,10 @@ export class AuthService {
   // PERSONAL → FREE 个人空间；TEAM → TEAM 团队版演示空间（原型确认：默认含 5 席演示）
   // 注册不强制邮箱验证码：用户名 + 密码即可开户；邮箱归属在首次"验证码登录"时自然验证
   async register(dto: RegisterDto, meta: TokenMeta = {}) {
-    const email = (dto.email || '').trim().toLowerCase()
+    const email = this.normalizeEmail(dto.email)
     const username = (dto.username || '').trim()
     if (!USERNAME_RE.test(username)) {
       throw new BadRequestException('用户名需为 3-20 位字母、数字或下划线')
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new BadRequestException('邮箱格式不正确')
     }
     if (!dto.password || dto.password.length < 8) {
       throw new BadRequestException('密码至少 8 位')
@@ -150,10 +146,7 @@ export class AuthService {
 
   // ── 邮箱验证码登录：仅允许已注册 / 已绑定该邮箱的账号（FR-4）──────
   async loginByCode(email: string, code: string, meta: TokenMeta = {}) {
-    const normalized = (email || '').trim().toLowerCase()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      throw new BadRequestException('邮箱格式不正确')
-    }
+    const normalized = this.normalizeEmail(email)
     await this.verificationCodes.verifyCode(normalized, code)
 
     const user = await this.db.user.findUnique({ where: { email: normalized } })
@@ -172,10 +165,7 @@ export class AuthService {
 
   /** 发送"登录用"验证码：仅向已绑定账号的邮箱发信，避免发信通道被滥用 */
   async sendLoginCode(email: string) {
-    const normalized = (email || '').trim().toLowerCase()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      throw new BadRequestException('邮箱格式不正确')
-    }
+    const normalized = this.normalizeEmail(email)
     const user = await this.db.user.findUnique({
       where: { email: normalized },
       select: { status: true },
@@ -284,13 +274,7 @@ export class AuthService {
         { id: user.id, username: user.username, role: user.role, tenantId: user.tenantId },
       )
       const newRow = await tx.refreshToken.create({
-        data: {
-          userId: user.id,
-          tokenHash: sha256(tokens.refreshToken),
-          expiresAt: new Date(Date.now() + ttlSeconds(config.jwt.refreshExpiresIn) * 1000),
-          ip: meta.ip?.slice(0, 45) || null,
-          userAgent: meta.userAgent?.slice(0, 500) || null,
-        },
+        data: this.refreshTokenRow(user.id, tokens.refreshToken, meta),
       })
       const claimed = await tx.refreshToken.updateMany({
         where: { id: stored.id, revokedAt: null },
@@ -358,10 +342,7 @@ export class AuthService {
   }
 
   async forgotPassword(email: string) {
-    const normalized = (email || '').trim().toLowerCase()
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
-      throw new BadRequestException('邮箱格式不正确')
-    }
+    const normalized = this.normalizeEmail(email)
     // 60 秒重发频控（与验证码同策略），防邮件通道被滥用
     const allowed = await this.redis.getClient().set(
       this.pwdResetRateKey(normalized), '1', 'EX', 60, 'NX',
@@ -410,6 +391,26 @@ export class AuthService {
 
   // ── 内部方法 ─────────────────────────────────────────────────
 
+  /** 邮箱 trim + 小写 + 格式校验（注册/登录/重置四处统一口径） */
+  private normalizeEmail(raw: string): string {
+    const email = (raw || '').trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new BadRequestException('邮箱格式不正确')
+    }
+    return email
+  }
+
+  /** refresh token 落库行（签发与轮转共用，保证过期时间/字段口径一致） */
+  private refreshTokenRow(userId: string, rawToken: string, meta: TokenMeta = {}) {
+    return {
+      userId,
+      tokenHash: sha256(rawToken),
+      expiresAt: new Date(Date.now() + ttlSeconds(config.jwt.refreshExpiresIn) * 1000),
+      ip: meta.ip?.slice(0, 45) || null,
+      userAgent: meta.userAgent?.slice(0, 500) || null,
+    }
+  }
+
   /** 签发 token 对并把 refresh token（哈希）持久化 */
   private async issueTokens(
     user: { id: string; username: string; role: string; tenantId: string },
@@ -417,13 +418,7 @@ export class AuthService {
   ) {
     const tokens = await this.buildTokens(user)
     await this.db.refreshToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: sha256(tokens.refreshToken),
-        expiresAt: new Date(Date.now() + ttlSeconds(config.jwt.refreshExpiresIn) * 1000),
-        ip: meta.ip?.slice(0, 45) || null,
-        userAgent: meta.userAgent?.slice(0, 500) || null,
-      },
+      data: this.refreshTokenRow(user.id, tokens.refreshToken, meta),
     })
     return tokens
   }

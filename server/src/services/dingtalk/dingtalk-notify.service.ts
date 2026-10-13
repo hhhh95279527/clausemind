@@ -11,7 +11,7 @@ import { IntegrationCryptoService } from '../../integrations/crypto.util.js'
 import { config } from '../../config/index.js'
 import { logger } from '../../utils/logger.js'
 
-export interface DingtalkSendResult {
+interface DingtalkSendResult {
   ok: boolean
   /** not_configured / cipher_error / network_error / upstream_<code> / db_error */
   reason?: string

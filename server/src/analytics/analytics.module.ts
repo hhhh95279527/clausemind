@@ -3,7 +3,6 @@ import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { config } from '../config/index.js'
 import { AnalyticsController } from './analytics.controller.js'
-import { AnalyticsAdminController } from './analytics-admin.controller.js'
 import { AnalyticsService } from './analytics.service.js'
 
 @Module({
@@ -12,7 +11,7 @@ import { AnalyticsService } from './analytics.service.js'
       secret: config.jwt.secret,
     }),
   ],
-  controllers: [AnalyticsController, AnalyticsAdminController],
+  controllers: [AnalyticsController],
   providers: [AnalyticsService],
   exports: [AnalyticsService],
 })

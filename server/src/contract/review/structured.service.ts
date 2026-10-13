@@ -27,7 +27,7 @@ const StructuredSchema = z.object({
   keyObligations: z.array(z.string().max(200)).describe('双方关键义务/重大权利义务失衡条款，每条一句话；最多 8 条'),
 })
 
-export type StructuredInfo = z.infer<typeof StructuredSchema>
+type StructuredInfo = z.infer<typeof StructuredSchema>
 
 @Injectable()
 export class StructuredService {

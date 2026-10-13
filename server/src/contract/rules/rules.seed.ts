@@ -5,7 +5,7 @@
 // INTERNSHIP 规则仅在实习协议上运行——实习不构成劳动关系，LABOR 域的社保/试用期规则不适用。
 import type { Severity } from '@prisma/client'
 
-export interface RuleSeed {
+interface RuleSeed {
   code: string
   name: string
   severity: Severity

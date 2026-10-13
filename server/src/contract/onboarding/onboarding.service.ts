@@ -7,6 +7,7 @@ import { ConflictException, Injectable } from '@nestjs/common'
 import fs from 'fs/promises'
 import { DatabaseService } from '../../database/database.service.js'
 import { EntitlementsService } from '../../billing/entitlements.service.js'
+import { getPlanDef } from '../../billing/plans.config.js'
 import { ContractParseService } from '../parsing/contract-parse.service.js'
 import { logger } from '../../utils/logger.js'
 import {
@@ -16,7 +17,6 @@ import {
 } from './sample-contract.data.js'
 
 const SAMPLE_EVENT_TYPE = 'onboarding_sample_copied'
-const FREE_RETENTION_DAYS = 7
 
 interface Actor {
   userId: string
@@ -55,7 +55,7 @@ export class OnboardingService {
     // 付费空间（PERSONAL 及以上）永久保留；FREE 置 7 天后到期，由 TTL 任务清理
     const retainUntil = this.entitlements.isDeep(tenant.plan)
       ? null
-      : new Date(Date.now() + FREE_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + getPlanDef('FREE').retentionDays! * 24 * 60 * 60 * 1000)
 
     await fs.mkdir('./uploads', { recursive: true })
     const tmpPath = `./uploads/sample_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`

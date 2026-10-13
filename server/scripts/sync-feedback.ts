@@ -235,7 +235,7 @@ async function main() {
   for (const d of desired.values()) {
     const found = existingByMarker.get(d.marker)
     const payload = {
-      type: d.type as const,
+      type: d.type,
       title: d.title,
       input: d.input as any,
       expected: d.expected as any,

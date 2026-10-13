@@ -2,10 +2,13 @@
 // AI 改稿台接口（FR-9）：修订列表/生成/接受拒绝/重新生成/模拟反驳/Word 红划线导出
 // 所有路径强制 tenantId 校验，跨租户访问 404；深度能力由 RevisionService 统一门禁。
 import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiProduces, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import { DatabaseService } from '../../database/database.service.js'
 import { RevisionService, type RevisionStatusValue } from './revision.service.js'
 
+@ApiTags('contract')
+@ApiBearerAuth('bearer')
 @Controller('api')
 export class RevisionController {
   constructor(
@@ -20,6 +23,7 @@ export class RevisionController {
 
   // ── 改稿台数据 ──
   @Get('contracts/:id/revisions')
+  @ApiOperation({ summary: '改稿台：获取合同的修订建议列表', description: '返回该合同全部风险点及对应的 AI 改写建议、接受状态。跨租户访问返回 404。' })
   async list(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     return this.revisions.list(tenantId, id, await this.planOf(tenantId))
@@ -27,6 +31,13 @@ export class RevisionController {
 
   // ── 一次性生成全部修订建议 ──
   @Post('contracts/:id/revisions/generate')
+  @ApiOperation({ summary: '改稿台：批量生成修订建议', description: '深度权益功能（个人版及以上或使用深度券）。force=true 时忽略缓存重新生成。' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { force: { type: 'boolean', description: '是否强制重新生成（默认 false，走缓存）', default: false } },
+    },
+  })
   async generate(
     @Req() req: Request,
     @Param('id') id: string,
@@ -38,12 +49,18 @@ export class RevisionController {
 
   // ── 全部接受 ──
   @Post('contracts/:id/revisions/accept-all')
+  @ApiOperation({ summary: '改稿台：一键接受全部修订建议' })
   async acceptAll(@Req() req: Request, @Param('id') id: string) {
     return this.revisions.acceptAll((req as any).user.tenantId, id)
   }
 
   // ── Word 红划线修订稿下载（真修订模式 w:ins/w:del）──
   @Get('contracts/:id/revisions/docx')
+  @ApiOperation({
+    summary: '改稿台：导出 Word 红划线修订稿（.docx）',
+    description: 'docx 原件在原 OOXML 上注入 w:ins/w:del 修订痕迹（Word 中可逐条接受/拒绝，版式保留）；其他来源走文本重建。响应头 X-Revision-Applied/-Unmatched 标示原句命中/未命中条数。',
+  })
+  @ApiProduces('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
   async docx(@Req() req: Request, @Res() res: Response, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     await this.revisions.exportDocx(tenantId, id, await this.planOf(tenantId), res)
@@ -51,6 +68,16 @@ export class RevisionController {
 
   // ── 接受 / 拒绝 / 重置单条 ──
   @Post('risks/:riskId/revision')
+  @ApiOperation({ summary: '改稿台：接受/拒绝/重置单条修订' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['status'],
+      properties: {
+        status: { type: 'string', enum: ['NONE', 'PENDING', 'ACCEPTED', 'REJECTED'], description: 'NONE=重置，ACCEPTED=接受，REJECTED=拒绝' },
+      },
+    },
+  })
   async setStatus(
     @Req() req: Request,
     @Param('riskId') riskId: string,
@@ -62,6 +89,15 @@ export class RevisionController {
 
   // ── 重新生成单条 ──
   @Post('risks/:riskId/revision/regenerate')
+  @ApiOperation({ summary: '改稿台：按语气重新生成单条修订建议' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        tone: { type: 'string', enum: ['FIRM', 'GENTLE', 'NEUTRAL'], description: 'FIRM=强硬 / GENTLE=温和 / NEUTRAL=中性（默认）', default: 'NEUTRAL' },
+      },
+    },
+  })
   async regenerate(
     @Req() req: Request,
     @Param('riskId') riskId: string,
@@ -72,6 +108,7 @@ export class RevisionController {
 
   // ── 模拟对方反驳 ──
   @Post('risks/:riskId/revision/rebuttal')
+  @ApiOperation({ summary: '改稿台：模拟对方就该风险点进行反驳', description: 'AI 生成谈判对手视角的反驳理由，辅助用户准备沟通策略。' })
   async rebuttal(@Req() req: Request, @Param('riskId') riskId: string) {
     return this.revisions.rebuttal((req as any).user.tenantId, riskId)
   }

@@ -9,6 +9,9 @@
     "seed": "ts-node --transpile-only -r ./register-js-ext.cjs prisma/seed.ts",
     "eval": "ts-node --transpile-only -r ./register-js-ext.cjs scripts/run-eval.ts",
     "sync:feedback": "ts-node --transpile-only -r ./register-js-ext.cjs scripts/sync-feedback.ts",
+    "docs:json": "ts-node --transpile-only -r ./register-js-ext.cjs scripts/gen-openapi.ts",
+    "docs:html": "redoc-cli bundle docs/openapi.json --output docs/api-docs.html --disableGoogleFont",
+    "docs:export": "npm run docs:json && npm run docs:html",
     "postinstall": "prisma skills sync || exit 0"
   },
   "prisma": {
@@ -52,7 +55,6 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
-    "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.0",
     "prisma": "^5.22.0",
@@ -70,6 +72,7 @@
     "@types/node": "^20.14.0",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
+    "redoc-cli": "^0.13.21",
     "ts-node-dev": "^2.0.0",
     "typescript": "~5.7.3"
   },

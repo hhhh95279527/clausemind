@@ -257,7 +257,7 @@ async function runFaithGroup(
 
     let judge: { score: 0 | 1; reason: string }
     try {
-      judge = await model.invoke(
+      judge = (await model.invoke(
         [
           ['system', JUDGE_PROMPT],
           [
@@ -266,7 +266,7 @@ async function runFaithGroup(
           ],
         ] as any,
         { callbacks },
-      )
+      )) as { score: 0 | 1; reason: string }
     } catch (e) {
       // 单条评审失败不拖垮整组：记 0 分并写明原因
       judge = { score: 0, reason: `评审调用失败：${(e as Error).message}` }

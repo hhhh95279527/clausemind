@@ -11,7 +11,6 @@ import {
   isTeamWorkspace,
   type Feature,
   type PlanCode,
-  type PlanLimitReason,
   type ReviewScene,
 } from './plans.config.js'
 import { PlanLimitException } from './plan-limit.exception.js'
@@ -36,25 +35,9 @@ export class EntitlementsService {
     return getPlanDef(plan).features[feature]
   }
 
-  /** 断言套餐含某特性，否则 PLAN_LIMIT */
-  assertFeature(plan: string, feature: Feature, reason: PlanLimitReason = 'DEEP_FEATURE'): void {
-    if (!this.can(plan, feature)) {
-      throw new PlanLimitException(reason, this.featureMessage(reason), feature)
-    }
-  }
-
   /** 是否深度档（PERSONAL+，Agent 轨/改稿等） */
   isDeep(plan: string): boolean {
     return isDeepPlan(plan)
-  }
-
-  /** 是否企业空间档（TEAM/ENTERPRISE） */
-  isTeam(plan: string): boolean {
-    return isTeamWorkspace(plan)
-  }
-
-  getPlan(plan: string) {
-    return getPlanDef(plan)
   }
 
   // ── 审查发起拦截（FR-12 拦截点①：额度/字数/非标类型）─────────────────────
@@ -110,15 +93,6 @@ export class EntitlementsService {
     }
 
     return { deep: def.features.deep }
-  }
-
-  /**
-   * 断言深度能力可用（FR-12 拦截点②：Agent 轨/折叠区/多轮/改稿台）。
-   * 业务侧在已持有 couponPass 标记（本次审查用券解锁）时直接放行。
-   */
-  assertDeepAccess(plan: string, couponPass = false): void {
-    if (couponPass || isDeepPlan(plan)) return
-    throw new PlanLimitException('DEEP_FEATURE', '深度建议 / 法条依据 / AI 改稿为付费能力', 'deep')
   }
 
   // ── 台账拦截（FR-12 拦截点④）─────────────────────────────────────────────
@@ -203,15 +177,6 @@ export class EntitlementsService {
       ledgerMaxItems: def.ledgerMaxItems === Infinity ? null : def.ledgerMaxItems,
       retentionDays: def.retentionDays,
       features: def.features,
-    }
-  }
-
-  private featureMessage(reason: PlanLimitReason): string {
-    switch (reason) {
-      case 'PLAYBOOK':    return 'Playbook 自定义规则为团队版能力'
-      case 'EXPORT':      return 'Word 红划线 / 无水印导出为付费能力'
-      case 'TEAM_SPACE':  return '该功能为团队空间能力，请创建/升级团队'
-      default:            return '该能力为付费功能，请升级套餐或使用深度券'
     }
   }
 }

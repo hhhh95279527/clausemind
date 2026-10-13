@@ -22,12 +22,10 @@ const PrivacyView     = lazy(() => import('@/views/legal/PrivacyView.jsx'))
 const TermsView       = lazy(() => import('@/views/legal/TermsView.jsx'))
 const LandingView     = lazy(() => import('@/views/public/LandingView.jsx'))
 const PricingView     = lazy(() => import('@/views/public/PricingView.jsx'))
-const ChatView        = lazy(() => import('@/views/ChatView.jsx'))
 const KnowledgeView   = lazy(() => import('@/views/KnowledgeView.jsx'))
 const AgentView       = lazy(() => import('@/views/AgentView.jsx'))
 const ContractList    = lazy(() => import('@/views/contract/ContractListView.jsx'))
 const ReviewWorkbench = lazy(() => import('@/views/contract/ReviewWorkbench.jsx'))
-const MonitorView     = lazy(() => import('@/views/MonitorView.jsx'))
 const TraceWaterfall  = lazy(() => import('@/views/monitor/TraceWaterfall.jsx'))
 const BillingView     = lazy(() => import('@/views/monitor/BillingView.jsx'))
 const AdminView       = lazy(() => import('@/views/AdminView.jsx'))
@@ -54,7 +52,6 @@ const TemplatesView     = lazy(() => import('@/views/team/TemplatesView.jsx'))
 
 
 // ── 平台超管（独立账号体系，不进主导航，直接访问 URL）───────────────────────
-const PlatformLoginPage = lazy(() => import('@/views/platform/PlatformLoginPage.jsx'))
 const PlatformConsole   = lazy(() => import('@/views/platform/PlatformConsole.jsx'))
 
 function PageFallback() {
@@ -160,8 +157,8 @@ export default function App() {
             <Route path="/chat" element={<Navigate to={chatRedirect} replace />} />
             <Route path="/monitor" element={<Navigate to={chatRedirect} replace />} />
 
-            {/* ── 平台超管（独立账号体系：platform_token；无 token 由页面自跳登录）── */}
-            <Route path="/platform/login" element={<PlatformLoginPage />} />
+            {/* ── 平台超管（统一登录入口：在 /login 输入超管账密自动路由）── */}
+            <Route path="/platform/login" element={<Navigate to="/login" replace />} />
             <Route path="/platform" element={<PlatformConsole />} />
 
             {/* 兜底 */}

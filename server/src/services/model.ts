@@ -1,4 +1,4 @@
-// server/src/services/model.js
+// server/src/services/model.ts
 // 模型工厂：统一创建模型实例，业务代码不直接 new ChatOpenAI
 import { ChatOpenAI } from '@langchain/openai'
 import { OpenAIEmbeddings } from '@langchain/openai'
@@ -86,7 +86,7 @@ export function createChatModel({ temperature = 0.7, streaming = false, callback
  * 注意：DeepSeek 暂无 embedding 模型，这里用 OpenAI 的
  * 如果没有 OpenAI Key，可以换成本地 Ollama 的 embedding 模型
  */
-export function createEmbeddings() {
+function createEmbeddings() {
   // 优先使用智谱 AI（key 格式 xxxx.xxxx）
   if (config.ai.zhipuKey) {
     return new ZhipuAIEmbeddings({
@@ -110,7 +110,7 @@ export function createEmbeddings() {
  * 创建视觉模型（图片合同 OCR）：deepseek-flash 接受 JPEG/PNG 等图片输入
  * OCR 要的是稳定转录而非创意，temperature=0
  */
-export function createVisionModel() {
+function createVisionModel() {
   const instance = new ChatOpenAI({
     model:         config.ai.visionModel,
     apiKey:        config.ai.deepseekKey || 'sk-missing-key-placeholder',

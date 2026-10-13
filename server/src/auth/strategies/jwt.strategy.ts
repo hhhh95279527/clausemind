@@ -7,14 +7,12 @@ import { PassportStrategy } from '@nestjs/passport'
 import { ExtractJwt, Strategy } from 'passport-jwt'
 import { config } from '../../config/index.js'
 
-export interface JwtPayload {
+interface JwtPayload {
   sub: string // userId | platformAdminId
   username: string
   role: string
   tenantId?: string
   type?: 'platform'
-  iat?: number
-  exp?: number
 }
 
 @Injectable()

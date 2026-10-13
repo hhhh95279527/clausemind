@@ -103,6 +103,8 @@ export default function CheckoutView() {
 
   const workspaceLabel = entitlement?.workspaceType === 'TEAM' ? '团队空间' : '个人空间'
   const accountName = user?.displayName || user?.username || '当前账号'
+  const homePath = item === 'TEAM_MONTHLY' ? '/dashboard' : '/home'
+  const billingPath = item === 'TEAM_MONTHLY' ? '/billing' : '/me/billing'
 
   const doPay = async () => {
     if (!item) return
@@ -145,29 +147,22 @@ export default function CheckoutView() {
   // ── 转账单已提交（等待人工确认）面板 ──
   if (transferDone) {
     return (
-      <div className={css.coTopbarShell}>
-        <TopBar />
-        <main className={css.coWrap}>
-          <div className={`${css.coCard} ${css.coSuccessCard}`}>
-            <div className={css.coSuccess}>
-              <div className={css.coSuccessIc}><CheckCircleFilled /></div>
-              <h2>转账信息已提交</h2>
-              <p>管理员确认到账后，权益将自动开通，无需重复提交。</p>
-              <p className={`${css.muted} ${css.small}`}>
-                商品 {meta?.goods} · 应付 ¥{meta?.amount} · 转账单号 {transferNo}
-              </p>
-              <div className={css.coSuccessBtns}>
-                <Button type="primary" size="large" onClick={() => navigate(item === 'TEAM_MONTHLY' ? '/billing' : '/me/billing')}>
-                  查看我的订阅
-                </Button>
-                <Button size="large" onClick={() => navigate(item === 'TEAM_MONTHLY' ? '/dashboard' : '/home')}>
-                  返回工作台
-                </Button>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <ResultScreen>
+        <div className={css.coSuccessIc}><CheckCircleFilled /></div>
+        <h2>转账信息已提交</h2>
+        <p>管理员确认到账后，权益将自动开通，无需重复提交。</p>
+        <p className={`${css.muted} ${css.small}`}>
+          商品 {meta?.goods} · 应付 ¥{meta?.amount} · 转账单号 {transferNo}
+        </p>
+        <div className={css.coSuccessBtns}>
+          <Button type="primary" size="large" onClick={() => navigate(billingPath)}>
+            查看我的订阅
+          </Button>
+          <Button size="large" onClick={() => navigate(homePath)}>
+            返回工作台
+          </Button>
+        </div>
+      </ResultScreen>
     )
   }
 
@@ -178,50 +173,34 @@ export default function CheckoutView() {
       : item === 'TEAM_MONTHLY'
         ? '团队版已开通，Playbook 公司红线、团队共享与飞书通知已生效。'
         : '个人版已开通 / 深度券已到账，现在可以不限份数审查合同并使用 AI 改稿。'
-    const homePath = item === 'TEAM_MONTHLY' ? '/dashboard' : '/home'
-    const billingPath = item === 'TEAM_MONTHLY' ? '/billing' : '/me/billing'
     return (
-      <div className={css.coTopbarShell}>
-        <TopBar />
-        <main className={css.coWrap}>
-          <div className={`${css.coCard} ${css.coSuccessCard}`}>
-            <div className={css.coSuccess}>
-              <div className={css.coSuccessIc}><CheckCircleFilled /></div>
-              <h2>支付成功，权益已生效</h2>
-              <p>{successText}</p>
-              <p className={`${css.muted} ${css.small}`}>
-                订单号 {result.order.orderNo} · 模拟支付 ¥{result.order.amountYuan}（以实际选择套餐为准）
-              </p>
-              <div className={css.coSuccessBtns}>
-                <Button type="primary" size="large" onClick={() => navigate(homePath)}>进入工作台</Button>
-                <Button size="large" onClick={() => navigate(billingPath)}>查看我的订阅</Button>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <ResultScreen>
+        <div className={css.coSuccessIc}><CheckCircleFilled /></div>
+        <h2>支付成功，权益已生效</h2>
+        <p>{successText}</p>
+        <p className={`${css.muted} ${css.small}`}>
+          订单号 {result.order.orderNo} · 模拟支付 ¥{result.order.amountYuan}（以实际选择套餐为准）
+        </p>
+        <div className={css.coSuccessBtns}>
+          <Button type="primary" size="large" onClick={() => navigate(homePath)}>进入工作台</Button>
+          <Button size="large" onClick={() => navigate(billingPath)}>查看我的订阅</Button>
+        </div>
+      </ResultScreen>
     )
   }
 
   // ── 非法商品参数 ──
   if (!item) {
     return (
-      <div className={css.coTopbarShell}>
-        <TopBar />
-        <main className={css.coWrap}>
-          <div className={`${css.coCard} ${css.coSuccessCard}`}>
-            <div className={css.coSuccess}>
-              <div className={css.coSuccessIc}><SafetyCertificateOutlined /></div>
-              <h2>商品不存在或已下架</h2>
-              <p>链接中的商品参数无效，请从套餐页重新选择。</p>
-              <div className={css.coSuccessBtns}>
-                <Button type="primary" size="large" onClick={() => navigate('/pricing')}>查看套餐</Button>
-                <Button size="large" onClick={() => navigate('/home')}>进入工作台</Button>
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
+      <ResultScreen>
+        <div className={css.coSuccessIc}><SafetyCertificateOutlined /></div>
+        <h2>商品不存在或已下架</h2>
+        <p>链接中的商品参数无效，请从套餐页重新选择。</p>
+        <div className={css.coSuccessBtns}>
+          <Button type="primary" size="large" onClick={() => navigate('/pricing')}>查看套餐</Button>
+          <Button size="large" onClick={() => navigate('/home')}>进入工作台</Button>
+        </div>
+      </ResultScreen>
     )
   }
 
@@ -395,6 +374,20 @@ function TopBar() {
         <LockFilled />
         模拟支付环境 · 不会产生真实扣款
       </span>
+    </div>
+  )
+}
+
+// 全屏结果页外壳（转账已提交 / 支付成功 / 商品无效三态共用）
+function ResultScreen({ children }) {
+  return (
+    <div className={css.coTopbarShell}>
+      <TopBar />
+      <main className={css.coWrap}>
+        <div className={`${css.coCard} ${css.coSuccessCard}`}>
+          <div className={css.coSuccess}>{children}</div>
+        </div>
+      </main>
     </div>
   )
 }

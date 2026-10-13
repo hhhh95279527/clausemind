@@ -16,9 +16,7 @@ export class RolesGuard implements CanActivate {
     ])
 
     // 没有设置 @Roles() 装饰器，则不限制角色
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true
-    }
+    if (!requiredRoles?.length) return true
 
     const { user } = context.switchToHttp().getRequest()
     if (!user) return false

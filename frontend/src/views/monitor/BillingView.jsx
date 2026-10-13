@@ -2,10 +2,10 @@
 // 配额账单页：本月 token 配额进度、按天峰/谷费用折线、功能费用占比环图、超额账期、历史账期。
 // 普通租户 /monitor/billing 只看自己；ADMIN /admin/billing 可切换查看任意租户。
 // 图表全部用轻量 SVG 自绘（与 antd Progress/Table 配合），不引入 echarts 重依赖。
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
-  Alert, Button, Card, Col, Empty, Progress, Row, Select, Space, Spin, Statistic, Table, Tag, Tooltip, Typography,
+  Alert, Button, Card, Col, Empty, Progress, Row, Space, Spin, Statistic, Table, Tag, Tooltip, Typography,
 } from 'antd'
 import {
   ArrowLeftOutlined, CrownFilled, ExclamationCircleFilled, ReloadOutlined, ThunderboltFilled, WalletFilled,

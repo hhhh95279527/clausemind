@@ -97,7 +97,7 @@ async function expandQuery(question: string, callbacks?: BaseCallbackHandler[]):
   }
 }
 
-export interface RetrieveOptions {
+interface RetrieveOptions {
   category?: string
   k?: number
   docType?: DocType
@@ -206,31 +206,6 @@ interface RagOptions extends RetrieveOptions {
   /** 会话历史（由调用方从 DB 加载），用于指代消解与多轮上下文；最后一条应为当前用户问题之前的对话 */
   history?: HistoryTurn[]
   callbacks?: BaseCallbackHandler[]
-}
-
-// ── 非流式 RAG（支持历史记忆）──────────────────────────────────
-export async function ragQuery(question: string, options: RagOptions = {}) {
-  const { history = [], callbacks, ...retrieveOptions } = options
-  const rewrittenQuestion = await rewriteWithHistory(question, history, callbacks)
-  const docs = await retrieveDocs(rewrittenQuestion, retrieveOptions)
-
-  if (!docs.length) {
-    return {
-      answer: '知识库中未找到与该问题相关的内容。请尝试换一种提问方式，或上传相关文档后再试。',
-      sources: [],
-    }
-  }
-
-  const compressedDocs = await Promise.all(
-    docs.map(async (doc) => ({ ...doc, content: await compressDoc(doc.content, rewrittenQuestion, callbacks) })),
-  )
-  const prompt = ChatPromptTemplate.fromMessages([
-    ['system', RAG_SYSTEM],
-    ...history.map((m) => [m.role === 'user' ? 'human' : 'assistant', m.content] as any),
-    ['human', `参考文档：\n${buildContext(compressedDocs as any)}\n\n问题：${question}`],
-  ])
-  const answer = await prompt.pipe(chatModel).pipe(new StringOutputParser()).invoke({}, { callbacks })
-  return { answer, sources: docs }
 }
 
 // ── 流式 RAG ──────────────────────────────────────────────────

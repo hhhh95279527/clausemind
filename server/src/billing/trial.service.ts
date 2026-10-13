@@ -21,23 +21,14 @@ const FEATURE_LABEL: Record<TrialFeature, string> = {
 export class TrialService {
   constructor(private readonly db: DatabaseService) {}
 
-  /** 演示租户（测试科技/个人演示空间）：全部功能不限次 */
-  async isDemoTenant(tenantId: string): Promise<boolean> {
-    const tenant = await this.db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { name: true },
-    })
-    return !!tenant && config.trial.demoTenantNames.includes(tenant.name)
-  }
-
-  /** 该租户该功能是否免计费（演示租户或非 FREE 付费档） */
+  /** 免计费：演示租户（测试科技/个人演示空间）或非 FREE 付费档；不存在的租户不豁免 */
   private async exempt(tenantId: string): Promise<boolean> {
-    if (await this.isDemoTenant(tenantId)) return true
     const tenant = await this.db.tenant.findUnique({
       where: { id: tenantId },
-      select: { plan: true },
+      select: { name: true, plan: true },
     })
-    return !!tenant && tenant.plan !== 'FREE'
+    return !!tenant
+      && (config.trial.demoTenantNames.includes(tenant.name) || tenant.plan !== 'FREE')
   }
 
   /** 断言试用次数未用尽（FREE 非演示租户；其余放行） */

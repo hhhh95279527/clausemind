@@ -7,7 +7,7 @@ import { embeddings } from '../model.js'
 import { recordRetrieverSpan } from '../../observability/langchain-observer.js'
 import { logger } from '../../utils/logger.js'
 
-export interface RetrieveOptions {
+interface RetrieveOptions {
   k?: number
   /** 文档类型过滤：LEGAL 法规库 / TEMPLATE 模板库 / GENERAL 租户知识库 */
   docType?: DocType
@@ -69,7 +69,7 @@ function stopRatio(gram: string): number {
   return n / gram.length
 }
 
-export function tokenize(text: string): string[] {
+function tokenize(text: string): string[] {
   const grams34: string[] = []
   const grams2: string[] = []
   for (const rawSeg of text.split(SPLIT_RE)) {

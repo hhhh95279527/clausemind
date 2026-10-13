@@ -4,7 +4,7 @@
 //   ② 转账订单（用户转账 → 人工确认到账自动开通）
 //   ③ 调用链路（跨租户 Trace 瀑布，排查缺陷）
 //   ④ 埋点漏斗（个人版/企业版/全部分开查看）
-// 独立鉴权：platform_token 失效自动跳回 /platform/login
+// 独立鉴权：platform_token 失效自动跳回 /login
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -63,6 +63,12 @@ const FUNNEL_STEP_LABELS = {
   checkout_success: '支付成功',
 }
 
+// 平台 token 失效统一跳登录；其余错误弹提示（四个加载器共用；navigate 由调用方传入以保持 hook 依赖稳定）
+function platformFail(err, fallback, navigate) {
+  if (err.response?.status === 401) navigate('/login', { replace: true })
+  else message.error(platformErrMessage(err, fallback))
+}
+
 const fmtTokens = (n) => (n >= 10000 ? `${(n / 10000).toFixed(1)}万` : String(n))
 const fmtDate = (t) => (t ? new Date(t).toLocaleDateString('zh-CN') : '—')
 const fmtDateTime = (iso) => {
@@ -118,8 +124,7 @@ export default function PlatformConsole() {
       setOverview(ov)
       setTenants(tl.tenants || [])
     } catch (err) {
-      if (err.response?.status === 401) { navigate('/platform/login', { replace: true }); return }
-      message.error(platformErrMessage(err, '数据加载失败'))
+      platformFail(err, '数据加载失败', navigate)
     } finally { setLoading(false) }
   }, [navigate])
 
@@ -132,8 +137,7 @@ export default function PlatformConsole() {
       const data = await platformApi.get(`/transfer-orders?status=${st}`)
       setTransferOrders(data.orders || [])
     } catch (err) {
-      if (err.response?.status === 401) { navigate('/platform/login', { replace: true }); return }
-      message.error(platformErrMessage(err, '转账订单加载失败'))
+      platformFail(err, '转账订单加载失败', navigate)
     } finally { setTransferLoading(false) }
   }, [navigate, transferStatus])
 
@@ -153,8 +157,7 @@ export default function PlatformConsole() {
       }
       if (!data.items.length) setSelectedTraceId(null)
     } catch (err) {
-      if (err.response?.status === 401) { navigate('/platform/login', { replace: true }); return }
-      message.error(platformErrMessage(err, '链路加载失败'))
+      platformFail(err, '链路加载失败', navigate)
     } finally { setTraceLoading(false) }
   }, [navigate, tracePage, traceFeature, traceStatus, tracePlan, selectedTraceId])
 
@@ -178,8 +181,7 @@ export default function PlatformConsole() {
       const data = await platformApi.get('/analytics/funnel')
       setFunnelData(data)
     } catch (err) {
-      if (err.response?.status === 401) { navigate('/platform/login', { replace: true }); return }
-      message.error(platformErrMessage(err, '漏斗加载失败'))
+      platformFail(err, '漏斗加载失败', navigate)
     } finally { setFunnelLoading(false) }
   }, [navigate])
 
@@ -188,7 +190,7 @@ export default function PlatformConsole() {
   const logout = () => {
     localStorage.removeItem(PLATFORM_TOKEN_KEY)
     localStorage.removeItem(PLATFORM_USER_KEY)
-    navigate('/platform/login', { replace: true })
+    navigate('/login', { replace: true })
   }
 
   const handleRefresh = () => {

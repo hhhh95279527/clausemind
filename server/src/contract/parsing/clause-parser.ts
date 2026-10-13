@@ -8,7 +8,7 @@ import { createChatModel } from '../../services/model.js'
 import { config, isValidAiKey } from '../../config/index.js'
 import { logger } from '../../utils/logger.js'
 
-export interface ParsedClause {
+interface ParsedClause {
   title: string
   content: string
   clauseType: ClauseType

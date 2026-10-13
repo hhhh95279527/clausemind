@@ -15,14 +15,10 @@ export interface TraceContext {
   usage: Required<TokenUsage>
   /** 跨多次 LLM 调用按各自真实模型累加的费用（元）；一条链路混用多模型时与 usage 分开计价 */
   costCny: number
-  /** 精确缓存命中：零模型成本，用于看板缓存命中率统计 */
-  cacheHit?: boolean
 }
 
 export function createContext(init: Omit<TraceContext, 'usage' | 'costCny'> & { usage?: TokenUsage }): TraceContext {
   return {
-    tenantId: null,
-    userId: null,
     ...init,
     costCny: 0,
     usage: {

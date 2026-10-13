@@ -1,0 +1,5794 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/auth/register": {
+      "post": {
+        "description": "注册无需邮箱验证码。PERSONAL 开通 FREE 个人空间；TEAM 开通团队版演示空间。用户名重复返回 409。",
+        "operationId": "AuthController_register",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "persona",
+                  "username",
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "persona": {
+                    "type": "string",
+                    "enum": [
+                      "PERSONAL",
+                      "TEAM"
+                    ],
+                    "description": "注册类型：PERSONAL=个人版空间，TEAM=团队演示空间"
+                  },
+                  "username": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 20,
+                    "pattern": "^[a-zA-Z0-9_]{3,20}$",
+                    "description": "用户名（3-20 位字母/数字/下划线，唯一）"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "邮箱（仅格式校验，注册不强制验证码）"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "description": "登录密码"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "description": "显示名称，可选"
+                  },
+                  "orgName": {
+                    "type": "string",
+                    "description": "【TEAM】企业/团队名称"
+                  },
+                  "companySize": {
+                    "type": "string",
+                    "description": "【TEAM】团队规模"
+                  },
+                  "position": {
+                    "type": "string",
+                    "description": "【TEAM】职位"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "用户注册（个人/团队分流）",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/email-code": {
+      "post": {
+        "description": "仅向已绑定账号的邮箱发送；同一邮箱 60 秒频控。dev 环境验证码打印在后端控制台。",
+        "operationId": "AuthController_sendEmailCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "已绑定账号的邮箱"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "发送登录邮箱验证码",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login-by-code": {
+      "post": {
+        "description": "仅允许已绑定邮箱的用户使用；未绑定邮箱返回错误。成功返回 accessToken / refreshToken 与用户信息。",
+        "operationId": "AuthController_loginByCode",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "code"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "code": {
+                    "type": "string",
+                    "description": "6 位邮箱验证码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "邮箱验证码登录",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "description": "账号字段可传用户名或邮箱。密码错误返回明确业务错误（不跳转登录过期）。成功返回 accessToken / refreshToken。",
+        "operationId": "AuthController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "description": "用户名或邮箱"
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "登录密码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "用户名密码登录",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/forgot-password": {
+      "post": {
+        "description": "向绑定邮箱发送一次性重置链接，链接 15 分钟有效；60 秒频控。无论邮箱是否存在均返回成功，防止账号枚举。",
+        "operationId": "AuthController_forgotPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "忘记密码（发送重置链接）",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/reset-password": {
+      "post": {
+        "description": "凭重置链接中的一次性 token 设置新密码；使用成功后所有旧登录凭证立即失效。",
+        "operationId": "AuthController_resetPassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token",
+                  "newPassword"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "重置邮件中的一次性 token"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "重置密码",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/refresh": {
+      "post": {
+        "description": "凭 refreshToken 换取新的 accessToken/refreshToken（refresh 轮转，旧 refreshToken 失效）。",
+        "operationId": "AuthController_refresh",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "refreshToken"
+                ],
+                "properties": {
+                  "refreshToken": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "刷新访问令牌",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/profile": {
+      "get": {
+        "description": "返回用户体及其套餐、空间类型、深度券余额等信息。",
+        "operationId": "AuthController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取当前登录用户资料",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/onboarding/complete": {
+      "post": {
+        "description": "标记当前用户已完成新手引导，返回更新后的用户信息。",
+        "operationId": "AuthController_completeOnboarding",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "完成新手引导",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/change-password": {
+      "post": {
+        "description": "需校验旧密码；修改成功后旧会话凭证处理以服务端策略为准。",
+        "operationId": "AuthController_changePassword",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "oldPassword",
+                  "newPassword"
+                ],
+                "properties": {
+                  "oldPassword": {
+                    "type": "string"
+                  },
+                  "newPassword": {
+                    "type": "string",
+                    "minLength": 8
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "修改密码",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/health/live": {
+      "get": {
+        "description": "公开接口，供容器/负载均衡探活。返回 status 与进程 uptime（秒）。",
+        "operationId": "HealthController_live",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "存活探针（liveness）",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "description": "公开接口，返回服务状态、uptime 与版本号。",
+        "operationId": "HealthController_health",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "健康检查",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/api/knowledge/sessions": {
+      "get": {
+        "description": "返回当前用户全部知识问答会话（按更新时间倒序）及消息数。",
+        "operationId": "KnowledgeController_listSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "知识问答会话列表",
+        "tags": [
+          "knowledge"
+        ]
+      },
+      "post": {
+        "description": "创建后才能在「我的文档」范围上传文档与提问。标题缺省为「新会话」，首轮提问后自动改写。",
+        "operationId": "KnowledgeController_createSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "会话标题（可选）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建知识问答会话",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/api/knowledge/sessions/{id}": {
+      "get": {
+        "description": "切换会话时懒加载，最多返回最近 200 条消息，助理消息附带检索来源 sources。仅会话属主可查。",
+        "operationId": "KnowledgeController_sessionDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "会话 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "会话详情（含历史消息）",
+        "tags": [
+          "knowledge"
+        ]
+      },
+      "delete": {
+        "description": "删除会话，消息与本会话上传的文档经外键级联一并删除。仅会话属主可操作。",
+        "operationId": "KnowledgeController_removeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "会话 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除会话",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/api/knowledge/documents": {
+      "post": {
+        "description": "文档归属于指定会话（会话级隔离，必须是本人会话）。支持两种入参：multipart 上传文件（txt/md/pdf，魔数校验），或 application/json 直接提交文本内容。入库后切片并生成 embedding（无 Key 时降级关键词检索）。",
+        "operationId": "KnowledgeController_uploadDocument",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "sessionId",
+                      "file"
+                    ],
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "format": "binary",
+                        "description": "文档文件（txt/md/pdf）"
+                      },
+                      "sessionId": {
+                        "type": "string",
+                        "description": "归属的知识问答会话 ID"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "文档标题，缺省取文件名"
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "分类，缺省「通用」"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "sessionId",
+                      "content"
+                    ],
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "直接录入的文本内容"
+                      },
+                      "sessionId": {
+                        "type": "string",
+                        "description": "归属的知识问答会话 ID"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "文档标题，缺省「未命名文档」"
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "分类，缺省「通用」"
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": [
+                      "sessionId",
+                      "file"
+                    ],
+                    "properties": {
+                      "file": {
+                        "type": "string",
+                        "format": "binary",
+                        "description": "文档文件（txt/md/pdf）"
+                      },
+                      "sessionId": {
+                        "type": "string",
+                        "description": "归属的知识问答会话 ID"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "文档标题，缺省取文件名"
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "分类，缺省「通用」"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "sessionId",
+                      "content"
+                    ],
+                    "properties": {
+                      "content": {
+                        "type": "string",
+                        "description": "直接录入的文本内容"
+                      },
+                      "sessionId": {
+                        "type": "string",
+                        "description": "归属的知识问答会话 ID"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "文档标题，缺省「未命名文档」"
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "分类，缺省「通用」"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "上传/录入知识文档",
+        "tags": [
+          "knowledge"
+        ]
+      },
+      "get": {
+        "description": "scope=mine（默认）：当前会话/租户的私有文档（需带 sessionId）；scope=platform：平台共享法规库（只读）。可按 category 过滤。",
+        "operationId": "KnowledgeController_listDocuments",
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "分类精确过滤",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "文档范围，默认 mine",
+            "schema": {
+              "enum": [
+                "mine",
+                "platform"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": false,
+            "in": "query",
+            "description": "【scope=mine】知识问答会话 ID，仅返回该会话文档",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "文档列表",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/api/knowledge/documents/{docId}": {
+      "delete": {
+        "description": "仅可删除本会话/租户的私有文档；平台共享文档无权删除。不区分「不存在/无权」，统一 404 以防 ID 枚举。",
+        "operationId": "KnowledgeController_removeDocument",
+        "parameters": [
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "文档 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除文档",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/api/knowledge/query/stream": {
+      "post": {
+        "description": "成功返回 201 + `text/event-stream`。事件帧顺序：`session`（会话信息）→ `status`（阶段提示）→ `sources`（命中的参考片段）→ 可选 `rewritten`（多轮改写后的问题）→ 多个 `token`（回答增量）→ `done`；失败发 `error` 帧。\nscope=mine 必须携带已存在且属于本人的 sessionId（先建会话再提问）；scope=platform 不传 sessionId 时隐式创建会话。问答消息持久化，按会话/用户隔离。",
+        "operationId": "KnowledgeController_queryStream",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "question"
+                ],
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "description": "问题内容（不能为空）"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "mine",
+                      "platform"
+                    ],
+                    "description": "检索范围：mine=我的文档（需 sessionId），platform=平台法规库",
+                    "default": "mine"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "description": "知识问答会话 ID（mine 必填）"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "限定检索分类（可选）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "SSE 事件流（text/event-stream）",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "event: session|status|sources|rewritten|token|done|error\\ndata: { JSON }"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "RAG 知识问答（SSE 流式）",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/api/knowledge/categories": {
+      "get": {
+        "description": "返回当前范围下全部分类（含「全部文档」空选项），供前端筛选下拉使用。",
+        "operationId": "KnowledgeController_categories",
+        "parameters": [
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "文档范围，默认 mine",
+            "schema": {
+              "enum": [
+                "mine",
+                "platform"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "sessionId",
+            "required": false,
+            "in": "query",
+            "description": "【scope=mine】会话 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "可见文档分类列表",
+        "tags": [
+          "knowledge"
+        ]
+      }
+    },
+    "/api/agent/run": {
+      "post": {
+        "description": "ReAct Agent 编排业务工具（合同查询、台账、法规检索等），成功返回 201 + SSE。事件帧：`start` → 若干工具执行进度帧（thought/tool/observation 等）→ 结束；失败发 `error` 帧。所有工具强制租户上下文，无有效租户时拒绝调用。任务描述上限 2000 字。",
+        "operationId": "AgentController_run",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "task"
+                ],
+                "properties": {
+                  "task": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "要执行的任务描述"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "SSE 事件流（text/event-stream）",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "event: start|...工具步骤...|error\\ndata: { JSON }"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "执行自然语言任务（SSE 流式）",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent/tools": {
+      "get": {
+        "description": "返回当前 Agent 注册的业务工具名称与说明。",
+        "operationId": "AgentController_tools",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取 Agent 可用工具清单",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent/examples": {
+      "get": {
+        "description": "返回输入框引导用的示例任务（法规核查/合同盘点/到期预警/风险复盘/范本推荐）。",
+        "operationId": "AgentController_examples",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取任务示例",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/monitor/quota": {
+      "get": {
+        "description": "返回当前租户本月 LLM 调用次数/Token 额度使用量与剩余额度。",
+        "operationId": "MonitorController_quota",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "本月配额用量",
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/monitor/billing": {
+      "get": {
+        "description": "本月配额进度、按天峰谷计价费用、功能占比、历史账期与超额记录。",
+        "operationId": "MonitorController_billing",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "配额账单",
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/monitor/traces": {
+      "get": {
+        "description": "Trace 瀑布页左侧列表，分页 + feature/status 过滤，强制当前租户隔离。",
+        "operationId": "MonitorController_traces",
+        "parameters": [
+          {
+            "name": "feature",
+            "required": false,
+            "in": "query",
+            "description": "功能过滤，如 contract_review / knowledge / agent",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "状态过滤，如 success / error",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（1-100，默认 20）",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "调用链路列表",
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/monitor/traces/{id}": {
+      "get": {
+        "description": "含按开始时间升序的 LLM/TOOL/RETRIEVER spans、耗时占比、失败高亮；点击 span 的明细数据由前端按需展开。",
+        "operationId": "MonitorController_traceDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Trace ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "调用链路详情（瀑布）",
+        "tags": [
+          "monitor"
+        ]
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "description": "仅返回当前租户成员；支持用户名/邮箱模糊搜索。",
+        "operationId": "AdminController_listUsers",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "用户名或邮箱模糊搜索",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数，默认 20",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "用户列表（本租户，分页）",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "管理员代创建账号并设置初始密码。用户名 3-50 位字母/数字/下划线/中划线；密码至少 8 位；用户名/邮箱重复返回 409。",
+        "operationId": "AdminController_createUser",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 50,
+                    "pattern": "^[a-zA-Z0-9_-]{3,50}$"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "邮箱（可选）"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 8,
+                    "description": "初始密码"
+                  },
+                  "displayName": {
+                    "type": "string",
+                    "description": "显示名，缺省同用户名"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "MANAGER",
+                      "USER",
+                      "READONLY"
+                    ],
+                    "description": "角色，默认 USER",
+                    "default": "USER"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新增本租户用户",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/users/{id}": {
+      "put": {
+        "description": "仅可操作本租户用户（跨租户 403）。不能修改自己的角色或状态；role 取值 ADMIN/MANAGER/USER/READONLY，status 取值 ACTIVE/DISABLED。",
+        "operationId": "AdminController_updateUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "目标用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "MANAGER",
+                      "USER",
+                      "READONLY"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ACTIVE",
+                      "DISABLED"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "修改用户角色/状态",
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "description": "将目标用户置为 DISABLED，不物理删除以保留审计关联；不能禁用自己；跨租户返回 403。",
+        "operationId": "AdminController_deleteUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "目标用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "禁用用户（软删除）",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/eval-runs": {
+      "get": {
+        "description": "EvalRun 为平台基线数据（无租户维度），本租户 ADMIN 可分页查看。",
+        "operationId": "AdminController_listEvalRuns",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数，默认 20",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "离线评测记录列表",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/eval-runs/{id}": {
+      "get": {
+        "description": "含评测汇总与逐 case 结果（是否通过、得分、实际输出、评审理由、耗时）。",
+        "operationId": "AdminController_getEvalRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "评测运行 ID（EvalRun id）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "评测记录详情",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/billing/tenants": {
+      "get": {
+        "description": "管理后台账单总览：各租户当前账期费用汇总（按费用倒序）。",
+        "operationId": "AdminController_listTenantBilling",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "全租户当前账期汇总",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/billing/tenants/{tenantId}": {
+      "get": {
+        "description": "含峰谷计价、功能占比、历史账期与超额记录。",
+        "operationId": "AdminController_getTenantBilling",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "指定租户完整账单",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/rules": {
+      "get": {
+        "description": "平台级 16+ 条声明式审查规则（scope=ALL/LABOR/INTERNSHIP 三域），支持关键词/启停过滤与分页。",
+        "operationId": "AdminController_listRules",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "按规则编码/名称/分类关键词搜索",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "按生效域过滤",
+            "schema": {
+              "enum": [
+                "ALL",
+                "LABOR",
+                "INTERNSHIP"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabled",
+            "required": false,
+            "in": "query",
+            "description": "按启停状态过滤",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数，默认 50",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "平台审查规则列表",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "AdminController_createRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "规则名称"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "HIGH",
+                      "MED",
+                      "LOW"
+                    ],
+                    "description": "风险等级"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "风险分类"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "ALL",
+                      "LABOR",
+                      "INTERNSHIP"
+                    ],
+                    "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "匹配正则（可空）"
+                  },
+                  "keywords": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "关键词列表"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Agent 轨判定提示词"
+                  },
+                  "suggestion": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "修改建议"
+                  },
+                  "legalBasis": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "法律依据条文"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "规则说明"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "description": "排序权重"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建平台审查规则",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/rules/try": {
+      "post": {
+        "description": "用已有规则（id）或临时规则体（rule）对给定文本试跑；labor/internship 控制劳动域规则是否生效（实习场景强制短路劳动规则）。",
+        "operationId": "AdminController_tryRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "已存在规则 ID（与 rule 二选一）"
+                  },
+                  "rule": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "规则名称"
+                      },
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "HIGH",
+                          "MED",
+                          "LOW"
+                        ],
+                        "description": "风险等级"
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "风险分类"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "ALL",
+                          "LABOR",
+                          "INTERNSHIP"
+                        ],
+                        "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "匹配正则（可空）"
+                      },
+                      "keywords": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "关键词列表"
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "description": "Agent 轨判定提示词"
+                      },
+                      "suggestion": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "修改建议"
+                      },
+                      "legalBasis": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "法律依据条文"
+                      },
+                      "description": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "规则说明"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "是否启用"
+                      },
+                      "sortOrder": {
+                        "type": "integer",
+                        "description": "排序权重"
+                      }
+                    },
+                    "description": "临时规则体（与 id 二选一）"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "待试跑的条款/合同文本"
+                  },
+                  "labor": {
+                    "type": "boolean",
+                    "description": "是否按劳动关系场景执行劳动域规则"
+                  },
+                  "internship": {
+                    "type": "boolean",
+                    "description": "是否实习协议场景（true 时短路 LABOR 域）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "规则试跑（规则管理后台）",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/admin/rules/{id}": {
+      "get": {
+        "operationId": "AdminController_getRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "规则详情",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "AdminController_updateRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "规则名称"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "HIGH",
+                      "MED",
+                      "LOW"
+                    ],
+                    "description": "风险等级"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "风险分类"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "ALL",
+                      "LABOR",
+                      "INTERNSHIP"
+                    ],
+                    "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "匹配正则（可空）"
+                  },
+                  "keywords": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "关键词列表"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Agent 轨判定提示词"
+                  },
+                  "suggestion": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "修改建议"
+                  },
+                  "legalBasis": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "法律依据条文"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "规则说明"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "description": "排序权重"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "更新平台审查规则",
+        "tags": [
+          "admin"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminController_deleteRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除平台审查规则",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/contracts/upload": {
+      "post": {
+        "description": "支持 txt/md/docx/pdf/jpg/jpeg/png（图片走视觉 OCR）。按套餐限制单文件大小（FREE 8MB / 会员 15MB），上传后经魔数真实类型校验并异步入解析队列，返回建档的合同记录。",
+        "operationId": "ContractController_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "合同文件（txt/md/docx/pdf/jpg/jpeg/png）"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "合同标题，缺省取文件名（去扩展名）"
+                  },
+                  "scene": {
+                    "type": "string",
+                    "enum": [
+                      "LABOR",
+                      "INTERNSHIP",
+                      "LEASE",
+                      "SERVICE",
+                      "NDA",
+                      "SALE",
+                      "LOAN",
+                      "EQUITY",
+                      "CUSTOM"
+                    ],
+                    "description": "合同场景，缺省 LABOR；付费场景 SALE/LOAN/EQUITY/CUSTOM 受套餐拦截",
+                    "default": "LABOR"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "上传合同文件（multipart）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/text": {
+      "post": {
+        "description": "直接提交合同正文文本（上限 20 万字），服务端落临时文件后走与文件上传相同的解析队列。",
+        "operationId": "ContractController_uploadText",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "合同标题，缺省为「合同文本 + 日期」"
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 200000,
+                    "description": "合同正文纯文本"
+                  },
+                  "scene": {
+                    "type": "string",
+                    "enum": [
+                      "LABOR",
+                      "INTERNSHIP",
+                      "LEASE",
+                      "SERVICE",
+                      "NDA",
+                      "SALE",
+                      "LOAN",
+                      "EQUITY",
+                      "CUSTOM"
+                    ],
+                    "description": "合同场景，缺省 LABOR",
+                    "default": "LABOR"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "粘贴合同文本建档",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/eligibility": {
+      "post": {
+        "description": "预检字数/场景权益/月度额度/FREE 试用次数。前端据此决定直接发起或弹付费墙。返回 allowed、deep（是否深度审查）及当前权益快照。",
+        "operationId": "ContractController_eligibility",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "charCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "合同字数（用于按字数判定套餐档位）"
+                  },
+                  "scene": {
+                    "type": "string",
+                    "enum": [
+                      "LABOR",
+                      "INTERNSHIP",
+                      "LEASE",
+                      "SERVICE",
+                      "NDA",
+                      "SALE",
+                      "LOAN",
+                      "EQUITY",
+                      "CUSTOM"
+                    ],
+                    "description": "合同场景，缺省 LABOR",
+                    "default": "LABOR"
+                  },
+                  "payWithCoupon": {
+                    "type": "boolean",
+                    "description": "是否计划用深度券支付（用券时只校验券余额，不计试用次数）",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发起审查前预检（不扣券、不建任务）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/sample": {
+      "post": {
+        "description": "每个租户限领一次；复制一份内置埋雷示例合同，不扣额度。",
+        "operationId": "ContractController_copySample",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新手引导：领取体验示例合同",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts": {
+      "get": {
+        "description": "返回当前租户最近 100 份合同（含最近一次审查任务状态、风险数、Playbook 命中数）。reviewStatus 在内存中二次过滤：PENDING/WAITING_REVIEW/APPROVED/FAILED。返回 { sampleCopied, contracts }。",
+        "operationId": "ContractController_list",
+        "parameters": [
+          {
+            "name": "reviewStatus",
+            "required": false,
+            "in": "query",
+            "description": "按审查状态过滤",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "WAITING_REVIEW",
+                "APPROVED",
+                "FAILED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "按合同解析状态过滤，如 UPLOADED/READY/REVIEWING/WAITING_REVIEW/COMPLETED/FAILED",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "合同列表",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}": {
+      "get": {
+        "description": "返回合同元信息、全部条款（按序号升序）及最近一次审查任务（含全部风险）。跨租户访问返回 404。",
+        "operationId": "ContractController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "合同详情",
+        "tags": [
+          "contract"
+        ]
+      },
+      "delete": {
+        "description": "删除合同及其关联数据，并同步清理 uploads 中的上传原件。跨租户访问返回 404。",
+        "operationId": "ContractController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除合同",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/structured": {
+      "get": {
+        "description": "首次请求触发 AI 抽取合同甲乙方、期限、金额等结构化信息并缓存；force=1 强制重抽。未配置 AI Key 返回 409。",
+        "operationId": "ContractController_structuredInfo",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "required": false,
+            "in": "query",
+            "description": "传 1 强制重新抽取（默认 0 走缓存）",
+            "schema": {
+              "enum": [
+                "0",
+                "1"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "结构化信息抽取（企业审查台）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/reviews": {
+      "post": {
+        "description": "成功返回 201 + `text/event-stream`，事件帧：`task`（任务建立）→ 多阶段 `stage`/`risk`（规则与 Agent 命中的风险增量推送）→ `waiting`（进入人工终审，LangGraph interrupt）/ `agent_skip`（无 AI Key 跳过 Agent 轨）→ `done`；失败发 `error` 帧后结束。\n归属/套餐/额度校验在 SSE 建立前完成，故越权与超额会以普通 403/404/429 HTTP 状态返回。深度券通道先原子扣券，审查未实际启动时自动退还。",
+        "operationId": "ContractController_startReviewStream",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID（须已解析完成：READY/WAITING_REVIEW/COMPLETED）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "payWithCoupon": {
+                    "type": "boolean",
+                    "description": "是否使用 1 张深度券发起深度审查（默认 false，按当前套餐判定）",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "SSE 事件流（text/event-stream）",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "description": "event: task|stage|risk|waiting|agent_skip|done|error\\ndata: { JSON }"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发起合同审查（SSE 流式）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/ask": {
+      "post": {
+        "description": "围绕指定合同上下文问答（FR-8）。FREE 租户每份合同限 1 轮，深度套餐/深度券不限；问题上限 500 字。",
+        "operationId": "ContractController_ask",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "question"
+                ],
+                "properties": {
+                  "question": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "追问内容"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "合同助手：就本份合同追问",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/reviews/{taskId}/decision": {
+      "post": {
+        "description": "ADMIN/MANAGER 对处于 WAITING_REVIEW 的任务做终审：可逐条处置风险（ACCEPTED/IGNORED/EDITED）并给出整体结论 APPROVED/REJECTED。终审通过后异步触发群机器人审查通过通知，并生成意见书。",
+        "operationId": "ContractController_decision",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "description": "审查任务 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "finalDecision"
+                ],
+                "properties": {
+                  "finalDecision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVED",
+                      "REJECTED"
+                    ],
+                    "description": "整体终审结论"
+                  },
+                  "actions": {
+                    "type": "array",
+                    "description": "逐条风险处置（可空）",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "riskId",
+                        "status"
+                      ],
+                      "properties": {
+                        "riskId": {
+                          "type": "string",
+                          "description": "风险 ID"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "ACCEPTED",
+                            "IGNORED",
+                            "EDITED"
+                          ],
+                          "description": "采纳/忽略/已编辑"
+                        },
+                        "comment": {
+                          "type": "string",
+                          "nullable": true,
+                          "description": "处置备注"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "人工终审决策（恢复 LangGraph）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/reviews/{taskId}/comment": {
+      "post": {
+        "description": "在企业审批流中追加评论，写入审计日志，不改变任务状态。评论上限 500 字。",
+        "operationId": "ContractController_reviewComment",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "description": "审查任务 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "comment"
+                ],
+                "properties": {
+                  "comment": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "评论内容"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "审批评论（仅审计留痕）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/reviews/{taskId}/report": {
+      "get": {
+        "description": "终审通过后才生成意见书；未终审完成返回 403。返回 { reportMd, title }。",
+        "operationId": "ContractController_report",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "description": "审查任务 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取审查意见书（Markdown）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/reviews/{taskId}/report/docx": {
+      "get": {
+        "description": "终审完成且具备导出权益（PERSONAL 及以上；FREE 非演示租户终身可试用 2 次）。文件名经 Content-Disposition 以 UTF-8 编码返回，并写审计日志。",
+        "operationId": "ContractController_reportDocx",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "description": "审查任务 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "导出审查意见书（Word .docx）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/revisions": {
+      "get": {
+        "description": "返回该合同全部风险点及对应的 AI 改写建议、接受状态。跨租户访问返回 404。",
+        "operationId": "RevisionController_list",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：获取合同的修订建议列表",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/revisions/generate": {
+      "post": {
+        "description": "深度权益功能（个人版及以上或使用深度券）。force=true 时忽略缓存重新生成。",
+        "operationId": "RevisionController_generate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "force": {
+                    "type": "boolean",
+                    "description": "是否强制重新生成（默认 false，走缓存）",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：批量生成修订建议",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/revisions/accept-all": {
+      "post": {
+        "operationId": "RevisionController_acceptAll",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：一键接受全部修订建议",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/revisions/docx": {
+      "get": {
+        "description": "docx 原件在原 OOXML 上注入 w:ins/w:del 修订痕迹（Word 中可逐条接受/拒绝，版式保留）；其他来源走文本重建。响应头 X-Revision-Applied/-Unmatched 标示原句命中/未命中条数。",
+        "operationId": "RevisionController_docx",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：导出 Word 红划线修订稿（.docx）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/risks/{riskId}/revision": {
+      "post": {
+        "operationId": "RevisionController_setStatus",
+        "parameters": [
+          {
+            "name": "riskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "NONE",
+                      "PENDING",
+                      "ACCEPTED",
+                      "REJECTED"
+                    ],
+                    "description": "NONE=重置，ACCEPTED=接受，REJECTED=拒绝"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：接受/拒绝/重置单条修订",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/risks/{riskId}/revision/regenerate": {
+      "post": {
+        "operationId": "RevisionController_regenerate",
+        "parameters": [
+          {
+            "name": "riskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tone": {
+                    "type": "string",
+                    "enum": [
+                      "FIRM",
+                      "GENTLE",
+                      "NEUTRAL"
+                    ],
+                    "description": "FIRM=强硬 / GENTLE=温和 / NEUTRAL=中性（默认）",
+                    "default": "NEUTRAL"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：按语气重新生成单条修订建议",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/risks/{riskId}/revision/rebuttal": {
+      "post": {
+        "description": "AI 生成谈判对手视角的反驳理由，辅助用户准备沟通策略。",
+        "operationId": "RevisionController_rebuttal",
+        "parameters": [
+          {
+            "name": "riskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：模拟对方就该风险点进行反驳",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/notifications": {
+      "get": {
+        "description": "实时计算当前租户的站内通知（审查结果、到期提醒、套餐账单等）。",
+        "operationId": "NotificationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "站内通知列表",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/api/billing/orders": {
+      "post": {
+        "description": "按服务端商品目录下单（价格由后端配置决定，禁止客户端传价）。商品：PERSONAL_MONTHLY/PERSONAL_YEARLY（个人版订阅）、COUPON_PACK（10 张深度券包）、TEAM_MONTHLY（团队版升级）。",
+        "operationId": "OrdersController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item"
+                ],
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "enum": [
+                      "PERSONAL_MONTHLY",
+                      "PERSONAL_YEARLY",
+                      "COUPON_PACK",
+                      "TEAM_MONTHLY"
+                    ],
+                    "description": "商品编码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "创建订单",
+        "tags": [
+          "billing"
+        ]
+      },
+      "get": {
+        "description": "返回当前租户的订单列表（含订阅、券包、升级单）。",
+        "operationId": "OrdersController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "订单记录",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/billing/orders/{id}/mock-pay": {
+      "post": {
+        "description": "演示用：立即确认支付并开通/续费对应套餐或券包。续费自原到期日顺延。",
+        "operationId": "OrdersController_pay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "订单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "WECHAT",
+                      "ALIPAY"
+                    ],
+                    "description": "支付渠道，默认 WECHAT",
+                    "default": "WECHAT"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "模拟支付（演示环境）",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/billing/subscription/cancel": {
+      "post": {
+        "description": "需二次确认：confirm=true 才真正取消；到期后空间降级为 FREE。",
+        "operationId": "OrdersController_cancel",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "confirm"
+                ],
+                "properties": {
+                  "confirm": {
+                    "type": "boolean",
+                    "description": "必须为 true 才执行取消"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "取消订阅",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/billing/enterprise-lead": {
+      "post": {
+        "description": "公开定价页与「我的套餐」页共用。提交后异步发送通知邮件给管理员，发送失败不影响提交结果。",
+        "operationId": "OrdersController_lead",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "company",
+                  "contact"
+                ],
+                "properties": {
+                  "company": {
+                    "type": "string",
+                    "description": "企业名称"
+                  },
+                  "teamSize": {
+                    "type": "string",
+                    "description": "团队规模"
+                  },
+                  "contact": {
+                    "type": "string",
+                    "description": "联系方式（手机号/邮箱/微信等）"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "咨询内容备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "企业版开通/增购咨询留资",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/billing/payment-info": {
+      "get": {
+        "description": "返回收银台「银行转账」页签展示的收款码/收款说明。",
+        "operationId": "OrdersController_paymentInfo",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "转账收款信息",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/billing/transfer-orders": {
+      "post": {
+        "description": "提交转账单号后等待平台超管人工确认到账；确认后开通对应套餐，续费自原到期日顺延。同一转账单号重复提交会被拦截。",
+        "operationId": "OrdersController_submitTransfer",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "item",
+                  "transferNo"
+                ],
+                "properties": {
+                  "item": {
+                    "type": "string",
+                    "enum": [
+                      "PERSONAL_MONTHLY",
+                      "PERSONAL_YEARLY",
+                      "COUPON_PACK",
+                      "TEAM_MONTHLY"
+                    ],
+                    "description": "商品编码"
+                  },
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "WECHAT",
+                      "ALIPAY",
+                      "BANK"
+                    ],
+                    "description": "转账渠道"
+                  },
+                  "transferNo": {
+                    "type": "string",
+                    "description": "转账凭证单号/流水号"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "提交转账支付订单",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/api/me/entitlements": {
+      "get": {
+        "description": "返回套餐、深度券余额、月度额度用量、功能开关等，供工作台额度卡与付费墙使用。",
+        "operationId": "MeController_getEntitlements",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "当前空间权益快照",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/me/preferences": {
+      "get": {
+        "description": "返回当前用户的审查关注项、审查语气、立场及收藏的个人条款。",
+        "operationId": "MeController_preferences",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "审查偏好与个人条款库",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "description": "关注项仅接受固定白名单值（去重、最多 10 项）；tone=RIGOROUS 严谨 / PLAIN 通俗；stance=LESSEE 承租方 / LESSOR 出租方。非法字段回退默认/原值。",
+        "operationId": "MeController_patchPreferences",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "followRisks": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "押金",
+                        "定金 / 订金",
+                        "违约金",
+                        "试用期",
+                        "社保",
+                        "竞业限制",
+                        "争议管辖"
+                      ]
+                    },
+                    "description": "重点关注的风险项"
+                  },
+                  "tone": {
+                    "type": "string",
+                    "enum": [
+                      "RIGOROUS",
+                      "PLAIN"
+                    ],
+                    "description": "审查/改稿语气"
+                  },
+                  "stance": {
+                    "type": "string",
+                    "enum": [
+                      "LESSEE",
+                      "LESSOR"
+                    ],
+                    "description": "审查立场（承租方/出租方）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "更新审查偏好",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/me/clause-library": {
+      "post": {
+        "description": "标题 ≤100 字、内容 ≤2000 字。FREE 空间最多 3 条，超限返回套餐拦截错误（DEEP_FEATURE）。",
+        "operationId": "MeController_addClause",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "content"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "条款标题"
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "description": "条款内容"
+                  },
+                  "scene": {
+                    "type": "string",
+                    "enum": [
+                      "LABOR",
+                      "INTERNSHIP",
+                      "LEASE",
+                      "SERVICE",
+                      "NDA",
+                      "SALE",
+                      "LOAN",
+                      "EQUITY",
+                      "CUSTOM"
+                    ],
+                    "description": "适用场景，缺省 CUSTOM",
+                    "default": "CUSTOM"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "收藏个人条款",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/me/clause-library/{id}": {
+      "delete": {
+        "operationId": "MeController_removeClause",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "条款条目 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除收藏的个人条款",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/playbook/rules": {
+      "get": {
+        "description": "返回当前租户的 Playbook 规则及近 30 天命中数。",
+        "operationId": "PlaybookController_list",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": false,
+            "in": "query",
+            "description": "按规则类型过滤",
+            "schema": {
+              "enum": [
+                "FORBIDDEN",
+                "PREFERENCE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "企业规则列表",
+        "tags": [
+          "playbook"
+        ]
+      },
+      "post": {
+        "operationId": "PlaybookController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "规则标题"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "规则说明"
+                  },
+                  "naturalPrompt": {
+                    "type": "string",
+                    "description": "自然语言规则描述（可由 /rules/parse 解析为 pattern）"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FORBIDDEN",
+                      "PREFERENCE"
+                    ],
+                    "description": "FORBIDDEN=公司禁写红线，PREFERENCE=起草偏好"
+                  },
+                  "contractTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "LABOR",
+                        "INTERNSHIP",
+                        "LEASE",
+                        "SERVICE",
+                        "NDA",
+                        "SALE",
+                        "LOAN",
+                        "EQUITY",
+                        "CUSTOM",
+                        "ALL"
+                      ]
+                    },
+                    "description": "生效的合同场景，ALL 表示全部"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "description": "结构化匹配模式（与 naturalPrompt 二选一或并存）",
+                    "properties": {
+                      "keywords": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                          "type": "string",
+                          "maxLength": 40
+                        },
+                        "description": "关键词列表（最多 20 个）"
+                      },
+                      "regex": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "正则表达式（保存时校验可编译）"
+                      },
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "HIGH",
+                          "MED",
+                          "LOW"
+                        ],
+                        "description": "命中风险等级"
+                      },
+                      "suggestion": {
+                        "type": "string",
+                        "description": "修改建议"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建企业规则",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/playbook/rules/parse": {
+      "post": {
+        "description": "把自然语言规则描述解析为结构化 pattern 草稿供前端编辑；未配置 AI Key 返回 409。",
+        "operationId": "PlaybookController_parse",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "naturalPrompt"
+                ],
+                "properties": {
+                  "naturalPrompt": {
+                    "type": "string",
+                    "description": "自然语言规则描述"
+                  },
+                  "contractTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "LABOR",
+                        "INTERNSHIP",
+                        "LEASE",
+                        "SERVICE",
+                        "NDA",
+                        "SALE",
+                        "LOAN",
+                        "EQUITY",
+                        "CUSTOM",
+                        "ALL"
+                      ]
+                    },
+                    "description": "适用场景"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "自然语言解析为规则草稿",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/playbook/rules/test": {
+      "post": {
+        "description": "在不落库的前提下，用给定 pattern 对样例条款本地试跑，返回命中结果。",
+        "operationId": "PlaybookController_test",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "description": "结构化匹配模式（keywords/regex/severity/suggestion）"
+                  },
+                  "samples": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "待试命中的样例条款文本列表"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "样例条款试命中",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/playbook/rules/{id}": {
+      "patch": {
+        "operationId": "PlaybookController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "规则标题"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "规则说明"
+                  },
+                  "naturalPrompt": {
+                    "type": "string",
+                    "description": "自然语言规则描述（可由 /rules/parse 解析为 pattern）"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FORBIDDEN",
+                      "PREFERENCE"
+                    ],
+                    "description": "FORBIDDEN=公司禁写红线，PREFERENCE=起草偏好"
+                  },
+                  "contractTypes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "LABOR",
+                        "INTERNSHIP",
+                        "LEASE",
+                        "SERVICE",
+                        "NDA",
+                        "SALE",
+                        "LOAN",
+                        "EQUITY",
+                        "CUSTOM",
+                        "ALL"
+                      ]
+                    },
+                    "description": "生效的合同场景，ALL 表示全部"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  },
+                  "pattern": {
+                    "type": "object",
+                    "description": "结构化匹配模式（与 naturalPrompt 二选一或并存）",
+                    "properties": {
+                      "keywords": {
+                        "type": "array",
+                        "maxItems": 20,
+                        "items": {
+                          "type": "string",
+                          "maxLength": 40
+                        },
+                        "description": "关键词列表（最多 20 个）"
+                      },
+                      "regex": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "正则表达式（保存时校验可编译）"
+                      },
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "HIGH",
+                          "MED",
+                          "LOW"
+                        ],
+                        "description": "命中风险等级"
+                      },
+                      "suggestion": {
+                        "type": "string",
+                        "description": "修改建议"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "编辑企业规则",
+        "tags": [
+          "playbook"
+        ]
+      },
+      "delete": {
+        "operationId": "PlaybookController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除企业规则",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/playbook/rules/{id}/toggle": {
+      "patch": {
+        "operationId": "PlaybookController_toggle",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "true=启用，false=停用"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "启用/停用规则",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/playbook/packs": {
+      "get": {
+        "description": "平台预置行业规则包，含是否已启用状态。",
+        "operationId": "PlaybookController_packs",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "行业专项包列表",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/playbook/packs/{code}/enable": {
+      "post": {
+        "description": "将专项包规则复制为当前租户的 Playbook 规则。",
+        "operationId": "PlaybookController_enablePack",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "description": "专项包编码",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "一键启用行业专项包",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
+    "/api/ledger": {
+      "get": {
+        "description": "按当前租户返回台账记录分页列表与顶部统计数据。",
+        "operationId": "LedgerController_list",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "关键词搜索（员工姓名等）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "required": false,
+            "in": "query",
+            "description": "分桶筛选（如即将到期/已到期/试用期等，以服务端支持值为准）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "台账列表（分页/搜索/分桶 + 统计卡）",
+        "tags": [
+          "ledger"
+        ]
+      },
+      "post": {
+        "description": "FREE/PERSONAL 空间最多 10 条，超限拦截。",
+        "operationId": "LedgerController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "employeeName": {
+                    "type": "string",
+                    "description": "员工姓名（劳动类合同）"
+                  },
+                  "dept": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "所属部门"
+                  },
+                  "contractType": {
+                    "type": "string",
+                    "description": "台账合同类型（固定期限/无固定期限/实习/劳务等，以服务端字典为准）"
+                  },
+                  "position": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "岗位"
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "合同开始日期 YYYY-MM-DD"
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true,
+                    "description": "合同到期日期 YYYY-MM-DD（无固定期限可空）"
+                  },
+                  "probationEnd": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true,
+                    "description": "试用期到期日期 YYYY-MM-DD"
+                  },
+                  "remindBeforeDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "到期提前提醒天数"
+                  },
+                  "linkedContractId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "关联的审查合同 ID（可选）"
+                  },
+                  "note": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建台账记录",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/ledger/{id}": {
+      "patch": {
+        "operationId": "LedgerController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "台账记录 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "employeeName": {
+                    "type": "string",
+                    "description": "员工姓名（劳动类合同）"
+                  },
+                  "dept": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "所属部门"
+                  },
+                  "contractType": {
+                    "type": "string",
+                    "description": "台账合同类型（固定期限/无固定期限/实习/劳务等，以服务端字典为准）"
+                  },
+                  "position": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "岗位"
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "合同开始日期 YYYY-MM-DD"
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true,
+                    "description": "合同到期日期 YYYY-MM-DD（无固定期限可空）"
+                  },
+                  "probationEnd": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true,
+                    "description": "试用期到期日期 YYYY-MM-DD"
+                  },
+                  "remindBeforeDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "到期提前提醒天数"
+                  },
+                  "linkedContractId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "关联的审查合同 ID（可选）"
+                  },
+                  "note": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "编辑台账记录",
+        "tags": [
+          "ledger"
+        ]
+      },
+      "delete": {
+        "operationId": "LedgerController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "台账记录 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除台账记录",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/ledger/{id}/renew": {
+      "post": {
+        "description": "原记录置为 RENEWED，新建一条记录并以 renewedFromId 关联原记录。",
+        "operationId": "LedgerController_renew",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "原台账记录 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "employeeName": {
+                    "type": "string",
+                    "description": "员工姓名（劳动类合同）"
+                  },
+                  "dept": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "所属部门"
+                  },
+                  "contractType": {
+                    "type": "string",
+                    "description": "台账合同类型（固定期限/无固定期限/实习/劳务等，以服务端字典为准）"
+                  },
+                  "position": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "岗位"
+                  },
+                  "startDate": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "合同开始日期 YYYY-MM-DD"
+                  },
+                  "endDate": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true,
+                    "description": "合同到期日期 YYYY-MM-DD（无固定期限可空）"
+                  },
+                  "probationEnd": {
+                    "type": "string",
+                    "format": "date",
+                    "nullable": true,
+                    "description": "试用期到期日期 YYYY-MM-DD"
+                  },
+                  "remindBeforeDays": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "到期提前提醒天数"
+                  },
+                  "linkedContractId": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "关联的审查合同 ID（可选）"
+                  },
+                  "note": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "合同续签",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/ledger/{id}/terminate": {
+      "post": {
+        "description": "将台账记录标记为协商解除，并触发群机器人台账变更通知。",
+        "operationId": "LedgerController_terminate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "台账记录 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "协商解除",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/ledger/extract": {
+      "post": {
+        "description": "根据已审查合同内容抽取员工姓名、期限、试用期等台账字段供前端预填；未配置 AI Key 返回 409。",
+        "operationId": "LedgerController_extract",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "contractId"
+                ],
+                "properties": {
+                  "contractId": {
+                    "type": "string",
+                    "description": "合同 ID（须属于当前租户）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "从审查合同 AI 抽取台账预填项",
+        "tags": [
+          "ledger"
+        ]
+      }
+    },
+    "/api/dashboard/summary": {
+      "get": {
+        "description": "返回风险概览、合同到期/试用期到期提醒等企业合规仪表盘卡片数据（按当前租户聚合）。",
+        "operationId": "DashboardController_summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "合规仪表盘聚合数据",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/team/members": {
+      "get": {
+        "description": "团队内所有成员可见。",
+        "operationId": "TeamController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "团队成员列表",
+        "tags": [
+          "team"
+        ]
+      },
+      "post": {
+        "description": "由负责人代创建成员账号（含初始密码），占用团队席位。",
+        "operationId": "TeamController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "displayName"
+                ],
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "description": "成员姓名/显示名"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "邮箱（可选）"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "MANAGER",
+                      "USER",
+                      "READONLY"
+                    ],
+                    "description": "角色，默认 USER",
+                    "default": "USER"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新增团队成员（仅 ADMIN）",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/team/members/{id}/role": {
+      "patch": {
+        "description": "不能修改自己的角色，防止管理入口被锁死。",
+        "operationId": "TeamController_updateRole",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "成员用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "role"
+                ],
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "MANAGER",
+                      "USER",
+                      "READONLY"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "修改成员角色（仅 ADMIN）",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/team/members/{id}": {
+      "delete": {
+        "description": "不能移除自己；仅将账号置为禁用，保留审计关联数据。",
+        "operationId": "TeamController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "成员用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "移除/禁用成员（仅 ADMIN，软删除）",
+        "tags": [
+          "team"
+        ]
+      }
+    },
+    "/api/integrations/feishu": {
+      "get": {
+        "description": "凭证 AES-GCM 加密存储，仅返回 webhook 脱敏信息（如末位标识）。",
+        "operationId": "IntegrationsController_getFeishu",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取飞书群机器人配置",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "put": {
+        "description": "仅允许提交到飞书官方域名的 webhook，凭证加密落库。",
+        "operationId": "IntegrationsController_saveFeishu",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "webhookUrl"
+                ],
+                "properties": {
+                  "webhookUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "飞书群机器人 webhook 地址（open.feishu.cn 官方域名）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "保存飞书群机器人配置（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "delete": {
+        "operationId": "IntegrationsController_removeFeishu",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除飞书群机器人配置（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/feishu/test": {
+      "post": {
+        "operationId": "IntegrationsController_testFeishu",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送飞书测试消息（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/dingtalk": {
+      "get": {
+        "description": "凭证加密存储，页面仅展示脱敏信息。",
+        "operationId": "IntegrationsController_getDingtalk",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取钉钉群机器人配置",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "put": {
+        "description": "仅允许提交到钉钉官方域名的 webhook；加签密钥可选。",
+        "operationId": "IntegrationsController_saveDingtalk",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "webhookUrl"
+                ],
+                "properties": {
+                  "webhookUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "钉钉群机器人 webhook 地址（oapi.dingtalk.com 官方域名）"
+                  },
+                  "secret": {
+                    "type": "string",
+                    "description": "加签密钥（可选，用于签名校验）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "保存钉钉群机器人配置（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "delete": {
+        "operationId": "IntegrationsController_removeDingtalk",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除钉钉群机器人配置（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/dingtalk/test": {
+      "post": {
+        "operationId": "IntegrationsController_testDingtalk",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送钉钉测试消息（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/wework": {
+      "get": {
+        "description": "凭证加密存储，页面仅展示脱敏信息。",
+        "operationId": "IntegrationsController_getWework",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "获取企业微信群机器人配置",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "put": {
+        "description": "仅允许提交到企业微信官方域名的 webhook。",
+        "operationId": "IntegrationsController_saveWework",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "webhookUrl"
+                ],
+                "properties": {
+                  "webhookUrl": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "企业微信群机器人 webhook 地址（qyapi.weixin.qq.com 官方域名）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "保存企业微信群机器人配置（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      },
+      "delete": {
+        "operationId": "IntegrationsController_removeWework",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除企业微信群机器人配置（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/wework/test": {
+      "post": {
+        "operationId": "IntegrationsController_testWework",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送企业微信测试消息（仅 ADMIN）",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/integrations/leads": {
+      "post": {
+        "description": "团队任意成员可提交开通/对接咨询留资。",
+        "operationId": "IntegrationsController_createLead",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "phone"
+                ],
+                "properties": {
+                  "integration": {
+                    "type": "string",
+                    "description": "目标集成（feishu/dingtalk/wework 等）"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "联系人姓名"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "description": "联系电话"
+                  },
+                  "note": {
+                    "type": "string",
+                    "description": "需求备注"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "集成开通留资",
+        "tags": [
+          "integrations"
+        ]
+      }
+    },
+    "/api/templates": {
+      "get": {
+        "description": "按分类/关键词返回平台合同范本列表；具体可采用范围由当前套餐决定。",
+        "operationId": "TemplateController_list",
+        "parameters": [
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "范本分类",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "关键词搜索",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "范本列表",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/templates/{docId}/preview": {
+      "get": {
+        "description": "返回范本正文内容供在线预览，所有登录用户可访问。",
+        "operationId": "TemplateController_preview",
+        "parameters": [
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "范本预览",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/templates/{docId}/adopt": {
+      "post": {
+        "description": "把范本复制为当前租户的一份合同；受套餐权益拦截。",
+        "operationId": "TemplateController_adopt",
+        "parameters": [
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "采用后的合同标题，缺省用范本标题"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "采用范本（复制为我的合同）",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/templates/{docId}/download": {
+      "get": {
+        "description": "按套餐放行下载，返回二进制流；文件名经 Content-Disposition 以 UTF-8 编码返回。",
+        "operationId": "TemplateController_download",
+        "parameters": [
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "下载范本（Word .docx）",
+        "tags": [
+          "templates"
+        ]
+      }
+    },
+    "/api/analytics/track": {
+      "post": {
+        "description": "无需登录即可调用。请求体支持三种形态：单个事件对象、`{ events: [...] }` 批量（≤50 条、整体 ≤32KB）；信封可带 `anonymousId`（前端 localStorage 生成的持久匿名 ID）。\n身份解析：优先读 Authorization 头，sendBeacon 场景降级读信封 `token`；Token 合法才回填 user/tenant，失败一律按匿名处理（不返回 401）。IP 维度 60 次/分钟频控（Redis 故障 fail-open）。",
+        "operationId": "AnalyticsController_track",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "events": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "description": "批量事件列表；也允许直接在请求体放置单个事件对象",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "description": "事件名（如 sign_up / first_review_start / paywall_show 等）"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "事件时间（可选，缺省服务端时间）"
+                        },
+                        "props": {
+                          "type": "object",
+                          "additionalProperties": true,
+                          "description": "事件属性（persona/scene/utm/referrer 等）"
+                        }
+                      }
+                    }
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "单事件形态的事件名"
+                  },
+                  "props": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "description": "单事件形态的事件属性"
+                  },
+                  "anonymousId": {
+                    "type": "string",
+                    "minLength": 8,
+                    "maxLength": 50,
+                    "pattern": "^[A-Za-z0-9_-]+$",
+                    "description": "匿名设备 ID（注册成功后用于关联访客期事件）"
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "accessToken（仅 sendBeacon 无法带 Authorization 头时作为降级通道）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "埋点事件上报（公开，支持匿名与 sendBeacon）",
+        "tags": [
+          "analytics"
+        ]
+      }
+    },
+    "/api/platform/auth/login": {
+      "post": {
+        "description": "独立于租户用户的账号体系（独立 platform_admins 表、独立 JWT type=platform）。账号不存在与密码错误返回相同错误，防止账号枚举。",
+        "operationId": "PlatformController_login",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "description": "平台超管用户名"
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "平台超管密码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "平台超管登录（公开）",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/overview": {
+      "get": {
+        "description": "平台运营总览数据（租户数、关键增长与用量指标）。",
+        "operationId": "PlatformController_overview",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "运营总览",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/tenants": {
+      "get": {
+        "description": "返回平台全部租户及其套餐、订阅到期时间、状态等。",
+        "operationId": "PlatformController_listTenants",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "全量租户列表",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "description": "创建租户及其管理员账号。空间类型按套餐自动判定：TEAM/ENTERPRISE→TEAM 空间，FREE/PERSONAL→PERSONAL 空间。",
+        "operationId": "PlatformController_createTenant",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "plan",
+                  "adminUsername",
+                  "adminPassword"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "租户（企业）名称"
+                  },
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "FREE",
+                      "PERSONAL",
+                      "TEAM",
+                      "ENTERPRISE"
+                    ],
+                    "description": "初始套餐"
+                  },
+                  "adminUsername": {
+                    "type": "string",
+                    "description": "租户管理员用户名"
+                  },
+                  "adminPassword": {
+                    "type": "string",
+                    "description": "租户管理员初始密码"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "代开新租户企业空间",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/tenants/{id}/plan": {
+      "put": {
+        "description": "设置套餐与到期时间（可传 null 清空）；空间类型随套餐同步判定。",
+        "operationId": "PlatformController_updateTenantPlan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "plan"
+                ],
+                "properties": {
+                  "plan": {
+                    "type": "string",
+                    "enum": [
+                      "FREE",
+                      "PERSONAL",
+                      "TEAM",
+                      "ENTERPRISE"
+                    ]
+                  },
+                  "planExpiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "description": "套餐到期时间 ISO 字符串，null 清空"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "调整租户套餐/订阅到期时间",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/tenants/{id}/status": {
+      "put": {
+        "description": "停用后该租户成员无法登录使用。",
+        "operationId": "PlatformController_setTenantStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status"
+                ],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ACTIVE",
+                      "DISABLED"
+                    ],
+                    "description": "目标状态"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "停用/启用租户",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/tenants/{id}/users": {
+      "get": {
+        "description": "查看指定租户的全部成员。",
+        "operationId": "PlatformController_listTenantUsers",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "租户成员管理：成员列表",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/tenants/{id}/users/{userId}": {
+      "put": {
+        "operationId": "PlatformController_updateTenantUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "目标成员用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "ADMIN",
+                      "MANAGER",
+                      "USER",
+                      "READONLY"
+                    ]
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ACTIVE",
+                      "DISABLED"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "租户成员管理：修改成员角色/状态",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/tenants/{id}/users/{userId}/reset-password": {
+      "post": {
+        "description": "由平台超管重置指定成员密码并返回新凭证。",
+        "operationId": "PlatformController_resetPassword",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "required": true,
+            "in": "path",
+            "description": "目标成员用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "租户成员管理：重置成员密码",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/transfer-orders": {
+      "get": {
+        "description": "按状态筛选转账订单，默认 PENDING。",
+        "operationId": "PlatformController_listTransferOrders",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "订单状态，默认 PENDING",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "CONFIRMED",
+                "REJECTED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "转账订单列表",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/transfer-orders/{id}/confirm": {
+      "post": {
+        "description": "确认后为租户开通对应套餐（续费自原到期日顺延）；重复确认同一单号返回 409。",
+        "operationId": "PlatformController_confirmTransferOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "转账订单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "确认转账到账",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/transfer-orders/{id}/reject": {
+      "post": {
+        "description": "驳回时必须填写原因。",
+        "operationId": "PlatformController_rejectTransferOrder",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "转账订单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "reason"
+                ],
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "description": "驳回原因（必填）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "驳回转账订单",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/analytics/funnel": {
+      "get": {
+        "description": "按近 30 天数据统计（可用 from/to 覆盖），以注册事件为漏斗起始门槛，无注册事件时为空态；支持按套餐过滤。",
+        "operationId": "PlatformController_funnel",
+        "parameters": [
+          {
+            "name": "plan",
+            "required": false,
+            "in": "query",
+            "description": "按套餐过滤",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "起始时间 ISO 字符串，默认 30 天前",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "结束时间 ISO 字符串，默认当前",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "六步增长漏斗",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/analytics/breakdown": {
+      "get": {
+        "description": "按 persona（注册身份）/ plan（套餐）/ scene（审查场景）维度对漏斗事件做分布统计，非法 dim 回退 plan。",
+        "operationId": "PlatformController_breakdown",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "起始时间 ISO 字符串，默认 30 天前",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "结束时间 ISO 字符串，默认当前",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dim",
+            "required": false,
+            "in": "query",
+            "description": "下钻维度，默认 plan",
+            "schema": {
+              "enum": [
+                "persona",
+                "plan",
+                "scene"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "漏斗维度下钻分布",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/traces": {
+      "get": {
+        "description": "平台超管排查缺陷用，可跨租户查询，支持按租户/套餐/功能/状态过滤与分页。",
+        "operationId": "PlatformController_traces",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "description": "按租户过滤",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "plan",
+            "required": false,
+            "in": "query",
+            "description": "按套餐过滤",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "feature",
+            "required": false,
+            "in": "query",
+            "description": "按功能过滤（contract_review/knowledge/agent 等）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "按状态过滤（success/error 等）",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数（1-100，默认 20）",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "跨租户调用链路列表",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/traces/{id}": {
+      "get": {
+        "description": "查看任意租户的 Trace 详情，含全部 spans 与 Input/Output/Metadata。",
+        "operationId": "PlatformController_traceDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "Trace ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "跨租户调用链路详情（瀑布）",
+        "tags": [
+          "platform"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "ClauseMind API",
+    "description": "ClauseMind 企业智能办公助手 API 文档。\n\n## 通用约定\n- 除注册/登录/埋点/健康检查等显式公开接口外，所有接口均需在请求头携带 `Authorization: Bearer <accessToken>`。\n- 路径中的 `/api` 前缀为实际路径的一部分。\n- 合同审查与 AI 问答类接口为 **SSE（Server-Sent Events）** 流：`Content-Type: text/event-stream`，成功状态码 **201**，事件帧格式为 `event: <类型>\\ndata: <JSON>\\n\\n`，错误经 error 帧透传。\n- 文件上传接口为 `multipart/form-data`；Word 导出接口返回二进制流（`.docx`），文件名在 `Content-Disposition` 中以 UTF-8 编码给出。\n- 常见错误码：400 参数错误 / 401 未登录或 Token 失效 / 403 无权限（含跨租户、套餐/试用额度拦截）/ 404 资源不存在（跨租户访问统一 404）/ 429 月度 AI 配额超限或触发限流。",
+    "version": "1.0",
+    "contact": {},
+    "x-logo": {
+      "url": "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2296%22%20height%3D%2296%22%20viewBox%3D%220%200%2096%2096%22%3E%3Crect%20width%3D%2296%22%20height%3D%2296%22%20rx%3D%2220%22%20fill%3D%22%231D4ED8%22%2F%3E%3Ctext%20x%3D%2248%22%20y%3D%2264%22%20font-family%3D%22Segoe%20UI%2CArial%2Csans-serif%22%20font-size%3D%2252%22%20font-weight%3D%22700%22%20fill%3D%22%23FFFFFF%22%20text-anchor%3D%22middle%22%3EC%3C%2Ftext%3E%3C%2Fsvg%3E",
+      "altText": "ClauseMind",
+      "backgroundColor": "#FFFFFF"
+    }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "认证：注册 / 登录 / 验证码 / Token / 改密"
+    },
+    {
+      "name": "contract",
+      "description": "合同审查：上传 / 列表 / SSE 审查 / 人工终审 / 意见书 / AI 改稿"
+    },
+    {
+      "name": "knowledge",
+      "description": "法规知识库：多会话 RAG 问答（SSE） / 文档管理"
+    },
+    {
+      "name": "agent",
+      "description": "任务 Agent：自然语言任务执行（SSE）"
+    },
+    {
+      "name": "billing",
+      "description": "套餐与订单：收银台 / 模拟支付 / 转账 / 订阅 / 企业留资"
+    },
+    {
+      "name": "me",
+      "description": "个人空间：权益快照 / 审查偏好 / 个人条款库"
+    },
+    {
+      "name": "playbook",
+      "description": "企业红线（Playbook）：禁写/偏好规则与行业专项包"
+    },
+    {
+      "name": "ledger",
+      "description": "合同台账：全生命周期登记 / 续签 / 解除 / AI 预填"
+    },
+    {
+      "name": "dashboard",
+      "description": "合规仪表盘：风险与到期聚合统计"
+    },
+    {
+      "name": "team",
+      "description": "团队成员与席位管理"
+    },
+    {
+      "name": "integrations",
+      "description": "集成中心：飞书 / 钉钉 / 企微群机器人与开通留资"
+    },
+    {
+      "name": "templates",
+      "description": "合同范本库：预览 / 采用 / 下载"
+    },
+    {
+      "name": "notifications",
+      "description": "站内通知"
+    },
+    {
+      "name": "analytics",
+      "description": "埋点事件接收（支持匿名与 sendBeacon）"
+    },
+    {
+      "name": "monitor",
+      "description": "租户用量监控：配额 / 账单 / Trace 链路"
+    },
+    {
+      "name": "admin",
+      "description": "租户管理后台：成员 / 评测 / 规则配置（本租户 ADMIN）"
+    },
+    {
+      "name": "platform",
+      "description": "平台超级管理员：租户 / 转账审核 / 跨租户链路 / 漏斗（独立账号体系）"
+    },
+    {
+      "name": "health",
+      "description": "健康检查（公开）"
+    }
+  ],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "租户用户 accessToken（JWT，type=user）"
+      },
+      "platform": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http",
+        "description": "平台超级管理员 accessToken（JWT，type=platform，仅 /api/platform/* 使用）"
+      }
+    },
+    "schemas": {}
+  }
+}

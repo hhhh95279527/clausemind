@@ -7,13 +7,14 @@
 //
 // 会话持久化：复用 ChatSession(role='knowledge') / Message(feature='knowledge')，
 // 按 userId 属主校验，天然做到每轮会话相互隔离、刷新不丢失。
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, NotFoundException, OnModuleInit, Param, Post, Query, Req, Res } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, OnModuleInit, Param, Post, Query, Req, Res } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import path from 'path'
 import fs from 'fs/promises'
 import { assertRealFileType } from '../utils/file-guard.js'
 import { ingestDocument, ingestText, getDocRegistry, deleteDocument, setDatabase } from '../services/rag/ingest.js'
-import { ragQueryStream, ragQuery, type HistoryTurn } from '../services/rag/query.js'
+import { ragQueryStream, type HistoryTurn } from '../services/rag/query.js'
 import { logger } from '../utils/logger.js'
 import { initSse } from '../utils/sse'
 import { DatabaseService } from '../database/database.service.js'
@@ -39,6 +40,8 @@ function scopeRetrieve(scope: Scope, tenantId: string, category?: string, sessio
   return { docType: 'GENERAL' as const, ownOnly: true, tenantId, category, sessionId }
 }
 
+@ApiTags('knowledge')
+@ApiBearerAuth('bearer')
 @Controller('api/knowledge')
 export class KnowledgeController implements OnModuleInit {
   constructor(
@@ -66,6 +69,7 @@ export class KnowledgeController implements OnModuleInit {
 
   // GET /api/knowledge/sessions —— 当前用户的知识问答会话列表
   @Get('sessions')
+  @ApiOperation({ summary: '知识问答会话列表', description: '返回当前用户全部知识问答会话（按更新时间倒序）及消息数。' })
   async listSessions(@Req() req: Request) {
     const userId: string = (req as any).user.userId
     const sessions = await this.db.chatSession.findMany({
@@ -92,6 +96,13 @@ export class KnowledgeController implements OnModuleInit {
 
   // POST /api/knowledge/sessions —— 新建会话
   @Post('sessions')
+  @ApiOperation({ summary: '新建知识问答会话', description: '创建后才能在「我的文档」范围上传文档与提问。标题缺省为「新会话」，首轮提问后自动改写。' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { title: { type: 'string', maxLength: 200, description: '会话标题（可选）' } },
+    },
+  })
   async createSession(@Req() req: Request, @Body() body: { title?: string } | undefined) {
     const userId: string = (req as any).user.userId
     const title = (body?.title || '').trim().slice(0, 200) || DEFAULT_TITLE
@@ -103,6 +114,8 @@ export class KnowledgeController implements OnModuleInit {
 
   // GET /api/knowledge/sessions/:id —— 会话详情（含消息，切换会话时懒加载）
   @Get('sessions/:id')
+  @ApiOperation({ summary: '会话详情（含历史消息）', description: '切换会话时懒加载，最多返回最近 200 条消息，助理消息附带检索来源 sources。仅会话属主可查。' })
+  @ApiParam({ name: 'id', description: '会话 ID' })
   async sessionDetail(@Req() req: Request, @Param('id') id: string) {
     const session = await this.requireOwnedSession((req as any).user.userId, id)
     const messages = await this.db.message.findMany({
@@ -128,6 +141,8 @@ export class KnowledgeController implements OnModuleInit {
 
   // DELETE /api/knowledge/sessions/:id — 删除整个会话（消息与本会话上传的文档均由外键级联删除）
   @Delete('sessions/:id')
+  @ApiOperation({ summary: '删除会话', description: '删除会话，消息与本会话上传的文档经外键级联一并删除。仅会话属主可操作。' })
+  @ApiParam({ name: 'id', description: '会话 ID' })
   async removeSession(@Req() req: Request, @Param('id') id: string) {
     await this.requireOwnedSession((req as any).user.userId, id)
     await this.db.chatSession.delete({ where: { id } })
@@ -173,6 +188,37 @@ export class KnowledgeController implements OnModuleInit {
   // ── POST /api/knowledge/documents ─────────────────────────────
   // 上传文档并入库（文件 / 纯文本两种方式，均归本租户私有）
   @Post('documents')
+  @ApiOperation({
+    summary: '上传/录入知识文档',
+    description: '文档归属于指定会话（会话级隔离，必须是本人会话）。支持两种入参：multipart 上传文件（txt/md/pdf，魔数校验），或 application/json 直接提交文本内容。入库后切片并生成 embedding（无 Key 时降级关键词检索）。',
+  })
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    schema: {
+      oneOf: [
+        {
+          type: 'object',
+          required: ['sessionId', 'file'],
+          properties: {
+            file: { type: 'string', format: 'binary', description: '文档文件（txt/md/pdf）' },
+            sessionId: { type: 'string', description: '归属的知识问答会话 ID' },
+            title: { type: 'string', description: '文档标题，缺省取文件名' },
+            category: { type: 'string', description: '分类，缺省「通用」' },
+          },
+        },
+        {
+          type: 'object',
+          required: ['sessionId', 'content'],
+          properties: {
+            content: { type: 'string', description: '直接录入的文本内容' },
+            sessionId: { type: 'string', description: '归属的知识问答会话 ID' },
+            title: { type: 'string', description: '文档标题，缺省「未命名文档」' },
+            category: { type: 'string', description: '分类，缺省「通用」' },
+          },
+        },
+      ],
+    },
+  })
   async uploadDocument(@Req() req: Request, @Body() body: any) {
     try {
       let docMeta
@@ -230,6 +276,13 @@ export class KnowledgeController implements OnModuleInit {
   // ── GET /api/knowledge/documents ──────────────────────────────
   // 文档列表。scope=mine（默认）：本租户上传的私有文档；scope=platform：平台法规库
   @Get('documents')
+  @ApiOperation({
+    summary: '文档列表',
+    description: 'scope=mine（默认）：当前会话/租户的私有文档（需带 sessionId）；scope=platform：平台共享法规库（只读）。可按 category 过滤。',
+  })
+  @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'platform'], description: '文档范围，默认 mine' })
+  @ApiQuery({ name: 'sessionId', required: false, description: '【scope=mine】知识问答会话 ID，仅返回该会话文档' })
+  @ApiQuery({ name: 'category', required: false, description: '分类精确过滤' })
   async listDocuments(
     @Req() req: Request,
     @Query('category') category?: string,
@@ -248,6 +301,8 @@ export class KnowledgeController implements OnModuleInit {
   // ── DELETE /api/knowledge/documents/:docId ─────────────────────
   // 删除文档（只能删本租户私有文档；平台共享文档 deleteDocument 会以无权拒绝）
   @Delete('documents/:docId')
+  @ApiOperation({ summary: '删除文档', description: '仅可删除本会话/租户的私有文档；平台共享文档无权删除。不区分「不存在/无权」，统一 404 以防 ID 枚举。' })
+  @ApiParam({ name: 'docId', description: '文档 ID' })
   async removeDocument(@Req() req: Request, @Param('docId') docId: string) {
     try {
       const userId: string = (req as any).user.userId
@@ -269,6 +324,30 @@ export class KnowledgeController implements OnModuleInit {
   // ── POST /api/knowledge/query/stream ──────────────────────────
   // RAG 问答（流式）：先推送来源，再流式推送回答；消息落库、会话隔离
   @Post('query/stream')
+  @ApiOperation({
+    summary: 'RAG 知识问答（SSE 流式）',
+    description: [
+      '成功返回 201 + `text/event-stream`。事件帧顺序：`session`（会话信息）→ `status`（阶段提示）→ `sources`（命中的参考片段）→ 可选 `rewritten`（多轮改写后的问题）→ 多个 `token`（回答增量）→ `done`；失败发 `error` 帧。',
+      'scope=mine 必须携带已存在且属于本人的 sessionId（先建会话再提问）；scope=platform 不传 sessionId 时隐式创建会话。问答消息持久化，按会话/用户隔离。',
+    ].join('\n'),
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['question'],
+      properties: {
+        question: { type: 'string', description: '问题内容（不能为空）' },
+        scope: { type: 'string', enum: ['mine', 'platform'], description: '检索范围：mine=我的文档（需 sessionId），platform=平台法规库', default: 'mine' },
+        sessionId: { type: 'string', description: '知识问答会话 ID（mine 必填）' },
+        category: { type: 'string', description: '限定检索分类（可选）' },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'SSE 事件流（text/event-stream）',
+    content: { 'text/event-stream': { schema: { type: 'string', description: 'event: session|status|sources|rewritten|token|done|error\\ndata: { JSON }' } } },
+  })
   async queryStream(
     @Req() req: Request,
     @Body() body: { question: string; category?: string; scope?: string; sessionId?: string },
@@ -375,65 +454,12 @@ export class KnowledgeController implements OnModuleInit {
     }
   }
 
-  // ── POST /api/knowledge/query ─────────────────────────────────
-  // RAG 问答（非流式）：短问题场景，消息同样落库、会话隔离
-  @Post('query')
-  async query(
-    @Req() req: Request,
-    @Body() body: { question: string; category?: string; scope?: string; sessionId?: string },
-  ) {
-    const question = body.question?.trim()
-    const scope = normalizeScope(body.scope)
-    const userId: string = (req as any).user.userId
-    const tenantId: string = (req as any).user.tenantId
-
-    if (!question) {
-      throw new BadRequestException('问题不能为空')
-    }
-    if (scope === 'mine' && !body.sessionId?.trim()) {
-      throw new BadRequestException('请先新建会话并上传文档后再提问')
-    }
-
-    return this.tracer.run(
-      { feature: 'knowledge', name: `知识库问答：${question.slice(0, 30)}`, tenantId, userId },
-      async (handle) => {
-        await this.quota.assert(tenantId)
-
-        let sessionId = body.sessionId
-        if (sessionId) {
-          await this.requireOwnedSession(userId, sessionId)
-        } else {
-          const created = await this.db.chatSession.create({
-            data: { userId, title: question.slice(0, 20), role: SESSION_ROLE },
-          })
-          sessionId = created.id
-        }
-
-        const history = await this.loadHistory(sessionId)
-        await this.saveKnowledgeMessage({ sessionId, userId, role: 'USER', content: question })
-
-        const { answer, sources } = await ragQuery(question, {
-          ...scopeRetrieve(scope, tenantId, body.category, sessionId),
-          history,
-          callbacks: handle.callbacks,
-        })
-        await this.saveKnowledgeMessage({
-          sessionId,
-          userId,
-          role: 'ASSISTANT',
-          content: answer,
-          sources: sources.map((s: any) => ({
-            chunkId: s.chunkId, docId: s.docId, title: s.title, score: s.score, content: s.content,
-          })),
-        })
-        return { sessionId, answer, sources }
-      },
-    )
-  }
-
   // ── GET /api/knowledge/categories ─────────────────────────────
   // 当前范围下可见分类（前端筛选用）
   @Get('categories')
+  @ApiOperation({ summary: '可见文档分类列表', description: '返回当前范围下全部分类（含「全部文档」空选项），供前端筛选下拉使用。' })
+  @ApiQuery({ name: 'scope', required: false, enum: ['mine', 'platform'], description: '文档范围，默认 mine' })
+  @ApiQuery({ name: 'sessionId', required: false, description: '【scope=mine】会话 ID' })
   async categories(
     @Req() req: Request,
     @Query('scope') scopeRaw?: string,

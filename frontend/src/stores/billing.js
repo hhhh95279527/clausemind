@@ -5,17 +5,11 @@ import http from '@/utils/http.js'
 
 export const useBillingStore = create((set) => ({
   orders: [],
-  loadingOrders: false,
 
   loadOrders: async () => {
-    set({ loadingOrders: true })
-    try {
-      const data = await http.get('/billing/orders')
-      set({ orders: data.orders || [] })
-      return data.orders || []
-    } finally {
-      set({ loadingOrders: false })
-    }
+    const data = await http.get('/billing/orders')
+    set({ orders: data.orders || [] })
+    return data.orders || []
   },
 
   /** 创建 PENDING 模拟订单 */

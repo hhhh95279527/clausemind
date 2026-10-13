@@ -17,7 +17,6 @@
   background: var(--color-surface);
   flex-shrink: 0;
 }
-.filter-label { font-size: 12px; color: var(--color-text-muted); white-space: nowrap; }
 .filter-select { width: 150px; padding: 5px 10px; }
 
 /* 范围切换 tab */

@@ -22,6 +22,6 @@ import { config } from '../config/index.js'
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, LocalStrategy, MailerService, VerificationCodeService],
-  exports: [AuthService, MailerService, VerificationCodeService],
+  exports: [AuthService, MailerService],
 })
 export class AuthModule {}

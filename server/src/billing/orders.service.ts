@@ -7,16 +7,16 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common'
-import type { Prisma, Tenant } from '@prisma/client'
+import type { Order, Prisma, Tenant } from '@prisma/client'
 import { DatabaseService } from '../database/database.service.js'
 import { AuditService } from '../audit/audit.service.js'
 import { MailerService } from '../auth/mailer.service.js'
 import { EntitlementsService } from './entitlements.service.js'
 import { getCheckoutItem, type CheckoutItem, type CheckoutItemDef } from './plans.config.js'
 import { config as appConfig } from '../config/index.js'
-import { Logger } from '@nestjs/common'
 
 export type PayChannel = 'WECHAT' | 'ALIPAY'
 
@@ -157,10 +157,6 @@ export class OrdersService {
     return {
       orders: orders.map((o) => ({
         ...this.serialize(o),
-        payChannel: o.payChannel,
-        transferNo: o.transferNo,
-        rejectReason: o.rejectReason,
-        confirmedAt: o.confirmedAt,
         tenantName: o.tenant?.name ?? '-',
         tenantPlan: o.tenant?.plan ?? '-',
         submitter: o.createdBy
@@ -176,27 +172,11 @@ export class OrdersService {
     if (!order) throw new NotFoundException('订单不存在')
     if (order.status !== 'PENDING') throw new ConflictException('订单已处理，请刷新列表')
 
-    const item = getCheckoutItem(
-      order.kind === 'COUPON_PACK'
-        ? 'COUPON_PACK'
-        : `${order.targetPlan}_${order.period === 'YEAR' ? 'YEARLY' : 'MONTHLY'}`,
-    )
+    const item = getCheckoutItem(this.toItemCode(order.kind, order.targetPlan, order.period) ?? '')
     if (!item) throw new BadRequestException('订单商品信息无效')
 
     const now = new Date()
-    const paid = await this.db.$transaction(async (tx) => {
-      const claimed = await tx.order.updateMany({
-        where: { id: order.id, status: 'PENDING' },
-        data: { status: 'PAID', paidAt: now, confirmedAt: now },
-      })
-      if (claimed.count !== 1) throw new ConflictException('订单状态已变更，请刷新后重试')
-
-      const tenant = await tx.tenant.findUnique({ where: { id: order.tenantId } })
-      if (!tenant) throw new NotFoundException('工作空间不存在')
-      const tenantPatch = this.buildEffectPatch(tenant, item, now)
-      await tx.tenant.update({ where: { id: order.tenantId }, data: tenantPatch })
-      return tx.order.findUniqueOrThrow({ where: { id: order.id } })
-    })
+    const paid = await this.markPaidAndApply(order.id, order.tenantId, item, now, true)
 
     await this.audit.log({
       tenantId: order.tenantId, userId: null,
@@ -254,31 +234,11 @@ export class OrdersService {
     if (order.status === 'PAID') throw new ConflictException('订单已支付，请勿重复支付')
     if (order.status === 'CANCELLED') throw new ConflictException('订单已取消')
 
-    const item = getCheckoutItem(
-      order.kind === 'COUPON_PACK'
-        ? 'COUPON_PACK'
-        : `${order.targetPlan}_${order.period === 'YEAR' ? 'YEARLY' : 'MONTHLY'}`,
-    )
+    const item = getCheckoutItem(this.toItemCode(order.kind, order.targetPlan, order.period) ?? '')
     if (!item) throw new BadRequestException('订单商品信息无效')
 
     const now = new Date()
-    const paid = await this.db.$transaction(async (tx) => {
-      // 条件认领：仅 PENDING 可置 PAID，防并发/双击下事务内重复发权益。
-      // count !== 1（已被支付/取消）即抛错回滚整个事务。
-      const claimed = await tx.order.updateMany({
-        where: { id: order.id, status: 'PENDING' },
-        data: { status: 'PAID', paidAt: now },
-      })
-      if (claimed.count !== 1) throw new ConflictException('订单状态已变更，请刷新后重试')
-
-      const tenant = await tx.tenant.findUnique({ where: { id: tenantId } })
-      if (!tenant) throw new NotFoundException('工作空间不存在')
-
-      const tenantPatch = this.buildEffectPatch(tenant, item, now)
-
-      await tx.tenant.update({ where: { id: tenantId }, data: tenantPatch })
-      return tx.order.findUniqueOrThrow({ where: { id: order.id } })
-    })
+    const paid = await this.markPaidAndApply(order.id, tenantId, item, now, false)
 
     const effect = this.effectSummary(item)
     await this.audit.log({
@@ -392,6 +352,39 @@ export class OrdersService {
 
   // ── 内部：购买资格 / 权益生效补丁 ──────────────────────────────────────────
 
+  /**
+   * 条件认领 PENDING 订单置 PAID 并在同事务内生效权益（mock-pay / 转账确认共用）。
+   * confirmed=true 时回写 confirmedAt（人工确认到账）。
+   * count !== 1（已被支付/取消）即抛错回滚整个事务，防并发/双击重复发权益。
+   */
+  private async markPaidAndApply(
+    orderId: string,
+    tenantId: string,
+    item: CheckoutItemDef,
+    now: Date,
+    confirmed: boolean,
+  ) {
+    return this.db.$transaction(async (tx) => {
+      const claimed = await tx.order.updateMany({
+        where: { id: orderId, status: 'PENDING' },
+        data: {
+          status: 'PAID',
+          paidAt: now,
+          ...(confirmed && { confirmedAt: now }),
+        },
+      })
+      if (claimed.count !== 1) throw new ConflictException('订单状态已变更，请刷新后重试')
+
+      const tenant = await tx.tenant.findUnique({ where: { id: tenantId } })
+      if (!tenant) throw new NotFoundException('工作空间不存在')
+      await tx.tenant.update({
+        where: { id: tenantId },
+        data: this.buildEffectPatch(tenant, item, now),
+      })
+      return tx.order.findUniqueOrThrow({ where: { id: orderId } })
+    })
+  }
+
   private assertPurchasable(tenant: Tenant, item: CheckoutItemDef) {
     if (tenant.plan === 'ENTERPRISE') {
       throw new BadRequestException('企业版为定制套餐，请联系商务开通')
@@ -470,21 +463,7 @@ export class OrdersService {
     return `WM${y}${m}${d}${id.replace(/[^a-z0-9]/gi, '').slice(-6).toUpperCase()}`
   }
 
-  serialize(order: {
-    id: string
-    kind: string
-    period: string | null
-    targetPlan: string | null
-    couponQty: number | null
-    amountFen: number
-    status: string
-    createdAt: Date
-    paidAt: Date | null
-    payChannel?: string | null
-    transferNo?: string | null
-    rejectReason?: string | null
-    confirmedAt?: Date | null
-  }) {
+  private serialize(order: Order) {
     return {
       id: order.id,
       orderNo: this.orderNo(order.id, order.paidAt ?? order.createdAt),
@@ -498,10 +477,10 @@ export class OrdersService {
       status: order.status,
       createdAt: order.createdAt,
       paidAt: order.paidAt,
-      ...(order.payChannel !== undefined && { payChannel: order.payChannel }),
-      ...(order.transferNo !== undefined && { transferNo: order.transferNo }),
-      ...(order.rejectReason !== undefined && { rejectReason: order.rejectReason }),
-      ...(order.confirmedAt !== undefined && { confirmedAt: order.confirmedAt }),
+      payChannel: order.payChannel,
+      transferNo: order.transferNo,
+      rejectReason: order.rejectReason,
+      confirmedAt: order.confirmedAt,
     }
   }
 

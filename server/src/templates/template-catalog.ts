@@ -1,7 +1,7 @@
 // server/src/templates/template-catalog.ts
 // 合同范本目录（FR-20，与 prisma/fixtures/legal.ts 的 TEMPLATE_DOCS 一一对应）。
 // 这是范本元数据（标题/分类/场景/卡片描述/排序）的唯一事实源；fixtures 引用本目录入库。
-export type TemplateScene = 'LABOR' | 'INTERNSHIP' | 'LEASE' | 'SERVICE' | 'NDA' | 'SALE' | 'LOAN' | 'EQUITY' | 'CUSTOM'
+type TemplateScene = 'LABOR' | 'INTERNSHIP' | 'LEASE' | 'SERVICE' | 'NDA' | 'SALE' | 'LOAN' | 'EQUITY' | 'CUSTOM'
 
 export interface TemplateCatalogItem {
   docId: string
@@ -45,5 +45,3 @@ export const TEMPLATE_CATALOG: TemplateCatalogItem[] = [
   { docId: 'tpl_nda', title: '保密与竞业限制协议 NDA', fileName: '保密与竞业限制协议NDA.txt', category: '保密协议类', scene: 'NDA', summary: '十五条完整版：商业秘密范围、竞业期限不超2年、按月经济补偿不低于30%、违约金与继续履行。', isNew: true, order: 15 },
   { docId: 'tpl_confidentiality', title: '保密协议（通用版）', fileName: '保密协议.txt', category: '保密协议类', scene: 'NDA', summary: '适用于商务合作/劳动关系双方：保密信息界定、例外情形、资料返还销毁、个人信息保护与独立有效。', order: 16 },
 ]
-
-export const TEMPLATE_CATEGORIES = ['劳动合同类', '租赁类', '买卖借贷类', '股权服务类', '保密协议类'] as const

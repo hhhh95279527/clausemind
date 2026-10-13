@@ -9,7 +9,7 @@ import { IntegrationCryptoService } from '../../integrations/crypto.util.js'
 import { config } from '../../config/index.js'
 import { logger } from '../../utils/logger.js'
 
-export interface SendCardResult {
+interface SendCardResult {
   ok: boolean
   /** not_configured / cipher_error / network_error / upstream_<code> / db_error */
   reason?: string
@@ -21,7 +21,7 @@ interface CardAction {
   primary?: boolean
 }
 
-export interface InteractiveCardSpec {
+interface InteractiveCardSpec {
   /** 卡片头配色（飞书模板色） */
   template: 'blue' | 'red' | 'green' | 'orange'
   title: string

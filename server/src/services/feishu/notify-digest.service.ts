@@ -30,7 +30,7 @@ export class NotifyDigestService {
     this.queue.repeatable(QUEUES.DAILY_DIGEST, '0 9 * * *', 'Asia/Shanghai')
   }
 
-  async runDigest(): Promise<number> {
+  private async runDigest(): Promise<number> {
     const tenants = await this.db.tenant.findMany({
       where: { status: 'ACTIVE' },
       select: { id: true },

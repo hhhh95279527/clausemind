@@ -173,7 +173,7 @@ function TraceDetail({ traceId }) {
   const totalMs = Math.max(end - base, 1)
 
   return (
-    <div className={styles.detail}>
+    <div>
       <Row gutter={16} className={styles.summaryRow}>
         <Col span={8}>
           <Statistic title="总耗时" value={detail.latencyMs} suffix="ms" />

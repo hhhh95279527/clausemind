@@ -4,6 +4,7 @@
 // - 固定窗口 IP 频控（60 批/分钟）；单批 ≤50 条、体积 ≤32KB
 // - sendBeacon 兼容：前端以 application/json 的 Blob 发送，Nest json parser 直接可收
 import { Body, Controller, HttpCode, HttpException, HttpStatus, Ip, Post, Req } from '@nestjs/common'
+import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { JwtService } from '@nestjs/jwt'
 import { ExtractJwt } from 'passport-jwt'
 import type { Request } from 'express'
@@ -20,6 +21,7 @@ const MAX_BATCH = 50
 const MAX_BODY_BYTES = 32_000
 const MAX_REQUESTS_PER_MIN = 60
 
+@ApiTags('analytics')
 @Controller('api/analytics')
 export class AnalyticsController {
   constructor(
@@ -31,6 +33,37 @@ export class AnalyticsController {
   @Public()
   @Post('track')
   @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: '埋点事件上报（公开，支持匿名与 sendBeacon）',
+    description: [
+      '无需登录即可调用。请求体支持三种形态：单个事件对象、`{ events: [...] }` 批量（≤50 条、整体 ≤32KB）；信封可带 `anonymousId`（前端 localStorage 生成的持久匿名 ID）。',
+      '身份解析：优先读 Authorization 头，sendBeacon 场景降级读信封 `token`；Token 合法才回填 user/tenant，失败一律按匿名处理（不返回 401）。IP 维度 60 次/分钟频控（Redis 故障 fail-open）。',
+    ].join('\n'),
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        events: {
+          type: 'array',
+          maxItems: 50,
+          description: '批量事件列表；也允许直接在请求体放置单个事件对象',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: '事件名（如 sign_up / first_review_start / paywall_show 等）' },
+              timestamp: { type: 'string', format: 'date-time', description: '事件时间（可选，缺省服务端时间）' },
+              props: { type: 'object', additionalProperties: true, description: '事件属性（persona/scene/utm/referrer 等）' },
+            },
+          },
+        },
+        name: { type: 'string', description: '单事件形态的事件名' },
+        props: { type: 'object', additionalProperties: true, description: '单事件形态的事件属性' },
+        anonymousId: { type: 'string', minLength: 8, maxLength: 50, pattern: '^[A-Za-z0-9_-]+$', description: '匿名设备 ID（注册成功后用于关联访客期事件）' },
+        token: { type: 'string', description: 'accessToken（仅 sendBeacon 无法带 Authorization 头时作为降级通道）' },
+      },
+    },
+  })
   async track(@Req() req: Request, @Body() body: any, @Ip() ip: string) {
     // ① IP 固定窗口频控（按分钟分桶，键 TTL 65s 自动清理）
     // Redis 故障时 fail-open：埋点是 best-effort，跳过限流继续处理，避免抖动期事件全丢

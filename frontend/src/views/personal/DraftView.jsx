@@ -45,6 +45,7 @@ export default function DraftView() {
 
   const deep = !!data?.deep
   const revisions = data?.revisions || []
+  const rewrittenList = revisions.filter((r) => r.rewritten)
   const generated = data?.generated
   const accepted = data?.acceptedCount || 0
   const total = revisions.length
@@ -141,7 +142,7 @@ export default function DraftView() {
       <div className={styles.dashCols}>
         {/* 修订卡 */}
         <div>
-          {revisions.filter((r) => r.rewritten).map((r, i) => {
+          {rewrittenList.map((r, i) => {
             const sev = SEV[r.severity] || SEV.LOW
             const st = STATUS_TAG[r.revisionStatus] || STATUS_TAG.PENDING
             const reasonText = (r.reason || '').replace(/^修改建议：?/, '')
@@ -243,7 +244,7 @@ export default function DraftView() {
           <div>
             <h5 style={{ fontSize: 13, marginBottom: 8 }}><span className={`${styles.tag} ${styles.tagRed}`}>原版</span></h5>
             <div className={styles.compareCol}>
-              {revisions.filter((r) => r.rewritten).map((r, i) => (
+              {rewrittenList.map((r, i) => (
                 <div key={r.id} style={{ marginBottom: 12 }}>
                   <b>{r.clauseTitle || `修订 ${i + 1}`}</b><br />
                   <del style={{ color: 'var(--color-danger)' }}>{r.quote}</del>
@@ -256,7 +257,7 @@ export default function DraftView() {
               <span className={`${styles.tag} ${styles.tagGreen}`}>AI 修订稿</span> 已接受 {accepted} 条
             </h5>
             <div className={styles.compareCol}>
-              {revisions.filter((r) => r.rewritten).map((r, i) => (
+              {rewrittenList.map((r, i) => (
                 <div key={r.id} style={{ marginBottom: 12 }}>
                   <b>{r.clauseTitle || `修订 ${i + 1}`}</b><br />
                   {r.revisionStatus === 'ACCEPTED'

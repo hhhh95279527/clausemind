@@ -18,7 +18,7 @@ export const QUEUES = {
   DAILY_DIGEST: 'daily-digest',
 } as const
 
-export type QueueName = (typeof QUEUES)[keyof typeof QUEUES]
+type QueueName = (typeof QUEUES)[keyof typeof QUEUES]
 type Processor = (job: Job) => Promise<unknown>
 interface RepeatableSpec { pattern: string; tz?: string }
 

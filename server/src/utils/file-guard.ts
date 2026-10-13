@@ -52,13 +52,6 @@ export async function assertRealFileType(filePath: string, ext: string): Promise
     return
   }
 
-  if (e === '.xlsx' || e === '.xls') {
-    if (e === '.xlsx' && !isZip(head)) {
-      throw new BadRequestException('文件内容不是有效的 Excel 文档')
-    }
-    return
-  }
-
   if (e === '.jpg' || e === '.jpeg') {
     // JPEG：FF D8 FF
     if (!(head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff)) {

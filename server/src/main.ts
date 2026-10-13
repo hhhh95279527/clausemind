@@ -3,7 +3,7 @@
 // （ReviewScene 新增 INTERNSHIP/SALE/LOAN/EQUITY 后需重启以加载重新生成的 Prisma Client）
 import 'reflect-metadata'
 import { NestFactory } from '@nestjs/core'
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
+import { SwaggerModule } from '@nestjs/swagger'
 import helmet from 'helmet'
 import compression from 'compression'
 import cors from 'cors'
@@ -12,6 +12,7 @@ import { AppModule } from './app.module'
 import { config, validateConfig } from './config/index.js'
 import { AppExceptionFilter } from './filters/app-exception.filter'
 import { logger } from './utils/logger.js'
+import { buildSwaggerDocument } from './swagger.js'
 
 async function bootstrap() {
   // 启动前校验配置
@@ -54,19 +55,8 @@ async function bootstrap() {
   app.useGlobalFilters(new AppExceptionFilter())
 
   // ── Swagger API 文档 ──────────────────────────────────────────
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('ClauseMind API')
-    .setDescription('ClauseMind 企业智能办公助手 API 文档')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('auth', '认证相关（登录/注册/Token）')
-    .addTag('chat', '对话助手')
-    .addTag('knowledge', '知识库管理')
-    .addTag('agent', '任务 Agent')
-    .addTag('monitor', '监控统计')
-    .addTag('audit', '审计日志')
-    .build()
-  const document = SwaggerModule.createDocument(app, swaggerConfig)
+  // 配置见 src/swagger.ts，离线导出脚本 scripts/gen-openapi.ts 共用同一份配置
+  const document = buildSwaggerDocument(app)
   SwaggerModule.setup('api/docs', app, document)
 
   // 优雅退出（SIGTERM / SIGINT）

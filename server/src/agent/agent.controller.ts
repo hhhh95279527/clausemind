@@ -1,6 +1,7 @@
 // server/src/agent/agent.controller.ts
 // Agent 控制器：配额断言 → Trace 包裹 → SSE 流式推送每一步
 import { BadRequestException, Body, Controller, Get, OnModuleInit, Post, Req, Res } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import { runAgent, getToolList } from '../services/agent/agent.js'
 import { setToolsDatabase } from '../services/agent/tools.js'
@@ -10,6 +11,8 @@ import { QuotaService } from '../observability/quota.service.js'
 import { logger } from '../utils/logger.js'
 import { initSse } from '../utils/sse'
 
+@ApiTags('agent')
+@ApiBearerAuth('bearer')
 @Controller('api/agent')
 export class AgentController implements OnModuleInit {
   constructor(
@@ -24,6 +27,22 @@ export class AgentController implements OnModuleInit {
 
   // ── POST /api/agent/run ────────────────────────────────────────
   @Post('run')
+  @ApiOperation({
+    summary: '执行自然语言任务（SSE 流式）',
+    description: 'ReAct Agent 编排业务工具（合同查询、台账、法规检索等），成功返回 201 + SSE。事件帧：`start` → 若干工具执行进度帧（thought/tool/observation 等）→ 结束；失败发 `error` 帧。所有工具强制租户上下文，无有效租户时拒绝调用。任务描述上限 2000 字。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['task'],
+      properties: { task: { type: 'string', maxLength: 2000, description: '要执行的任务描述' } },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'SSE 事件流（text/event-stream）',
+    content: { 'text/event-stream': { schema: { type: 'string', description: 'event: start|...工具步骤...|error\\ndata: { JSON }' } } },
+  })
   async run(@Req() req: Request, @Body() body: { task: string }, @Res() res: Response) {
     const { task } = body ?? {}
     const userId: string = (req as any).user.userId
@@ -54,12 +73,14 @@ export class AgentController implements OnModuleInit {
 
   // ── GET /api/agent/tools ───────────────────────────────────────
   @Get('tools')
+  @ApiOperation({ summary: '获取 Agent 可用工具清单', description: '返回当前 Agent 注册的业务工具名称与说明。' })
   tools() {
     return { tools: getToolList() }
   }
 
   // ── GET /api/agent/examples ────────────────────────────────────
   @Get('examples')
+  @ApiOperation({ summary: '获取任务示例', description: '返回输入框引导用的示例任务（法规核查/合同盘点/到期预警/风险复盘/范本推荐）。' })
   examples() {
     return {
       examples: [

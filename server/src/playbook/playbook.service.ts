@@ -126,15 +126,7 @@ export class PlaybookService {
     return { rules: rules.map((r) => this.serialize(r, hits.get(r.id) ?? 0)) }
   }
 
-  private cleanDto(dto: RuleUpsertDto): {
-    title?: string
-    description?: string | null
-    naturalPrompt?: string
-    kind?: PlaybookKind
-    contractTypes?: string[]
-    enabled?: boolean
-    pattern?: PlaybookPattern
-  } {
+  private cleanDto(dto: RuleUpsertDto): RuleUpsertDto {
     const out: any = {}
     if (dto.title !== undefined) {
       const title = String(dto.title).trim()
@@ -312,14 +304,19 @@ export class PlaybookService {
     return { results, regexError: null }
   }
 
-  /** 行业包列表 + 租户启用状态 */
-  async listPacks(tenantId: string) {
-    await this.assertAccess(tenantId)
-    const seedRules = await this.db.playbookRule.findMany({
+  /** 已启用行业包规则标题集合（启用幂等去重依据） */
+  private async ownedSeedPackTitles(tenantId: string) {
+    const rows = await this.db.playbookRule.findMany({
       where: { tenantId, source: 'SEED_PACK' },
       select: { title: true },
     })
-    const owned = new Set(seedRules.map((r) => r.title))
+    return new Set(rows.map((r) => r.title))
+  }
+
+  /** 行业包列表 + 租户启用状态 */
+  async listPacks(tenantId: string) {
+    await this.assertAccess(tenantId)
+    const owned = await this.ownedSeedPackTitles(tenantId)
     return {
       packs: INDUSTRY_PACKS.map((p) => ({
         code: p.code,
@@ -342,11 +339,7 @@ export class PlaybookService {
     if (!pack) throw new NotFoundException('行业包不存在')
     if (!pack.live) throw new BadRequestException('该行业包即将上线，敬请期待')
 
-    const existing = await this.db.playbookRule.findMany({
-      where: { tenantId, source: 'SEED_PACK' },
-      select: { title: true },
-    })
-    const owned = new Set(existing.map((r) => r.title))
+    const owned = await this.ownedSeedPackTitles(tenantId)
     const fresh = pack.rules.filter((r) => !owned.has(r.title))
     if (fresh.length) {
       await this.db.playbookRule.createMany({

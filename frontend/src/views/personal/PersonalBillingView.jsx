@@ -12,6 +12,8 @@ import {
 import { useMeStore } from '@/stores/me.js'
 import { useBillingStore } from '@/stores/billing.js'
 import { useAppStore } from '@/stores/app.js'
+import { FREE_LIMITS } from '@/config/plans.js'
+import { fmtDate } from './scene.js'
 import css from './personal.module.css'
 
 const ORDER_GOODS = {
@@ -21,18 +23,19 @@ const ORDER_GOODS = {
   TEAM_MONTHLY: '团队版月付（5 席位）',
 }
 
-function fmtDate(s) {
-  if (!s) return ''
-  const d = new Date(s)
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
 function fmtDateTime(s) {
   if (!s) return ''
   const d = new Date(s)
   const p = (n) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+
+const PERSONAL_FEATS = [
+  '不限份数审查，长文档不限字数',
+  'AI 语义审查 + 法条依据 + 修改建议',
+  '多轮追问、AI 改稿、模拟反驳',
+  'Word 红划线导出 · 永久存档 · 条款库',
+]
 
 const PLAN_CARDS = [
   {
@@ -41,12 +44,7 @@ const PLAN_CARDS = [
     desc: '适合短期集中签约的月份，随时取消',
     price: '¥19',
     per: ' / 月',
-    feats: [
-      '不限份数审查，长文档不限字数',
-      'AI 语义审查 + 法条依据 + 修改建议',
-      '多轮追问、AI 改稿、模拟反驳',
-      'Word 红划线导出 · 永久存档 · 条款库',
-    ],
+    feats: PERSONAL_FEATS,
     to: '/checkout?plan=PERSONAL&period=monthly',
     btn: '选择月付',
   },
@@ -58,12 +56,7 @@ const PLAN_CARDS = [
     per: ' / 年',
     flag: '最划算',
     cornerTag: '省 48%',
-    feats: [
-      '不限份数审查，长文档不限字数',
-      'AI 语义审查 + 法条依据 + 修改建议',
-      '多轮追问、AI 改稿、模拟反驳',
-      'Word 红划线导出 · 永久存档 · 条款库',
-    ],
+    feats: PERSONAL_FEATS,
     to: '/checkout?plan=PERSONAL&period=yearly',
     btn: '选择年付',
   },
@@ -138,7 +131,7 @@ export default function PersonalBillingView() {
     )
   }
 
-  const quota = entitlement?.monthlyReviewQuota ?? 2
+  const quota = entitlement?.monthlyReviewQuota ?? FREE_LIMITS.monthlyReviews
   const used = entitlement?.usedReviews ?? 0
   const usagePct = Math.min(100, Math.round((used / Math.max(1, quota)) * 100))
 
@@ -209,7 +202,7 @@ export default function PersonalBillingView() {
                 </Button>
               </>
             ) : (
-              <Button block danger={false} onClick={() => setCancelOpen(true)}>
+              <Button block onClick={() => setCancelOpen(true)}>
                 取消订阅（模拟）
               </Button>
             )}

@@ -18,6 +18,10 @@ export const SCENE_ANCHORS = {
   LEASE: 'scene-rent',
   SERVICE: 'scene-parttime',
   NDA: 'scene-nda',
+  SALE: 'scene-sale',
+  LOAN: 'scene-loan',
+  EQUITY: 'scene-equity',
+  CUSTOM: 'scene-custom',
 }
 
 export const ANCHOR_TO_SCENE = {
@@ -26,6 +30,10 @@ export const ANCHOR_TO_SCENE = {
   'scene-rent': 'LEASE',
   'scene-parttime': 'SERVICE',
   'scene-nda': 'NDA',
+  'scene-sale': 'SALE',
+  'scene-loan': 'LOAN',
+  'scene-equity': 'EQUITY',
+  'scene-custom': 'CUSTOM',
 }
 
 export function sceneLabel(code) {

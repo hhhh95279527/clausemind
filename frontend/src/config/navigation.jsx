@@ -17,12 +17,10 @@ import {
   BookOutlined,
   CreditCardOutlined,
   DashboardOutlined,
-  AuditOutlined,
   TeamOutlined,
   ApiOutlined,
   PlayCircleOutlined,
   LineChartOutlined,
-  BellOutlined,
   EditOutlined,
 } from '@ant-design/icons'
 
@@ -133,15 +131,3 @@ export function resolvePageMeta(pathname) {
 
 // Logo 图标
 export const LogoIcon = SolutionOutlined
-
-// ── 旧路由重定向目标（persona 驱动，App.jsx 调用）─────────────────────────
-// /chat、/monitor 等旧路由的重定向目标
-export function legacyRouteTarget(persona, path) {
-  if (path === '/chat') {
-    return persona === PERSONAS.TEAM ? '/dashboard' : '/home'
-  }
-  if (path === '/monitor') {
-    return persona === PERSONAS.TEAM ? '/dashboard' : '/home'
-  }
-  return null
-}

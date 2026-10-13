@@ -87,12 +87,14 @@ http.interceptors.response.use(
       }
     }
 
-    // 其他错误处理
+    // 其他错误处理（errMsg 同时供下方错误上报使用）
+    const errMsg = error.response
+      ? error.response.data?.error?.message || error.response.data?.error || '请求失败'
+      : ''
     if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
       toast.error('请求超时，请稍后重试')
     } else if (error.response) {
       const status = error.response.status
-      const msg = error.response.data?.error?.message || error.response.data?.error || '请求失败'
 
       // 业务页自行处理的错误（如 PLAN_LIMIT 弹付费墙）可在 config.skipErrorToast 静默
       if (error.config?.skipErrorToast) {
@@ -102,7 +104,7 @@ http.interceptors.response.use(
       } else if (status >= 500) {
         toast.error('服务器异常，请稍后重试')
       } else {
-        toast.error(msg)
+        toast.error(errMsg)
       }
     } else {
       toast.error('网络异常，请检查连接')
@@ -111,7 +113,6 @@ http.interceptors.response.use(
     // 上报 API 错误（401 已在上方处理完毕，此处均为最终失败；进 analytics_events 便于排查）
     const reqUrl = error.config?.url || ''
     if (error.response) {
-      const errMsg = error.response.data?.error?.message || error.response.data?.error || '请求失败'
       trackApiError(reqUrl, error.response.status, String(errMsg))
     } else if (error.code === 'ECONNABORTED') {
       trackApiError(reqUrl, 0, 'timeout')

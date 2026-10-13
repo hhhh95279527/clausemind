@@ -1,6 +1,6 @@
 // server/src/contract/review/checkpointer.ts
 // LangGraph 官方 PostgresSaver 单例：人工终审（HITL）状态持久化在 PG，
-// 服务重启后凭 threadId 可恢复审查现场。已通过 checkpointer spike 验证（见 scripts/spike-checkpointer.ts）。
+// 服务重启后凭 threadId 可恢复审查现场。选型与踩坑见 docs/adr/003-langgraph-interrupt-hitl.md。
 import { Pool } from 'pg'
 import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres'
 import { config } from '../../config/index.js'
@@ -31,8 +31,4 @@ export function getCheckpointer(): Promise<any> {
   return saverPromise
 }
 
-export async function closeCheckpointer() {
-  await pool?.end().catch(() => {})
-  pool = null
-  saverPromise = null
-}
+

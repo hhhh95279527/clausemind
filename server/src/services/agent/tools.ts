@@ -26,7 +26,7 @@ function buildWebSearch(): StructuredToolInterface | null {
 }
 
 // ── 工具2：知识库检索（公司内部文档）──────────────────────────
-export const readDocTool = tool(
+const readDocTool = tool(
   async ({ question }) => {
     logger.info('tool:read_doc', { question })
     try {
@@ -89,7 +89,7 @@ export const calculateTool = tool(
 )
 
 // ── 工具5：日期计算 ──────────────────────────────────────────
-export const getDateTool = tool(
+const getDateTool = tool(
   async ({ operation, date1, date2 }) => {
     logger.info('tool:get_date', { operation, date1, date2 })
     const now = new Date()
@@ -161,7 +161,7 @@ function normalizeEnum(input: string | null | undefined, aliases: Record<string,
 }
 
 // ── 工具6：合同档案查询（当前租户的审查记录）────────────────────
-export const contractQueryTool = tool(
+const contractQueryTool = tool(
   async ({ keyword, scene, status }) => {
     logger.info('tool:contract_query', { keyword, scene, status })
     if (!db) return '数据库未初始化。'
@@ -199,7 +199,7 @@ export const contractQueryTool = tool(
 )
 
 // ── 工具7：审查风险查询（跨合同汇总/按合同下钻）─────────────────
-export const riskQueryTool = tool(
+const riskQueryTool = tool(
   async ({ contractKeyword, severity, status }) => {
     logger.info('tool:risk_query', { contractKeyword, severity, status })
     if (!db) return '数据库未初始化。'
@@ -249,7 +249,7 @@ export const riskQueryTool = tool(
 )
 
 // ── 工具8：员工合同台账查询（到期预警）─────────────────────────
-export const ledgerQueryTool = tool(
+const ledgerQueryTool = tool(
   async ({ days, keyword }) => {
     logger.info('tool:ledger_query', { days, keyword })
     if (!db) return '数据库未初始化。'
@@ -294,7 +294,7 @@ export const ledgerQueryTool = tool(
 )
 
 // ── 工具9：审查规则查询（平台内置规则 + 企业 Playbook 红线）─────
-export const ruleLookupTool = tool(
+const ruleLookupTool = tool(
   async ({ keyword }) => {
     logger.info('tool:rule_lookup', { keyword })
     if (!db) return '数据库未初始化。'
@@ -343,7 +343,7 @@ export const ruleLookupTool = tool(
 )
 
 // ── 工具10：合同范本目录查询 ───────────────────────────────────
-export const templateSearchTool = tool(
+const templateSearchTool = tool(
   async ({ keyword, scene }) => {
     logger.info('tool:template_search', { keyword, scene })
     const { TEMPLATE_CATALOG } = await import('../../templates/template-catalog.js')
@@ -393,7 +393,6 @@ export function buildTools(): StructuredToolInterface[] {
 
 export const TOOL_LABELS: Record<string, string> = {
   web_search: '联网搜索',
-  tavily_search: '联网搜索',
   read_doc: '知识库检索',
   legal_search: '法规库检索',
   contract_query: '合同档案查询',

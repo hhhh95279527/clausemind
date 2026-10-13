@@ -36,7 +36,6 @@ export const useContractStore = create((set, get) => ({
   detail: null,          // { contract, clauses, review }
   loadingDetail: false,
 
-  // ── 合同列表 ────────────────────────────────────────────────
   // ── 合同列表（reviewStatus：PENDING/WAITING_REVIEW/APPROVED/FAILED）──
   loadContracts: async (reviewStatus = '') => {
     set({ loadingList: true })
@@ -121,8 +120,6 @@ export const useContractStore = create((set, get) => ({
       set({ loadingDetail: false })
     }
   },
-  clearDetail: () => set({ detail: null }),
-
   // ── 发起审查（SSE：stage 进度 / risk 增量 / waiting 挂起）────
   reviewing: false,
   reviewStages: [],     // [{ stage, message }]
@@ -149,7 +146,6 @@ export const useContractStore = create((set, get) => ({
         }
         if (event === 'waiting') set({ reviewStats: data.stats })
       },
-      onDone: () => {},
       onError: (err) => {
         // PLAN_LIMIT（initSse 前真 403）交给页面弹付费墙，不在此 toast
         if (err.code === 'PLAN_LIMIT') {
@@ -173,9 +169,6 @@ export const useContractStore = create((set, get) => ({
     }
     return { taskId, blocked: blockedErr }
   },
-
-  // ── 待人工终审列表 ─────────────────────────────────────────
-  loadPending: async () => (await http.get('/reviews/pending')).tasks,
 
   // ── 提交终审决策（同步 JSON：服务端 resume LangGraph 后返回结果）─
   submitDecision: async (taskId, { finalDecision, actions }) =>

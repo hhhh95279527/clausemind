@@ -2,7 +2,7 @@
 // 根模块：全局守卫（JWT 默认开启 + RBAC）+ 业务模块注册 + 中间件按路由挂载
 import { MiddlewareConsumer, Module, NestModule, OnApplicationShutdown, RequestMethod } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
-import { requestLogger, RateLimiterMiddleware, validateChat, securityCheck, fileUpload, contractFileUpload } from './middleware'
+import { requestLogger, RateLimiterMiddleware, fileUpload, contractFileUpload } from './middleware'
 import { DatabaseModule } from './database/database.module'
 import { RedisModule } from './redis/redis.module'
 import { ObservabilityModule } from './observability/observability.module'
@@ -10,7 +10,6 @@ import { QueueModule } from './queue/queue.module'
 import { AuthModule } from './auth/auth.module'
 import { AuditModule } from './audit/audit.module'
 import { HealthModule } from './health/health.module'
-import { ChatModule } from './chat/chat.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
 import { AgentModule } from './agent/agent.module'
 import { MonitorModule } from './monitor/monitor.module'
@@ -46,7 +45,6 @@ import { logger } from './utils/logger.js'
     AuditModule,
     // 业务模块
     HealthModule,
-    ChatModule,
     KnowledgeModule,
     AgentModule,
     MonitorModule,
@@ -97,16 +95,10 @@ export class AppModule implements NestModule, OnApplicationShutdown {
 
     // 入口限流（Redis 令牌桶，IP 维度）；租户级月度配额在 QuotaService
     consumer.apply(RateLimiterMiddleware).forRoutes(
-      { path: 'api/chat/stream',            method: RequestMethod.POST },
       { path: 'api/knowledge/documents',    method: RequestMethod.POST },
       { path: 'api/knowledge/query/stream', method: RequestMethod.POST },
-      { path: 'api/knowledge/query',        method: RequestMethod.POST },
       { path: 'api/agent/run',              method: RequestMethod.POST },
     )
-
-    // 对话入口：输入校验 + Prompt 注入检测
-    consumer.apply(validateChat, securityCheck)
-      .forRoutes({ path: 'api/chat/stream', method: RequestMethod.POST })
 
     // 知识库文档上传：multer 文件解析
     consumer.apply(fileUpload)

@@ -1,6 +1,7 @@
 // server/src/admin/admin.controller.ts
-// 管理后台：租户内用户管理、系统配置、基于 Trace 的用量聚合
+// 管理后台：租户内用户管理、离线评测、配额账单、审查规则配置
 import { BadRequestException, Body, ConflictException, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Query, Req } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger'
 import type { Request } from 'express'
 import * as bcrypt from 'bcryptjs'
 import { DatabaseService } from '../database/database.service'
@@ -11,6 +12,28 @@ import { logger } from '../utils/logger.js'
 
 const USER_ROLES = ['ADMIN', 'MANAGER', 'USER', 'READONLY'] as const
 
+/** 平台审查规则入参（对应 RuleAdminService.RuleInput，interface 无法运行时反射，显式声明 schema） */
+const ruleInputSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    code: { type: 'string', description: '规则编码（唯一，新增时必填，如 labor_probation_over_limit）' },
+    name: { type: 'string', description: '规则名称' },
+    severity: { type: 'string', enum: ['HIGH', 'MED', 'LOW'], description: '风险等级' },
+    category: { type: 'string', description: '风险分类' },
+    scope: { type: 'string', enum: ['ALL', 'LABOR', 'INTERNSHIP'], description: '生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习' },
+    pattern: { type: 'string', nullable: true, description: '匹配正则（可空）' },
+    keywords: { type: 'array', items: { type: 'string' }, description: '关键词列表' },
+    prompt: { type: 'string', description: 'Agent 轨判定提示词' },
+    suggestion: { type: 'string', nullable: true, description: '修改建议' },
+    legalBasis: { type: 'string', nullable: true, description: '法律依据条文' },
+    description: { type: 'string', nullable: true, description: '规则说明' },
+    enabled: { type: 'boolean', description: '是否启用' },
+    sortOrder: { type: 'integer', description: '排序权重' },
+  },
+}
+
+@ApiTags('admin')
+@ApiBearerAuth('bearer')
 @Controller('api/admin')
 @Roles('ADMIN')
 export class AdminController {
@@ -22,6 +45,10 @@ export class AdminController {
 
   // ── 用户管理（限本租户）────────────────────────────────────────
   @Get('users')
+  @ApiOperation({ summary: '用户列表（本租户，分页）', description: '仅返回当前租户成员；支持用户名/邮箱模糊搜索。' })
+  @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
+  @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 20' })
+  @ApiQuery({ name: 'q', required: false, description: '用户名或邮箱模糊搜索' })
   async listUsers(
     @Req() req: Request,
     @Query('page') page = '1',
@@ -70,6 +97,23 @@ export class AdminController {
 
   /** 新增本租户用户（管理员代创建，含初始密码） */
   @Post('users')
+  @ApiOperation({
+    summary: '新增本租户用户',
+    description: '管理员代创建账号并设置初始密码。用户名 3-50 位字母/数字/下划线/中划线；密码至少 8 位；用户名/邮箱重复返回 409。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['username', 'password'],
+      properties: {
+        username: { type: 'string', minLength: 3, maxLength: 50, pattern: '^[a-zA-Z0-9_-]{3,50}$' },
+        email: { type: 'string', format: 'email', description: '邮箱（可选）' },
+        password: { type: 'string', minLength: 8, description: '初始密码' },
+        displayName: { type: 'string', description: '显示名，缺省同用户名' },
+        role: { type: 'string', enum: ['ADMIN', 'MANAGER', 'USER', 'READONLY'], description: '角色，默认 USER', default: 'USER' },
+      },
+    },
+  })
   async createUser(@Req() req: Request, @Body() body: {
     username?: string; email?: string; password?: string; displayName?: string; role?: string
   }) {
@@ -107,6 +151,20 @@ export class AdminController {
   }
 
   @Put('users/:id')
+  @ApiOperation({
+    summary: '修改用户角色/状态',
+    description: '仅可操作本租户用户（跨租户 403）。不能修改自己的角色或状态；role 取值 ADMIN/MANAGER/USER/READONLY，status 取值 ACTIVE/DISABLED。',
+  })
+  @ApiParam({ name: 'id', description: '目标用户 ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        role: { type: 'string', enum: ['ADMIN', 'MANAGER', 'USER', 'READONLY'] },
+        status: { type: 'string', enum: ['ACTIVE', 'DISABLED'] },
+      },
+    },
+  })
   async updateUser(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     const tenantId = (req as any).user.tenantId
     const selfId = (req as any).user.userId
@@ -133,6 +191,8 @@ export class AdminController {
   }
 
   @Delete('users/:id')
+  @ApiOperation({ summary: '禁用用户（软删除）', description: '将目标用户置为 DISABLED，不物理删除以保留审计关联；不能禁用自己；跨租户返回 403。' })
+  @ApiParam({ name: 'id', description: '目标用户 ID' })
   async deleteUser(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const selfId = (req as any).user.userId
@@ -146,83 +206,11 @@ export class AdminController {
     return { success: true }
   }
 
-  // ── 系统配置 ──────────────────────────────────────────────────
-  @Get('config')
-  async getConfig() {
-    const configs = await this.db.systemConfig.findMany()
-    const configMap: Record<string, any> = {}
-    configs.forEach((c) => { configMap[c.key] = c.value })
-    return { config: configMap }
-  }
-
-  @Put('config')
-  async updateConfig(@Body() body: Record<string, any>) {
-    await Promise.all(
-      Object.entries(body).map(([key, value]) =>
-        this.db.systemConfig.upsert({
-          where: { key },
-          update: { value: value as any },
-          create: { key, value: value as any },
-        }),
-      ),
-    )
-    logger.info('admin: config updated', { keys: Object.keys(body) })
-    return { success: true }
-  }
-
-  // ── 用量统计（从 Trace 聚合，近 N 天）──────────────────────────
-  @Get('usage')
-  async getUsage(@Req() req: Request, @Query('days') days = '30') {
-    const tenantId = (req as any).user.tenantId
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - Number(days))
-
-    // 按天聚合：Prisma 不支持 date_trunc，用原生 SQL
-    const daily = await this.db.$queryRaw<any[]>`
-      SELECT date_trunc('day', created_at)::date AS date,
-             COUNT(*)::int                          AS calls,
-             COALESCE(SUM(input_tokens + output_tokens), 0)::bigint AS tokens,
-             COALESCE(SUM(cost_cny), 0)::float       AS cost
-      FROM traces
-      WHERE tenant_id = ${tenantId} AND created_at >= ${startDate}
-      GROUP BY 1 ORDER BY 1`
-
-    const byFeature = await this.db.trace.groupBy({
-      by: ['feature'],
-      where: { tenantId, createdAt: { gte: startDate } },
-      _sum: { inputTokens: true, outputTokens: true, costCny: true },
-      _count: { _all: true },
-    })
-
-    const total = await this.db.trace.aggregate({
-      where: { tenantId, createdAt: { gte: startDate } },
-      _sum: { inputTokens: true, outputTokens: true, costCny: true },
-      _count: { _all: true },
-    })
-
-    return {
-      daily: daily.map((d) => ({
-        date: d.date,
-        calls: d.calls,
-        tokens: Number(d.tokens),
-        costCny: Number(d.cost),
-      })),
-      byFeature: byFeature.map((f) => ({
-        feature: f.feature,
-        calls: f._count._all,
-        tokens: (f._sum.inputTokens || 0) + (f._sum.outputTokens || 0),
-        costCny: Number(f._sum.costCny || 0),
-      })),
-      total: {
-        calls: total._count._all,
-        tokens: (total._sum.inputTokens || 0) + (total._sum.outputTokens || 0),
-        costCny: Number(total._sum.costCny || 0),
-      },
-    }
-  }
-
   // ── 离线评测（EvalRun 为平台基线数据，无租户维度，ADMIN 可查）──────
   @Get('eval-runs')
+  @ApiOperation({ summary: '离线评测记录列表', description: 'EvalRun 为平台基线数据（无租户维度），本租户 ADMIN 可分页查看。' })
+  @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
+  @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 20' })
   async listEvalRuns(@Query('page') page = '1', @Query('pageSize') pageSize = '20') {
     const skip = (Number(page) - 1) * Number(pageSize)
     const take = Number(pageSize)
@@ -254,6 +242,8 @@ export class AdminController {
   }
 
   @Get('eval-runs/:id')
+  @ApiOperation({ summary: '评测记录详情', description: '含评测汇总与逐 case 结果（是否通过、得分、实际输出、评审理由、耗时）。' })
+  @ApiParam({ name: 'id', description: '评测运行 ID（EvalRun id）' })
   async getEvalRun(@Param('id') id: string) {
     const run = await this.db.evalRun.findUnique({ where: { id } })
     if (!run) throw new ForbiddenException('评测记录不存在')
@@ -290,54 +280,32 @@ export class AdminController {
     }
   }
 
-  // ── 成员用量排行 ──────────────────────────────────────────────
-  @Get('usage/users')
-  async getUserUsage(@Req() req: Request, @Query('days') days = '30') {
-    const tenantId = (req as any).user.tenantId
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - Number(days))
-
-    const usage = await this.db.trace.groupBy({
-      by: ['userId'],
-      where: { tenantId, createdAt: { gte: startDate }, userId: { not: null } },
-      _sum: { inputTokens: true, outputTokens: true },
-      _count: { _all: true },
-      orderBy: { _sum: { outputTokens: 'desc' } },
-      take: 50,
-    })
-
-    const userIds = usage.map((u) => u.userId!).filter(Boolean)
-    const users = await this.db.user.findMany({
-      where: { id: { in: userIds } },
-      select: { id: true, username: true, email: true },
-    })
-    const userMap = Object.fromEntries(users.map((u) => [u.id, u]))
-
-    return {
-      users: usage.map((u) => ({
-        userId: u.userId,
-        username: userMap[u.userId!]?.username || 'Unknown',
-        email: userMap[u.userId!]?.email || '',
-        calls: u._count._all,
-        tokens: (u._sum.inputTokens || 0) + (u._sum.outputTokens || 0),
-      })),
-    }
-  }
-
   // ── 配额账单：全租户当前账期汇总（费用倒序）──────────────────────
   @Get('billing/tenants')
+  @ApiOperation({ summary: '全租户当前账期汇总', description: '管理后台账单总览：各租户当前账期费用汇总（按费用倒序）。' })
   listTenantBilling() {
     return this.billing.listTenantBilling()
   }
 
   // ── 配额账单：指定租户完整账单（峰谷/功能占比/历史账期）────────────
   @Get('billing/tenants/:tenantId')
+  @ApiOperation({ summary: '指定租户完整账单', description: '含峰谷计价、功能占比、历史账期与超额记录。' })
+  @ApiParam({ name: 'tenantId', description: '租户 ID' })
   getTenantBilling(@Param('tenantId') tenantId: string) {
     return this.billing.getBilling(tenantId)
   }
 
   // ── 审查规则管理（平台级配置，无租户维度）────────────────────────
   @Get('rules')
+  @ApiOperation({
+    summary: '平台审查规则列表',
+    description: '平台级 16+ 条声明式审查规则（scope=ALL/LABOR/INTERNSHIP 三域），支持关键词/启停过滤与分页。',
+  })
+  @ApiQuery({ name: 'q', required: false, description: '按规则编码/名称/分类关键词搜索' })
+  @ApiQuery({ name: 'scope', required: false, enum: ['ALL', 'LABOR', 'INTERNSHIP'], description: '按生效域过滤' })
+  @ApiQuery({ name: 'enabled', required: false, enum: ['true', 'false'], description: '按启停状态过滤' })
+  @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
+  @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 50' })
   listRules(
     @Query('q') q?: string,
     @Query('scope') scope?: string,
@@ -351,28 +319,53 @@ export class AdminController {
 
   // 注意：须放在 GET rules/:id 之前注册，避免 'try' 被当成 :id（POST 方法本身不与 GET :id 冲突，保持显式）
   @Post('rules/try')
+  @ApiOperation({
+    summary: '规则试跑（规则管理后台）',
+    description: '用已有规则（id）或临时规则体（rule）对给定文本试跑；labor/internship 控制劳动域规则是否生效（实习场景强制短路劳动规则）。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '已存在规则 ID（与 rule 二选一）' },
+        rule: { ...ruleInputSchema, description: '临时规则体（与 id 二选一）' },
+        text: { type: 'string', description: '待试跑的条款/合同文本' },
+        labor: { type: 'boolean', description: '是否按劳动关系场景执行劳动域规则' },
+        internship: { type: 'boolean', description: '是否实习协议场景（true 时短路 LABOR 域）' },
+      },
+    },
+  })
   tryRule(@Body() body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean; internship?: boolean }) {
     return this.rules.tryRule(body)
   }
 
   @Get('rules/:id')
+  @ApiOperation({ summary: '规则详情' })
+  @ApiParam({ name: 'id', description: '规则 ID' })
   getRule(@Param('id') id: string) {
     return this.rules.get(id)
   }
 
   @Post('rules')
+  @ApiOperation({ summary: '新建平台审查规则' })
+  @ApiBody({ schema: ruleInputSchema })
   createRule(@Body() body: RuleInput) {
     logger.info('admin: review rule created', { code: body.code })
     return this.rules.create(body)
   }
 
   @Put('rules/:id')
+  @ApiOperation({ summary: '更新平台审查规则' })
+  @ApiParam({ name: 'id', description: '规则 ID' })
+  @ApiBody({ schema: ruleInputSchema })
   updateRule(@Param('id') id: string, @Body() body: RuleInput) {
     logger.info('admin: review rule updated', { id, fields: Object.keys(body) })
     return this.rules.update(id, body)
   }
 
   @Delete('rules/:id')
+  @ApiOperation({ summary: '删除平台审查规则' })
+  @ApiParam({ name: 'id', description: '规则 ID' })
   deleteRule(@Param('id') id: string) {
     return this.rules.remove(id)
   }

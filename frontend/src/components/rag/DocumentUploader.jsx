@@ -20,10 +20,8 @@ export default function DocumentUploader() {
   const [form, setForm] = useState({ title: '', category: '通用', content: '' })
   const fileInput = useRef(null)
 
-  const fileIcon = (() => {
-    const ext = selectedFile?.name?.split('.').pop()?.toLowerCase()
-    return ext === 'pdf' ? '📄' : ext === 'docx' ? '📘' : ext === 'md' ? '📝' : '📃'
-  })()
+  const ext = selectedFile?.name?.split('.').pop()?.toLowerCase()
+  const fileIcon = ext === 'pdf' ? '📄' : ext === 'docx' ? '📘' : ext === 'md' ? '📝' : '📃'
 
   function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' B'
@@ -32,6 +30,7 @@ export default function DocumentUploader() {
   }
 
   function onDrop(e) {
+    e.preventDefault()
     setIsDragging(false)
     const file = e.dataTransfer.files[0]
     if (file) setFile(file)
@@ -136,10 +135,7 @@ export default function DocumentUploader() {
               setIsDragging(true)
             }}
             onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault()
-              onDrop(e)
-            }}
+            onDrop={onDrop}
             onClick={() => fileInput.current?.click()}
           >
             <input

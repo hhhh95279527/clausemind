@@ -1,5 +1,5 @@
 // frontend/src/components/layout/NotificationBell.jsx
-// 站内通知铃铛（FR-22）：GET /api/notifications → { items, unread }
+// 站内通知铃铛（FR-22）：GET /api/notifications → { items }（无已读态，未读由前端本地计算）
 // 无落库、无已读态：点击铃铛即视为本次已读（本地状态），60s 轮询 + 窗口聚焦刷新
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'

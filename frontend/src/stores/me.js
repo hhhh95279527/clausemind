@@ -5,39 +5,21 @@ import http from '@/utils/http.js'
 
 export const FOLLOW_RISK_OPTIONS = ['押金', '定金 / 订金', '违约金', '试用期', '社保', '竞业限制', '争议管辖']
 
-export const DEFAULT_PREFS = {
-  followRisks: ['押金', '定金 / 订金', '违约金', '试用期'],
-  tone: 'RIGOROUS',
-  stance: 'LESSEE',
-}
-
-export const useMeStore = create((set, get) => ({
+export const useMeStore = create((set) => ({
   entitlement: null,
-  loadingEntitlement: false,
   preferences: null,
   clauseLibrary: [],
-  loadingPrefs: false,
 
   loadEntitlement: async () => {
-    set({ loadingEntitlement: true })
-    try {
-      const data = await http.get('/me/entitlements')
-      set({ entitlement: data })
-      return data
-    } finally {
-      set({ loadingEntitlement: false })
-    }
+    const data = await http.get('/me/entitlements')
+    set({ entitlement: data })
+    return data
   },
 
   loadPreferences: async () => {
-    set({ loadingPrefs: true })
-    try {
-      const data = await http.get('/me/preferences')
-      set({ preferences: data.reviewPrefs, clauseLibrary: data.clauseLibrary || [] })
-      return data
-    } finally {
-      set({ loadingPrefs: false })
-    }
+    const data = await http.get('/me/preferences')
+    set({ preferences: data.reviewPrefs, clauseLibrary: data.clauseLibrary || [] })
+    return data
   },
 
   savePreferences: async (prefs) => {
@@ -57,7 +39,4 @@ export const useMeStore = create((set, get) => ({
     set({ clauseLibrary: data.clauseLibrary || [] })
     return data
   },
-
-  /** 是否深度档（个人版及以上） */
-  isDeep: () => !!get().entitlement?.features?.deep,
 }))

@@ -1,4 +1,4 @@
-// server/src/config/index.js
+// server/src/config/index.ts
 // 统一配置入口：所有环境变量从这里读取，业务代码不直接用 process.env
 import 'dotenv/config'
 
@@ -35,12 +35,6 @@ export const config = {
     embedModel:    process.env.EMBED_MODEL    || 'BAAI/bge-m3',
     baseURL:       'https://api.deepseek.com/v1',
     embedBaseURL:  process.env.EMBED_BASE_URL || 'https://api.siliconflow.cn/v1',
-  },
-  chroma: {
-    url: process.env.CHROMA_URL || 'http://localhost:8000',
-  },
-  cache: {
-    ttl: Number(process.env.CACHE_TTL) || 1800000,  // 30 分钟
   },
   database: {
     url: process.env.DATABASE_URL || 'postgresql://workmind:workmind123@localhost:5432/workmind?schema=public',

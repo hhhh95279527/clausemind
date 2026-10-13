@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ThunderboltOutlined, CheckOutlined, HomeOutlined, ClockCircleOutlined,
-  SafetyCertificateOutlined, QuestionCircleOutlined, CalendarOutlined, FileTextOutlined,
+  SafetyCertificateOutlined, QuestionCircleOutlined, FileTextOutlined,
   SolutionOutlined,
 } from '@ant-design/icons'
 import { useMeStore } from '@/stores/me.js'

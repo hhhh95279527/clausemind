@@ -6,13 +6,6 @@ import { useAuthStore } from './auth.js'
 import { useContractStore } from './contract.js'
 import { trackReportExported } from '@/utils/analytics.js'
 
-export const REVISION_STATUS_META = {
-  NONE: { text: '未生成', color: 'default' },
-  PENDING: { text: '待确认', color: 'orange' },
-  ACCEPTED: { text: '已接受', color: 'green' },
-  REJECTED: { text: '已拒绝', color: 'default' },
-}
-
 export const useRevisionStore = create((set) => ({
   data: null,
   loading: false,
@@ -89,6 +82,4 @@ export const useRevisionStore = create((set) => ({
     a.remove()
     URL.revokeObjectURL(url)
   },
-
-  reset: () => set({ data: null }),
 }))

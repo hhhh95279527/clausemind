@@ -73,6 +73,12 @@ const USERNAME_RULES = [
   { pattern: /^[a-zA-Z0-9_]{3,20}$/, message: '3-20 位字母、数字或下划线' },
 ]
 
+// ── 密码规则（两个表单一致：至少 8 位）──────────────────────────────────────
+const PASSWORD_RULES = [
+  { required: true, message: '请设置密码' },
+  { min: 8, message: '密码至少 8 位，建议含字母与数字' },
+]
+
 // ── 协议勾选 ────────────────────────────────────────────────────────────────
 function Agreement() {
   return (
@@ -132,10 +138,7 @@ function PersonalForm({ onBack }) {
         ]}>
           <Input prefix={<MailOutlined />} placeholder="绑定后可用邮箱验证码登录" />
         </Form.Item>
-        <Form.Item name="password" label="密码" rules={[
-          { required: true, message: '请设置密码' },
-          { min: 8, message: '密码至少 8 位，建议含字母与数字' },
-        ]}>
+        <Form.Item name="password" label="密码" rules={PASSWORD_RULES}>
           <Input.Password prefix={<LockOutlined />} placeholder="至少 8 位，建议含字母与数字" />
         </Form.Item>
         <Form.Item name="displayName" label="昵称">
@@ -208,10 +211,7 @@ function TeamForm({ onBack }) {
         ]}>
           <Input prefix={<MailOutlined />} placeholder="绑定后可用邮箱验证码登录" />
         </Form.Item>
-        <Form.Item name="password" label="密码" rules={[
-          { required: true, message: '请设置密码' },
-          { min: 8, message: '密码至少 8 位，建议含字母与数字' },
-        ]}>
+        <Form.Item name="password" label="密码" rules={PASSWORD_RULES}>
           <Input.Password prefix={<LockOutlined />} placeholder="至少 8 位，建议含字母与数字" />
         </Form.Item>
         <Agreement />

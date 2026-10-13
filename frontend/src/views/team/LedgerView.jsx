@@ -26,7 +26,6 @@ const TYPE_OPTIONS = [
   { value: 'NON_COMPETE', label: '竞业限制协议' },
   { value: 'OTHER', label: '其他' },
 ]
-const TYPE_LABEL = Object.fromEntries(TYPE_OPTIONS.map((o) => [o.value, o.label]))
 const REMIND_OPTIONS = [7, 30, 60, 90]
 
 const FILTERS = [

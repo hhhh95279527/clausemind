@@ -11,7 +11,7 @@ import {
   CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, WarningOutlined,
   SafetyCertificateFilled, MessageOutlined, RedoOutlined,
 } from '@ant-design/icons'
-import { useContractStore, CONTRACT_STATUS_META, SEVERITY_TEXT } from '@/stores/contract.js'
+import { useContractStore, CONTRACT_STATUS_META } from '@/stores/contract.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useMeStore } from '@/stores/me.js'
 import http from '@/utils/http.js'
@@ -384,7 +384,7 @@ export default function ReviewWorkbench() {
                 {reviewError && <div className={styles.errorBar}>审查启动失败：{reviewError}</div>}
                 <div className={styles.stageList}>
                   {reviewStages.map((s, i) => (
-                    <div key={i} className={styles.stageItem}>
+                    <div key={i}>
                       <Badge status={i === reviewStages.length - 1 ? 'processing' : 'success'} text={s.message} />
                     </div>
                   ))}

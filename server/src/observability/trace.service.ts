@@ -22,8 +22,6 @@ export interface TraceHandle {
   ctx: TraceContext
   /** 传给 LangChain 调用的 callbacks，自动产生 Span */
   callbacks: [ClauseMindObserver]
-  /** 标记本次为精确缓存命中（零成本，不计配额） */
-  markCacheHit(savedTokens: number): void
 }
 
 @Injectable()
@@ -61,10 +59,6 @@ export class TraceService implements OnModuleInit {
     const handle: TraceHandle = {
       ctx,
       callbacks: [this.observer],
-      markCacheHit(savedTokens) {
-        ctx.cacheHit = true
-        ctx.usage.inputTokens = savedTokens
-      },
     }
 
     try {
@@ -79,21 +73,6 @@ export class TraceService implements OnModuleInit {
 
   private async finish(ctx: TraceContext, traceId: string, startedAt: number, status: TraceStatus, err?: Error) {
     const latencyMs = Date.now() - startedAt
-
-    // 缓存命中：不产生供应商费用，也不占用月度 token 配额
-    if (ctx.cacheHit) {
-      await this.db.trace.update({
-        where: { id: traceId },
-        data: {
-          status,
-          model: 'cache',
-          inputTokens: ctx.usage.inputTokens,
-          latencyMs,
-          error: err?.message.slice(0, 2000) ?? null,
-        },
-      })
-      return
-    }
 
     const model = ctx.model || config.ai.primaryModel
     // 优先用 observer 按每轮真实模型累加的费用（链路可能混用多模型）；

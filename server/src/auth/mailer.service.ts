@@ -6,7 +6,7 @@ import { Injectable, Logger } from '@nestjs/common'
 import nodemailer, { type Transporter } from 'nodemailer'
 import { config } from '../config/index.js'
 
-export interface SendMailInput {
+interface SendMailInput {
   to: string
   subject: string
   text: string

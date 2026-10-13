@@ -17,7 +17,7 @@ const NAME_RECORD_CREATE = 'bitable.v1.appTableRecord.create'
 /** 懒加载单例：整个进程只尝试一次，避免每次审查都拉起 npx 子进程 */
 let rawToolsPromise: Promise<StructuredToolInterface[]> | null = null
 
-export function isFeishuMcpConfigured(): boolean {
+function isFeishuMcpConfigured(): boolean {
   return !!APP_ID && !!APP_SECRET
 }
 

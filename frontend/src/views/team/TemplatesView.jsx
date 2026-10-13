@@ -268,7 +268,7 @@ export default function TemplatesView() {
                 <div className={css.drawerMeta}>
                   {previewItem.category}
                   {preview ? ` · 全文约 ${preview.chars.toLocaleString('zh-CN')} 字 · ${preview.clauses} 个条款` : ''}
-                  {previewItem.updatedAt ? ` · 更新于 ${String(previewItem.updatedAt).slice(0, 7).replace('-', '-')}` : ''}
+                  {previewItem.updatedAt ? ` · 更新于 ${String(previewItem.updatedAt).slice(0, 7)}` : ''}
                 </div>
               </div>
             </div>

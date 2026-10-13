@@ -5,13 +5,11 @@ import fs from 'fs/promises'
 import path from 'path'
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
 import type { DocType } from '@prisma/client'
-import { embeddings } from '../model.js'
 import { logger } from '../../utils/logger.js'
 import { DatabaseService } from '../../database/database.service.js'
 import { embedTexts } from './pg-store.js'
 import * as mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
-import { PDFDocument } from 'pdf-lib'
 import type { BaseCallbackHandler } from '@langchain/core/callbacks/base'
 import { ocrImageFile } from '../vision-ocr.js'
 
@@ -342,9 +340,4 @@ export async function deleteDocument(docId: string, tenantId?: string) {
   await db.docChunk.deleteMany({ where: { documentId: docId } })
   await db.document.delete({ where: { id: docId } })
   logger.info('rag: document deleted', { docId })
-}
-
-// embeddings 是否可用（控制器决定提示文案）
-export function hasEmbeddings() {
-  return !!embeddings
 }

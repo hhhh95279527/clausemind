@@ -6,7 +6,7 @@ import { Injectable } from '@nestjs/common'
 import { DatabaseService } from '../database/database.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
 
-export type NotificationType =
+type NotificationType =
   | 'LEDGER_EXPIRY'
   | 'PROBATION_EXPIRY'
   | 'QUOTA_80'
@@ -14,7 +14,7 @@ export type NotificationType =
   | 'RETAIN_WARNING'
   | 'PLAN_EXPIRY'
 
-export interface AppNotification {
+interface AppNotification {
   id: string
   type: NotificationType
   level: 'warning' | 'info' | 'danger'
@@ -34,13 +34,13 @@ export class NotificationsService {
     private readonly entitlements: EntitlementsService,
   ) {}
 
-  async list(tenantId: string): Promise<{ items: AppNotification[]; unread: number }> {
+  async list(tenantId: string): Promise<{ items: AppNotification[] }> {
     const now = new Date()
     const [tenant, snapshot] = await Promise.all([
       this.db.tenant.findUnique({ where: { id: tenantId } }),
       this.entitlements.getEntitlementSnapshot(tenantId),
     ])
-    if (!tenant || !snapshot) return { items: [], unread: 0 }
+    if (!tenant || !snapshot) return { items: [] }
 
     const isTeam = snapshot.workspaceType === 'TEAM'
     const items: AppNotification[] = []
@@ -178,7 +178,6 @@ export class NotificationsService {
       const ms = snapshot.planExpiresAt.getTime() - now.getTime()
       const days = Math.round(ms / DAY_MS)
       if (ms >= 0 && days <= 7) {
-        const isTeamSpace = snapshot.workspaceType === 'TEAM'
         items.push({
           id: 'plan:expiry',
           type: 'PLAN_EXPIRY',
@@ -189,7 +188,7 @@ export class NotificationsService {
           desc: snapshot.cancelAtPeriodEnd
             ? '可撤回取消或续费，继续使用完整权益'
             : '续费后继续使用完整权益',
-          actionUrl: isTeamSpace ? '/billing' : '/me/billing',
+          actionUrl: isTeam ? '/billing' : '/me/billing',
           dueAt: snapshot.planExpiresAt.toISOString(),
         })
       }
@@ -204,6 +203,6 @@ export class NotificationsService {
       const tb = b.dueAt ? new Date(b.dueAt).getTime() : Infinity
       return ta - tb
     })
-    return { items, unread: items.length }
+    return { items }
   }
 }

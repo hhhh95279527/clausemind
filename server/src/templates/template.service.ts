@@ -21,7 +21,7 @@ import { splitClauses } from '../contract/parsing/clause-parser.js'
 import { TEMPLATE_CATALOG, type TemplateCatalogItem } from './template-catalog.js'
 import { TEMPLATE_CONTENTS } from './template-contents.js'
 
-export interface TemplateListQuery {
+interface TemplateListQuery {
   category?: string
   q?: string
 }
@@ -66,6 +66,17 @@ export class TemplateService {
         'template.adopt',
       )
     }
+  }
+
+  /** 采用/下载公共前置：目录项存在 + 文档已上架 + 工作空间存在 + 付费档位，查询/异常顺序与原逻辑一致 */
+  private async assertAdoptable(tenantId: string, docId: string) {
+    const item = this.requireCatalogItem(docId)
+    const doc = await this.db.document.findUnique({ where: { id: docId } })
+    if (!doc || doc.docType !== 'TEMPLATE') throw new NotFoundException('范本尚未上架')
+    const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
+    if (!tenant) throw new NotFoundException('工作空间不存在')
+    this.assertAdoptAllowed(tenant.plan)
+    return { item, content: TEMPLATE_CONTENTS[docId] }
   }
 
   async list(tenantId: string, query: TemplateListQuery) {
@@ -115,15 +126,7 @@ export class TemplateService {
 
   /** 采用范本：生成归属当前用户/租户的 READY 文本合同，条款同步切好，可直接发起审查 */
   async adopt(tenantId: string, userId: string, docId: string, titleOverride?: string) {
-    const item = this.requireCatalogItem(docId)
-    const doc = await this.db.document.findUnique({ where: { id: docId } })
-    if (!doc || doc.docType !== 'TEMPLATE') throw new NotFoundException('范本尚未上架')
-
-    const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
-    if (!tenant) throw new NotFoundException('工作空间不存在')
-    this.assertAdoptAllowed(tenant.plan)
-
-    const content = TEMPLATE_CONTENTS[docId]
+    const { item, content } = await this.assertAdoptable(tenantId, docId)
     const parsed = splitClauses(content)
     const title = (titleOverride || item.title).trim().slice(0, 200) || item.title
 
@@ -180,15 +183,7 @@ export class TemplateService {
 
   /** 下载范本 Word（PERSONAL+） */
   async downloadDocx(tenantId: string, userId: string, docId: string, res: Response) {
-    const item = this.requireCatalogItem(docId)
-    const doc = await this.db.document.findUnique({ where: { id: docId } })
-    if (!doc || doc.docType !== 'TEMPLATE') throw new NotFoundException('范本尚未上架')
-
-    const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
-    if (!tenant) throw new NotFoundException('工作空间不存在')
-    this.assertAdoptAllowed(tenant.plan)
-
-    const content = TEMPLATE_CONTENTS[docId]
+    const { item, content } = await this.assertAdoptable(tenantId, docId)
     const children: Paragraph[] = [
       new Paragraph({
         heading: HeadingLevel.HEADING_1,

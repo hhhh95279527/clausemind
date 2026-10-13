@@ -67,7 +67,7 @@ const agentGraph = new StateGraph(State as any)
   .addEdge('tools', 'agent')
   .compile()
 
-export interface AgentRunOptions {
+interface AgentRunOptions {
   callbacks?: BaseCallbackHandler[]
 }
 

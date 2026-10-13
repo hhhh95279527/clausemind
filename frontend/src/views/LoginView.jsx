@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/auth.js'
 import http from '@/utils/http.js'
 import { trackLoginSuccess } from '@/utils/analytics.js'
 import { homePath } from '@/utils/persona.js'
+import { PLATFORM_TOKEN_KEY, PLATFORM_USER_KEY } from '@/utils/platformApi.js'
 import styles from './auth/AuthPages.module.css'
 
 export default function LoginView() {
@@ -19,6 +20,11 @@ export default function LoginView() {
 
   // 登录后跳转：按 workspaceType 分流（企业→/dashboard，个人→/home）
   const goHome = (user) => navigate(homePath(user), { replace: true })
+  // 平台超管登录后跳转
+  const goPlatform = (username) => {
+    message.success(`欢迎，平台管理员 ${username}`)
+    navigate('/platform', { replace: true })
+  }
 
   return (
     <div className={styles.wrap}>
@@ -34,7 +40,7 @@ export default function LoginView() {
           defaultActiveKey="pwd"
           centered
           items={[
-            { key: 'pwd', label: '密码登录', children: <PwdLogin loading={loading} setLoading={setLoading} setAuth={setAuth} goHome={goHome} /> },
+            { key: 'pwd', label: '密码登录', children: <PwdLogin loading={loading} setLoading={setLoading} setAuth={setAuth} goHome={goHome} goPlatform={goPlatform} /> },
             { key: 'code', label: '邮箱验证码', children: <CodeLogin loading={loading} setLoading={setLoading} setAuth={setAuth} goHome={goHome} /> },
           ]}
         />
@@ -42,24 +48,15 @@ export default function LoginView() {
         <p style={{ textAlign: 'center', marginTop: 14, fontSize: 12.5 }}>
           <Link to="/">← 返回首页</Link>
         </p>
-        <p style={{ textAlign: 'center', marginTop: 4, fontSize: 12 }}>
-          <Link to="/platform/login">平台管理员登录入口 →</Link>
-        </p>
       </div>
     </div>
   )
 }
 
-// ── 协议勾选（两个 tab 共用）────────────────────────────────────────────────
-// 注意：外层 Form.Item 设了 valuePropName="checked"，antd 注入的属性名是 checked
-// （不是默认的 value），这里必须接收 checked，否则勾选状态无法回显。
-function Agreement({ checked, onChange }) {
+// ── 协议勾选（两个 tab 共用；checked/onChange 由外层 Form.Item 自动注入）────
+function Agreement() {
   return (
-    <Checkbox
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className={styles.agree}
-    >
+    <Checkbox className={styles.agree}>
       <span>
         我已阅读并同意<a href="/terms" target="_blank" rel="noreferrer">《用户协议》</a>与
         <a href="/privacy" target="_blank" rel="noreferrer">《隐私政策》</a>
@@ -68,8 +65,26 @@ function Agreement({ checked, onChange }) {
   )
 }
 
+// ── 登录表单公共尾部：协议勾选 + 提交按钮 + 辅助链接（两个 tab 共用）────────
+function LoginFormFooter({ loading }) {
+  return (
+    <>
+      <Form.Item name="agreed" valuePropName="checked" style={{ marginBottom: 12 }}>
+        <Agreement />
+      </Form.Item>
+      <Button type="primary" htmlType="submit" loading={loading} block size="large">
+        登 录
+      </Button>
+      <div className={styles.links}>
+        <Link to="/register">注册新账号</Link>
+        <Link to="/forgot-password">忘记密码？</Link>
+      </div>
+    </>
+  )
+}
+
 // ── 密码登录 ─────────────────────────────────────────────────────────────────
-function PwdLogin({ loading, setLoading, setAuth, goHome }) {
+function PwdLogin({ loading, setLoading, setAuth, goHome, goPlatform }) {
   const [form] = Form.useForm()
 
   const handleLogin = async (values) => {
@@ -79,16 +94,38 @@ function PwdLogin({ loading, setLoading, setAuth, goHome }) {
     }
     setLoading(true)
     try {
+      // ① 先尝试租户用户登录（静默，不弹 toast）
       const data = await http.post('/auth/login', {
         username: values.username,
         password: values.password,
-      })
+      }, { skipErrorToast: true })
       setAuth(data)
       trackLoginSuccess('password')
       message.success('登录成功')
       goHome(data.user)
-    } catch {
-      // http 拦截器已处理 toast
+    } catch (err) {
+      // ② 租户中「用户不存在」→ 尝试平台超管登录
+      const errMsg = err.response?.data?.error?.message || ''
+      if (errMsg === '用户不存在') {
+        try {
+          const plat = await http.post('/platform/auth/login', {
+            username: values.username,
+            password: values.password,
+          }, { skipErrorToast: true })
+          localStorage.setItem(PLATFORM_TOKEN_KEY, plat.accessToken)
+          localStorage.setItem(PLATFORM_USER_KEY, plat.username)
+          goPlatform(plat.username)
+          return
+        } catch {
+          // 平台登录也失败 → 统一提示
+        }
+        message.error('账号或密码错误')
+      } else if (errMsg) {
+        // 密码错误 / 账号禁用 等：直接显示租户侧具体错误
+        message.error(errMsg)
+      } else {
+        message.error('登录失败，请稍后重试')
+      }
     } finally {
       setLoading(false)
     }
@@ -102,16 +139,7 @@ function PwdLogin({ loading, setLoading, setAuth, goHome }) {
       <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
         <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" />
       </Form.Item>
-      <Form.Item name="agreed" valuePropName="checked" style={{ marginBottom: 12 }}>
-        <Agreement />
-      </Form.Item>
-      <Button type="primary" htmlType="submit" loading={loading} block size="large">
-        登 录
-      </Button>
-      <div className={styles.links}>
-        <Link to="/register">注册新账号</Link>
-        <Link to="/forgot-password">忘记密码？</Link>
-      </div>
+      <LoginFormFooter loading={loading} />
     </Form>
   )
 }
@@ -191,16 +219,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
           }
         />
       </Form.Item>
-      <Form.Item name="agreed" valuePropName="checked" style={{ marginBottom: 12 }}>
-        <Agreement />
-      </Form.Item>
-      <Button type="primary" htmlType="submit" loading={loading} block size="large">
-        登 录
-      </Button>
-      <div className={styles.links}>
-        <Link to="/register">注册新账号</Link>
-        <Link to="/forgot-password">忘记密码？</Link>
-      </div>
+      <LoginFormFooter loading={loading} />
       <div className={styles.tip}>
         使用注册时绑定的邮箱接收验证码即可登录；未注册的邮箱请先
         <Link to="/register">注册账号</Link>。

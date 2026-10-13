@@ -3,7 +3,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common'
 import Redis from 'ioredis'
 import { config } from '../config/index.js'
-import { cache } from '../services/cache.js'
 import { logger } from '../utils/logger.js'
 
 @Injectable()
@@ -22,8 +21,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     this.client.on('connect', () => {
       logger.info('Redis connected')
-      // 把 Redis 接入 AI 响应两级缓存（Redis 抖动时缓存模块自动降级内存）
-      cache.setRedis(this.client)
     })
     this.client.on('error', (err) => logger.error('Redis error', { error: err.message }))
   }
@@ -52,20 +49,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async del(key: string): Promise<void> {
     await this.client.del(key)
-  }
-
-  async exists(key: string): Promise<boolean> {
-    return (await this.client.exists(key)) === 1
-  }
-
-  // JSON 序列化/反序列化
-  async getJson<T = any>(key: string): Promise<T | null> {
-    const raw = await this.client.get(key)
-    return raw ? JSON.parse(raw) : null
-  }
-
-  async setJson<T = any>(key: string, value: T, ttlMs?: number): Promise<void> {
-    await this.set(key, JSON.stringify(value), ttlMs)
   }
 
   // 令牌桶限流（分布式）

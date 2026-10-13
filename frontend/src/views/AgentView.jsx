@@ -34,15 +34,6 @@ export default function AgentView() {
     await runTask(t)
   }
 
-  function useExample(task) {
-    if (!running) setTaskText(task)
-  }
-
-  async function copyAnswer(text) {
-    await navigator.clipboard.writeText(text)
-    useAppStore.getState().toast.success('已复制')
-  }
-
   return (
     <div className={styles['agent-view']}>
       <aside className={styles['task-panel']}>
@@ -86,7 +77,7 @@ export default function AgentView() {
             <div
               key={ex.title}
               className={`${styles['example-item']} ${running ? styles.disabled : ''}`}
-              onClick={() => useExample(ex.task)}
+              onClick={() => { if (!running) setTaskText(ex.task) }}
             >
               <div className={styles['ex-content']}>
                 <div className={styles['ex-title']}>{ex.title}</div>
@@ -125,7 +116,7 @@ export default function AgentView() {
         ) : (
           <div className={styles['task-list']}>
             {tasks.map((task) => (
-              <TaskBlock key={task.id} task={task} onCopy={copyAnswer} />
+              <TaskBlock key={task.id} task={task} />
             ))}
           </div>
         )}
@@ -135,8 +126,13 @@ export default function AgentView() {
 }
 
 // 单个任务卡片
-function TaskBlock({ task, onCopy }) {
+function TaskBlock({ task }) {
   const answerHtml = useMemo(() => renderMarkdown(task.answer), [task.answer])
+
+  const copyAnswer = async () => {
+    await navigator.clipboard.writeText(task.answer)
+    useAppStore.getState().toast.success('已复制')
+  }
 
   return (
     <div className={styles['task-block']}>
@@ -171,7 +167,7 @@ function TaskBlock({ task, onCopy }) {
         <div className={styles['final-answer']}>
           <div className={styles['answer-header']}>
             <span>最终回答</span>
-            <button className={styles['btn-copy']} onClick={() => onCopy(task.answer)}>
+            <button className={styles['btn-copy']} onClick={copyAnswer}>
               复制
             </button>
           </div>

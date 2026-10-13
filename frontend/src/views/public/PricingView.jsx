@@ -145,7 +145,6 @@ export default function PricingView() {
         </div>
 
         <div className={styles.grid}>
-          {/* 免费 */}
           <div className={styles.planCard}>
             <div className={styles.planName}>FREE 免费版</div>
             <p className={styles.planDesc}>个人低频使用，先看清风险再签字</p>
@@ -156,7 +155,6 @@ export default function PricingView() {
             <Link className={`${styles.btn} ${styles.btnGhost} ${styles.btnBlock}`} to={freeHref}>免费开始</Link>
           </div>
 
-          {/* 个人版 */}
           <div className={`${styles.planCard} ${styles.featured}`}>
             <span className={styles.planFlag}>最受欢迎</span>
             <div className={styles.planName}>PERSONAL 个人版</div>
@@ -174,7 +172,6 @@ export default function PricingView() {
             <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} to={personalHref}>开通个人版</Link>
           </div>
 
-          {/* 团队版 */}
           <div className={styles.planCard}>
             <div className={styles.planName}>TEAM 团队版</div>
             <p className={styles.planDesc}>HR / 法务团队多人协作，规则统一、审批留痕</p>
@@ -185,7 +182,6 @@ export default function PricingView() {
             <Link className={`${styles.btn} ${styles.btnPrimary} ${styles.btnBlock}`} to={teamHref}>为团队开通</Link>
           </div>
 
-          {/* 企业版 */}
           <div className={styles.planCard}>
             <div className={styles.planName}>ENTERPRISE 企业版</div>
             <p className={styles.planDesc}>规模化组织，安全合规与系统集成需求</p>
@@ -200,7 +196,6 @@ export default function PricingView() {
         </div>
       </section>
 
-      {/* 深度审查券 */}
       <section className={styles.sectionTight}>
         <div className={styles.coupon}>
           <span className={styles.couponIcon}><TagOutlined /></span>
@@ -212,7 +207,6 @@ export default function PricingView() {
         </div>
       </section>
 
-      {/* 权益对比表 */}
       <section className={styles.sectionTight}>
         <h2 className={styles.h2}>权益明细对比</h2>
         <p className={styles.tableSub}>所有方案均包含租户隔离与加密存储；合同内容不用于模型训练</p>
@@ -235,7 +229,6 @@ export default function PricingView() {
         </div>
       </section>
 
-      {/* FAQ */}
       <section className={styles.sectionTight}>
         <h2 className={styles.h2}>常见问题</h2>
         <div className={styles.faqList}>
@@ -248,7 +241,6 @@ export default function PricingView() {
         </div>
       </section>
 
-      {/* 联系企业顾问 */}
       <section className={styles.contactSec}>
         <h2 className={styles.contactTitle}>还有疑问？</h2>
         <p className={styles.contactSub}>企业版支持定制演示与规则试运行，留下需求我们会联系你。</p>

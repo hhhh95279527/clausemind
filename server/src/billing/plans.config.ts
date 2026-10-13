@@ -192,7 +192,6 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
 }
 
 // ── 深度券（跨档，1 券解锁 1 份完整深度审查，不计入月额度）────────
-export const COUPON_UNIT_PRICE_FEN = 990          // ¥9.9/份
 export const COUPON_PACK_QTY = 10                 // 10 张/包
 export const COUPON_PACK_PRICE_FEN = 9900         // ¥99/包（10 张）
 
@@ -236,11 +235,6 @@ export const CHECKOUT_ITEMS: Record<CheckoutItem, CheckoutItemDef> = {
 export function getCheckoutItem(item: string): CheckoutItemDef | null {
   return CHECKOUT_ITEMS[item as CheckoutItem] ?? null
 }
-
-// ── 免费档存档 TTL ──────────────────────────────────────────────────────────
-export const FREE_RETENTION_DAYS = 7
-/** 删除前 1 天进通知铃铛 */
-export const FREE_RETENTION_WARN_HOURS = 24
 
 export function getPlanDef(plan: string): PlanDef {
   return PLAN_DEFS[(plan as PlanCode)] ?? PLAN_DEFS.FREE

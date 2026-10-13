@@ -93,11 +93,7 @@ export default function ReviewResultView() {
       !reviewing
     ) {
       autoStartedRef.current = true
-      ;(async () => {
-        const { blocked } = await startReview(id, { payWithCoupon: params.get('coupon') === '1' })
-        await loadEntitlement()
-        if (blocked) setPaywall(true)
-      })()
+      beginReview({ payWithCoupon: params.get('coupon') === '1' })
     }
   }, [contract?.status])
 
@@ -148,8 +144,6 @@ export default function ReviewResultView() {
     }
   }
 
-  const exportPdf = () => window.print()
-
   const exportWord = async () => {
     try {
       await downloadDocx(id)
@@ -184,8 +178,8 @@ export default function ReviewResultView() {
   }
   // 四阶段真实状态：条款解析看 clauses；规则/清单/AI 看审查任务
   const parseStage = clauses.length ? 'done' : parsing ? 'run' : 'idle'
-  const ruleStage = reviewDone ? 'done' : reviewRunning ? 'run' : 'idle'
-  const listStage = reviewDone ? 'done' : reviewRunning ? 'run' : 'idle'
+  // 规则审查与风险清单同生共落：stats 落库即两者同时完成
+  const reviewStage = reviewDone ? 'done' : reviewRunning ? 'run' : 'idle'
   const aiStage = reviewDone
     ? (reviewDeep ? 'done' : 'lock')
     : reviewRunning
@@ -403,7 +397,7 @@ export default function ReviewResultView() {
                   <div><b>文件解析</b><div className={`${styles.small} ${styles.muted}`}>{clauses.length} 条条款 · {(contract.charCount || 0).toLocaleString()} 字</div></div>
                 </div>
                 <div className={styles.stageItem}>
-                  {stageDot(ruleStage)}
+                  {stageDot(reviewStage)}
                   <div>
                     <b>规则审查</b>
                     <div className={`${styles.small} ${styles.muted}`}>
@@ -412,7 +406,7 @@ export default function ReviewResultView() {
                   </div>
                 </div>
                 <div className={styles.stageItem}>
-                  {stageDot(listStage)}
+                  {stageDot(reviewStage)}
                   <div>
                     <b>风险清单</b>
                     <div className={`${styles.small} ${styles.muted}`}>
@@ -486,7 +480,7 @@ export default function ReviewResultView() {
       {/* 底部操作条 */}
       <div className={styles.panel}>
         <div className={`${styles.panelBody} ${styles.bottomBar}`}>
-          <button className="btn btn-ghost" onClick={exportPdf}>
+          <button className="btn btn-ghost" onClick={() => window.print()}>
             <PrinterOutlined /> {deep ? '导出审查摘要 PDF' : '导出水印摘要 PDF'}
           </button>
           {deep ? (

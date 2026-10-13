@@ -5,6 +5,7 @@ import {
   BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
   NotFoundException, OnModuleInit, Param, Post, Req, Res,
 } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiProduces, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import { randomUUID } from 'crypto'
 import fs from 'fs/promises'
@@ -22,7 +23,7 @@ import { ContractAssistantService } from './assistant/contract-assistant.service
 import { EntitlementsService } from '../billing/entitlements.service.js'
 import { TrialService } from '../billing/trial.service.js'
 import { PlanLimitException } from '../billing/plan-limit.exception.js'
-import { FREE_RETENTION_DAYS, getPlanDef, type ReviewScene } from '../billing/plans.config.js'
+import { getPlanDef, type ReviewScene } from '../billing/plans.config.js'
 import { Prisma } from '@prisma/client'
 import { setReviewDatabase, startReview, resumeReview, serializeRisk } from './review/review.agent.js'
 import { buildOpinionDocx } from './review/report-docx.js'
@@ -34,6 +35,8 @@ import { WeworkNotifyService } from '../services/wework/wework-notify.service.js
 
 const SCENES: ReviewScene[] = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM']
 
+@ApiTags('contract')
+@ApiBearerAuth('bearer')
 @Controller('api')
 export class ContractController implements OnModuleInit {
   constructor(
@@ -80,12 +83,28 @@ export class ContractController implements OnModuleInit {
       uploadedBy: userId,
       retainUntil: this.entitlements.isDeep(tenant.plan)
         ? null
-        : new Date(Date.now() + FREE_RETENTION_DAYS * 86_400_000),
+        : new Date(Date.now() + getPlanDef('FREE').retentionDays! * 86_400_000),
     }
   }
 
   // ── 上传合同文件（multipart：file + title + scene）────────────
   @Post('contracts/upload')
+  @ApiOperation({
+    summary: '上传合同文件（multipart）',
+    description: '支持 txt/md/docx/pdf/jpg/jpeg/png（图片走视觉 OCR）。按套餐限制单文件大小（FREE 8MB / 会员 15MB），上传后经魔数真实类型校验并异步入解析队列，返回建档的合同记录。',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: '合同文件（txt/md/docx/pdf/jpg/jpeg/png）' },
+        title: { type: 'string', maxLength: 200, description: '合同标题，缺省取文件名（去扩展名）' },
+        scene: { type: 'string', enum: SCENES, description: '合同场景，缺省 LABOR；付费场景 SALE/LOAN/EQUITY/CUSTOM 受套餐拦截', default: 'LABOR' },
+      },
+    },
+  })
   async upload(@Req() req: Request, @Body() body: { title?: string; scene?: string }) {
     const file = (req as any).file as Express.Multer.File | undefined
     if (!file) throw new BadRequestException('请选择合同文件')
@@ -133,6 +152,21 @@ export class ContractController implements OnModuleInit {
 
   // ── 直接粘贴合同文本 ─────────────────────────────────────────
   @Post('contracts/text')
+  @ApiOperation({
+    summary: '粘贴合同文本建档',
+    description: '直接提交合同正文文本（上限 20 万字），服务端落临时文件后走与文件上传相同的解析队列。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['content'],
+      properties: {
+        title: { type: 'string', maxLength: 200, description: '合同标题，缺省为「合同文本 + 日期」' },
+        content: { type: 'string', maxLength: 200000, description: '合同正文纯文本' },
+        scene: { type: 'string', enum: SCENES, description: '合同场景，缺省 LABOR', default: 'LABOR' },
+      },
+    },
+  })
   async uploadText(
     @Req() req: Request,
     @Body() body: { title?: string; content?: string; scene?: string },
@@ -162,6 +196,20 @@ export class ContractController implements OnModuleInit {
 
   // ── 发起前预检：字数/场景/月额度/试用次数（不扣券、不建任务）；前端据此弹付费墙 ──
   @Post('contracts/eligibility')
+  @ApiOperation({
+    summary: '发起审查前预检（不扣券、不建任务）',
+    description: '预检字数/场景权益/月度额度/FREE 试用次数。前端据此决定直接发起或弹付费墙。返回 allowed、deep（是否深度审查）及当前权益快照。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        charCount: { type: 'integer', minimum: 0, description: '合同字数（用于按字数判定套餐档位）' },
+        scene: { type: 'string', enum: SCENES, description: '合同场景，缺省 LABOR', default: 'LABOR' },
+        payWithCoupon: { type: 'boolean', description: '是否计划用深度券支付（用券时只校验券余额，不计试用次数）', default: false },
+      },
+    },
+  })
   async eligibility(@Req() req: Request, @Body() body: { charCount?: number; scene?: string; payWithCoupon?: boolean }) {
     const tenantId = (req as any).user.tenantId
     const charCount = Number(body.charCount) || 0
@@ -182,6 +230,7 @@ export class ContractController implements OnModuleInit {
 
   // ── 新手引导：体验示例合同（每租户限一次、不扣额度；FR-3）────────
   @Post('contracts/sample')
+  @ApiOperation({ summary: '新手引导：领取体验示例合同', description: '每个租户限领一次；复制一份内置埋雷示例合同，不扣额度。' })
   async copySample(@Req() req: Request) {
     return this.onboarding.copySampleContract({
       userId: (req as any).user.userId,
@@ -191,6 +240,12 @@ export class ContractController implements OnModuleInit {
 
   // ── 合同列表（status 可选；含最近一次审查状态）─────────────────
   @Get('contracts')
+  @ApiOperation({
+    summary: '合同列表',
+    description: '返回当前租户最近 100 份合同（含最近一次审查任务状态、风险数、Playbook 命中数）。reviewStatus 在内存中二次过滤：PENDING/WAITING_REVIEW/APPROVED/FAILED。返回 { sampleCopied, contracts }。',
+  })
+  @ApiQuery({ name: 'status', required: false, description: '按合同解析状态过滤，如 UPLOADED/READY/REVIEWING/WAITING_REVIEW/COMPLETED/FAILED' })
+  @ApiQuery({ name: 'reviewStatus', required: false, enum: ['PENDING', 'WAITING_REVIEW', 'APPROVED', 'FAILED'], description: '按审查状态过滤' })
   async list(@Req() req: Request) {
     const tenantId = (req as any).user.tenantId
     const params = new URL(req.url, 'http://x').searchParams
@@ -273,6 +328,11 @@ export class ContractController implements OnModuleInit {
 
   // ── 合同详情：条款 + 最近一次审查任务及全部风险 ─────────────────
   @Get('contracts/:id')
+  @ApiOperation({
+    summary: '合同详情',
+    description: '返回合同元信息、全部条款（按序号升序）及最近一次审查任务（含全部风险）。跨租户访问返回 404。',
+  })
+  @ApiParam({ name: 'id', description: '合同 ID' })
   async detail(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const contract = await this.db.contract.findFirst({
@@ -320,6 +380,12 @@ export class ContractController implements OnModuleInit {
 
   // ── 企业审查台「结构化信息」：首次请求触发 AI 抽取并缓存；无 Key 409 ─
   @Get('contracts/:id/structured')
+  @ApiOperation({
+    summary: '结构化信息抽取（企业审查台）',
+    description: '首次请求触发 AI 抽取合同甲乙方、期限、金额等结构化信息并缓存；force=1 强制重抽。未配置 AI Key 返回 409。',
+  })
+  @ApiParam({ name: 'id', description: '合同 ID' })
+  @ApiQuery({ name: 'force', required: false, enum: ['0', '1'], description: '传 1 强制重新抽取（默认 0 走缓存）' })
   async structuredInfo(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const force = new URL(req.url, 'http://x').searchParams.get('force') === '1'
@@ -327,6 +393,8 @@ export class ContractController implements OnModuleInit {
   }
 
   @Delete('contracts/:id')
+  @ApiOperation({ summary: '删除合同', description: '删除合同及其关联数据，并同步清理 uploads 中的上传原件。跨租户访问返回 404。' })
+  @ApiParam({ name: 'id', description: '合同 ID' })
   async remove(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const existing = await this.db.contract.findFirst({
@@ -343,6 +411,27 @@ export class ContractController implements OnModuleInit {
   // ── 发起审查（SSE：stage/risk/waiting/done）──────────────────
   // 归属与权益校验必须在 initSse 之前抛错，才能返回真正的 403/404（而非 SSE error 帧）
   @Post('contracts/:id/reviews')
+  @ApiOperation({
+    summary: '发起合同审查（SSE 流式）',
+    description: [
+      '成功返回 201 + `text/event-stream`，事件帧：`task`（任务建立）→ 多阶段 `stage`/`risk`（规则与 Agent 命中的风险增量推送）→ `waiting`（进入人工终审，LangGraph interrupt）/ `agent_skip`（无 AI Key 跳过 Agent 轨）→ `done`；失败发 `error` 帧后结束。',
+      '归属/套餐/额度校验在 SSE 建立前完成，故越权与超额会以普通 403/404/429 HTTP 状态返回。深度券通道先原子扣券，审查未实际启动时自动退还。',
+    ].join('\n'),
+  })
+  @ApiParam({ name: 'id', description: '合同 ID（须已解析完成：READY/WAITING_REVIEW/COMPLETED）' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        payWithCoupon: { type: 'boolean', description: '是否使用 1 张深度券发起深度审查（默认 false，按当前套餐判定）', default: false },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'SSE 事件流（text/event-stream）',
+    content: { 'text/event-stream': { schema: { type: 'string', description: 'event: task|stage|risk|waiting|agent_skip|done|error\\ndata: { JSON }' } } },
+  })
   async startReviewStream(
     @Req() req: Request,
     @Res() res: Response,
@@ -480,6 +569,18 @@ export class ContractController implements OnModuleInit {
 
   // ── 合同助手：就本份合同追问（FREE 每合同 1 轮，深度套餐/券不限；FR-8）──
   @Post('contracts/:id/ask')
+  @ApiOperation({
+    summary: '合同助手：就本份合同追问',
+    description: '围绕指定合同上下文问答（FR-8）。FREE 租户每份合同限 1 轮，深度套餐/深度券不限；问题上限 500 字。',
+  })
+  @ApiParam({ name: 'id', description: '合同 ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['question'],
+      properties: { question: { type: 'string', maxLength: 500, description: '追问内容' } },
+    },
+  })
   async ask(
     @Req() req: Request,
     @Param('id') id: string,
@@ -496,41 +597,36 @@ export class ContractController implements OnModuleInit {
     })
   }
 
-  // ── 待人工终审列表 ───────────────────────────────────────────
-  @Get('reviews/pending')
-  async pending(@Req() req: Request) {
-    const tenantId = (req as any).user.tenantId
-    const tasks = await this.db.reviewTask.findMany({
-      where: { tenantId, status: 'WAITING_REVIEW' },
-      orderBy: { updatedAt: 'desc' },
-      include: { contract: { select: { id: true, title: true, fileName: true } } },
-    })
-    return { tasks: tasks.map((t) => ({ id: t.id, contract: t.contract, stats: t.stats, createdAt: t.createdAt })) }
-  }
-
-  // ── 单条审查任务详情 ─────────────────────────────────────────
-  @Get('reviews/:taskId')
-  async reviewDetail(@Req() req: Request, @Param('taskId') taskId: string) {
-    const tenantId = (req as any).user.tenantId
-    const task = await this.db.reviewTask.findFirst({
-      where: { id: taskId, tenantId },
-      include: { contract: true, risks: { orderBy: { createdAt: 'asc' } } },
-    })
-    if (!task) throw new NotFoundException('审查任务不存在')
-    return {
-      id: task.id,
-      status: task.status,
-      stats: task.stats,
-      createdAt: task.createdAt,
-      contract: { id: task.contract.id, title: task.contract.title, status: task.contract.status },
-      risks: task.risks.map(serializeRisk),
-      reportMd: task.contract.reportMd,
-    }
-  }
-
   // ── 人工终审：逐条处置 + 整体通过/驳回，恢复 LangGraph ─────────
   @Post('reviews/:taskId/decision')
   @Roles('ADMIN', 'MANAGER')
+  @ApiOperation({
+    summary: '人工终审决策（恢复 LangGraph）',
+    description: 'ADMIN/MANAGER 对处于 WAITING_REVIEW 的任务做终审：可逐条处置风险（ACCEPTED/IGNORED/EDITED）并给出整体结论 APPROVED/REJECTED。终审通过后异步触发群机器人审查通过通知，并生成意见书。',
+  })
+  @ApiParam({ name: 'taskId', description: '审查任务 ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['finalDecision'],
+      properties: {
+        finalDecision: { type: 'string', enum: ['APPROVED', 'REJECTED'], description: '整体终审结论' },
+        actions: {
+          type: 'array',
+          description: '逐条风险处置（可空）',
+          items: {
+            type: 'object',
+            required: ['riskId', 'status'],
+            properties: {
+              riskId: { type: 'string', description: '风险 ID' },
+              status: { type: 'string', enum: ['ACCEPTED', 'IGNORED', 'EDITED'], description: '采纳/忽略/已编辑' },
+              comment: { type: 'string', nullable: true, description: '处置备注' },
+            },
+          },
+        },
+      },
+    },
+  })
   async decision(
     @Req() req: Request,
     @Param('taskId') taskId: string,
@@ -597,6 +693,15 @@ export class ContractController implements OnModuleInit {
   // ── 企业审批流：审批评论（仅审计留痕，不改变任务状态）──────────
   @Post('reviews/:taskId/comment')
   @Roles('ADMIN', 'MANAGER')
+  @ApiOperation({ summary: '审批评论（仅审计留痕）', description: '在企业审批流中追加评论，写入审计日志，不改变任务状态。评论上限 500 字。' })
+  @ApiParam({ name: 'taskId', description: '审查任务 ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['comment'],
+      properties: { comment: { type: 'string', maxLength: 500, description: '评论内容' } },
+    },
+  })
   async reviewComment(
     @Req() req: Request,
     @Param('taskId') taskId: string,
@@ -617,6 +722,8 @@ export class ContractController implements OnModuleInit {
 
   // ── 意见书 Markdown ─────────────────────────────────────────
   @Get('reviews/:taskId/report')
+  @ApiOperation({ summary: '获取审查意见书（Markdown）', description: '终审通过后才生成意见书；未终审完成返回 403。返回 { reportMd, title }。' })
+  @ApiParam({ name: 'taskId', description: '审查任务 ID' })
   async report(@Req() req: Request, @Param('taskId') taskId: string) {
     const tenantId = (req as any).user.tenantId
     const task = await this.db.reviewTask.findFirst({
@@ -630,6 +737,12 @@ export class ContractController implements OnModuleInit {
 
   // ── 意见书 Word 导出（FR-21：归属 / 终审状态 / 套餐权益三校验，PERSONAL+）──
   @Get('reviews/:taskId/report/docx')
+  @ApiOperation({
+    summary: '导出审查意见书（Word .docx）',
+    description: '终审完成且具备导出权益（PERSONAL 及以上；FREE 非演示租户终身可试用 2 次）。文件名经 Content-Disposition 以 UTF-8 编码返回，并写审计日志。',
+  })
+  @ApiParam({ name: 'taskId', description: '审查任务 ID' })
+  @ApiProduces('application/vnd.openxmlformats-officedocument.wordprocessingml.document')
   async reportDocx(
     @Req() req: Request,
     @Res() res: Response,

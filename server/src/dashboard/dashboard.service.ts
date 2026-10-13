@@ -143,13 +143,16 @@ export class DashboardService {
     const now = new Date()
     const deadlines = []
     for (const l of ledgerAll) {
+      const base = {
+        ledgerId: l.id,
+        name: l.employeeName,
+        contractTypeLabel: LEDGER_TYPES[l.contractType] ?? l.contractType,
+      }
       if (l.endDate) {
         const days = Math.round((l.endDate.getTime() - now.getTime()) / DAY_MS)
         if (days <= 90) {
           deadlines.push({
-            ledgerId: l.id,
-            name: l.employeeName,
-            contractTypeLabel: LEDGER_TYPES[l.contractType] ?? l.contractType,
+            ...base,
             date: l.endDate,
             days,
             bucket: days < 0 ? 'EXPIRED' : days <= 30 ? 'DUE_30' : 'DUE_90',
@@ -161,9 +164,7 @@ export class DashboardService {
         const pdays = Math.round((l.probationEnd.getTime() - now.getTime()) / DAY_MS)
         if (pdays >= -30 && pdays <= 30) {
           deadlines.push({
-            ledgerId: l.id,
-            name: l.employeeName,
-            contractTypeLabel: LEDGER_TYPES[l.contractType] ?? l.contractType,
+            ...base,
             date: l.probationEnd,
             days: pdays,
             bucket: pdays < 0 ? 'PROBATION_DUE' : 'PROBATION_SOON',

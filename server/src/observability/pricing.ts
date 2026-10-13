@@ -28,7 +28,7 @@ const PEAK_PRICE: Record<ModelId, ModelPrice> = {
 }
 
 /** 判断给定时刻是否为高峰时段（北京时间工作日 9-12、14-18） */
-export function isPeakHour(at: Date = new Date()): boolean {
+function isPeakHour(at: Date = new Date()): boolean {
   // 转换为北京时间（UTC+8），避免服务器时区影响计费
   const bj = new Date(at.getTime() + 8 * 3600_000)
   const day = bj.getUTCDay()

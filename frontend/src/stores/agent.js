@@ -1,8 +1,7 @@
 // frontend/src/stores/agent.js
 // Agent 模块状态：任务历史、工具调用步骤、执行状态
 import { create } from 'zustand'
-import { fetchStream } from '@/utils/http.js'
-import http from '@/utils/http.js'
+import http, { fetchStream } from '@/utils/http.js'
 import { useAppStore } from './app.js'
 
 let taskId = 0
@@ -115,19 +114,8 @@ export const useAgentStore = create((set, get) => {
               })
             }
 
-            if (event === 'done') {
-              patchTask(id, () => ({ status: 'done', duration: Date.now() - startTime }))
-              set({ currentTaskId: null })
-            }
-
-            if (event === 'error') {
-              patchTask(id, (t) => ({
-                status: 'error',
-                answer: t.answer || data.message || '任务执行失败',
-              }))
-              set({ currentTaskId: null })
-              useAppStore.getState().toast.error(data.message || '执行出错')
-            }
+            // 注：'done' / 'error' 两个 SSE 事件由 fetchStream 直接路由到
+            // 下方 onDone / onError，不会进入 onEvent（见 utils/http.js 分发逻辑）
           },
 
           onDone: () => {

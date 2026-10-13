@@ -1,5 +1,5 @@
 // server/src/audit/audit.service.ts
-// 审计日志服务：记录关键操作，支持查询
+// 审计日志服务：记录关键操作（detail 落库前深度脱敏，写入失败不影响业务）
 import { Injectable } from '@nestjs/common'
 import { DatabaseService } from '../database/database.service'
 import { logger } from '../utils/logger.js'
@@ -83,32 +83,5 @@ export class AuditService {
       // 审计日志写入失败不应影响业务，只打日志
       logger.error('audit log write failed', { error: (err as Error).message })
     }
-  }
-
-  /**
-   * 查询审计日志（管理员用）
-   */
-  async list(params: {
-    userId?: string
-    action?: string
-    page?: number
-    pageSize?: number
-  }) {
-    const { userId, action, page = 1, pageSize = 50 } = params
-    const where: any = {}
-    if (userId) where.userId = userId
-    if (action) where.action = { contains: action, mode: 'insensitive' }
-
-    const [items, total] = await Promise.all([
-      this.db.auditLog.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.db.auditLog.count({ where }),
-    ])
-
-    return { items, total, page, pageSize }
   }
 }

@@ -3,14 +3,14 @@
 // 命中必须带原文句子作为 quote —— 规则轨同样不允许"无中生有"。
 import type { ReviewRule, Severity } from '@prisma/client'
 
-export interface EngineClause {
+interface EngineClause {
   id: string
   indexNo: number
   title: string
   content: string
 }
 
-export interface RuleFinding {
+interface RuleFinding {
   ruleId: string
   code: string
   severity: Severity
@@ -81,19 +81,19 @@ function ruleHits(rule: ReviewRule, content: string): number {
   return -1
 }
 
-export interface EngineOptions {
+interface EngineOptions {
   /** 合同是否属于劳动关系类（决定 scope=LABOR 规则是否参与） */
   labor?: boolean
   /** 是否为在校生实习协议（scope=INTERNSHIP 规则；不构成劳动关系，不跑 LABOR 域） */
   internship?: boolean
 }
 
-export interface RuleTryMatch {
+interface RuleTryMatch {
   index: number
   quote: string
 }
 
-export interface RuleTryResult {
+interface RuleTryResult {
   hit: boolean
   /** 实际命中方式：pattern=正则命中；keywords=正则缺失/未命中后关键词全包含命中；null=未命中 */
   mode: 'pattern' | 'keywords' | null

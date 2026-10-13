@@ -20,7 +20,7 @@ import { logger } from '../utils/logger.js'
 import { z } from 'zod'
 
 // 7 类字符串枚举（schema.prisma ContractLedger.contractType 注释同源）
-export const LEDGER_TYPES = {
+const LEDGER_TYPES = {
   FIXED_TERM_LABOR: '固定期限劳动合同',
   OPEN_ENDED_LABOR: '无固定期限劳动合同',
   SERVICE: '劳务协议',
@@ -264,7 +264,7 @@ export class LedgerService {
   }
 
   /** 顶部统计卡（单条轻量查询内存聚合，无 N+1） */
-  async stats(tenantId: string) {
+  private async stats(tenantId: string) {
     const now = startOfToday()
     const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
     const lastMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
@@ -396,7 +396,7 @@ export class LedgerService {
   async extract(tenantId: string, contractId: string) {
     const contract = await this.db.contract.findFirst({
       where: { id: contractId, tenantId },
-      select: { id: true, title: true, status: true, createdAt: true },
+      select: { id: true, title: true, status: true },
     })
     if (!contract) throw new NotFoundException('合同不存在或不属于当前工作空间')
     if (!isValidAiKey(appConfig.ai.deepseekKey)) {
