@@ -148,8 +148,8 @@ export default function TeamBillingView() {
             {!isEnterprise && (
               <Button block onClick={() => openLead('SEATS')}>增购席位</Button>
             )}
-            <Button type="primary" block onClick={() => openLead('ENTERPRISE')}>
-              联系开通企业版
+            <Button type="primary" block onClick={() => openLead(isEnterprise ? 'SEATS' : 'ENTERPRISE')}>
+              {isEnterprise ? '联系商务' : '联系开通企业版'}
             </Button>
           </div>
         </div>
