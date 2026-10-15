@@ -1,47 +1,69 @@
 // server/src/services/feishu/mcp-client.ts
 // 飞书 P1 MCP（FR-25）：通过 lark-mcp stdio 把 2 个工具挂进审查 Agent：
 //   feishu_send_review_card（审查结论发群）、feishu_write_bitable_record（台账入多维表格）。
-// 无 FEISHU_APP_ID/SECRET 时直接降级：不拉起 npx、返回 []，审查图零影响。
+// 无 FEISHU_APP_ID/SECRET 时直接降级：不拉起子进程、返回 []，审查图零影响。
+import path from 'node:path'
+import os from 'node:os'
 import { z } from 'zod'
 import { DynamicStructuredTool } from '@langchain/core/tools'
 import type { StructuredToolInterface } from '@langchain/core/tools'
 import { MultiServerMCPClient } from '@langchain/mcp-adapters'
 import { logger } from '../../utils/logger.js'
 
-const APP_ID = process.env.FEISHU_APP_ID || ''
-const APP_SECRET = process.env.FEISHU_APP_SECRET || ''
-
-const NAME_MESSAGE_CREATE = 'im.v1.message.create'
-const NAME_RECORD_CREATE = 'bitable.v1.appTableRecord.create'
-
-/** 懒加载单例：整个进程只尝试一次，避免每次审查都拉起 npx 子进程 */
+/** 懒加载单例：整个进程只尝试一次，避免每次审查都拉起子进程 */
 let rawToolsPromise: Promise<StructuredToolInterface[]> | null = null
 
+/** 要挂进审查 Agent 的 lark-mcp 工具名（lark-mcp 实际命名为 mcp__lark__im_v1_message_create 这类下划线格式，用 endsWith 匹配） */
+const NAME_MESSAGE_CREATE = 'im_v1_message_create'
+const NAME_RECORD_CREATE = 'bitable_v1_appTableRecord_create'
+
+/** 本地 lark-mcp cli.js 绝对路径（server cwd 下解析；避免 import.meta——ts-node-dev 按 CJS 转译不支持） */
+const LARK_MCP_CLI = path.join(process.cwd(), 'node_modules/@larksuiteoapi/lark-mcp/dist/cli.js')
+
+/** 函数内懒读 env，避开模块级 import 求值时机（dotenv 在 import 之后才跑） */
+function getAppEnv() {
+  return { id: process.env.FEISHU_APP_ID || '', secret: process.env.FEISHU_APP_SECRET || '' }
+}
+
 function isFeishuMcpConfigured(): boolean {
-  return !!APP_ID && !!APP_SECRET
+  const { id, secret } = getAppEnv()
+  return !!id && !!secret
 }
 
 async function loadRawTools(): Promise<StructuredToolInterface[]> {
   if (rawToolsPromise) return rawToolsPromise
   rawToolsPromise = (async () => {
+    const { id, secret } = getAppEnv()
+    logger.info('feishu mcp: spawning lark-mcp', { hasId: !!id, hasSecret: !!secret })
     try {
       const client = new MultiServerMCPClient({
         throwOnLoadError: false,
         mcpServers: {
           lark: {
             transport: 'stdio',
-            command: 'npx',
-            args: ['-y', '@larksuiteoapi/lark-mcp@0.5.1', 'mcp', '-a', APP_ID, '-s', APP_SECRET],
+            // 直接用本地安装的 cli.js 启动：npx 会从 npm-cache/_npx 跑一个缺依赖
+            // （zod）的缓存副本导致 Connection closed，绕开 npx 才稳定。
+            command: process.execPath,
+            args: [LARK_MCP_CLI, 'mcp', '-a', id, '-s', secret],
+            // lark-mcp 启动时会向 %LOCALAPPDATA%\lark-mcp-nodejs 写日志/缓存，
+            // 无权限时直接崩溃——重定向到系统 Temp 保证可写。
+            env: { ...process.env, LOCALAPPDATA: os.tmpdir() },
             restart: { enabled: true, maxAttempts: 2, delayMs: 1500 },
           },
         },
       })
       const all = await client.getTools()
       const findByName = (n: string) => all.find((t) => t.name === n || t.name.endsWith(n))
-      return [findByName(NAME_MESSAGE_CREATE), findByName(NAME_RECORD_CREATE)].filter(
+      const selected = [findByName(NAME_MESSAGE_CREATE), findByName(NAME_RECORD_CREATE)].filter(
         Boolean,
       ) as StructuredToolInterface[]
+      logger.info('feishu mcp: tools loaded', {
+        total: all.length,
+        selected: selected.map((t) => t.name),
+      })
+      return selected
     } catch (err) {
+      rawToolsPromise = null
       logger.warn('feishu mcp: load failed', { error: (err as Error).message })
       return []
     }
