@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common'
 import { JwtModule } from '@nestjs/jwt'
 import { PlatformController } from './platform.controller.js'
 import { PlatformService } from './platform.service.js'
+import { RuleAdminService } from './rule-admin.service.js'
 import { BillingModule } from '../billing/billing.module.js'
 import { MonitorModule } from '../monitor/monitor.module.js'
 import { AnalyticsModule } from '../analytics/analytics.module.js'
@@ -20,6 +21,6 @@ import { config } from '../config/index.js'
     }),
   ],
   controllers: [PlatformController],
-  providers: [PlatformService],
+  providers: [PlatformService, RuleAdminService],
 })
 export class PlatformModule {}

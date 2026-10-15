@@ -144,9 +144,9 @@ export default function ReviewResultView() {
     }
   }
 
-  const exportWord = async () => {
+  const exportWord = async (mode = 'clean') => {
     try {
-      await downloadDocx(id)
+      await downloadDocx(id, mode)
     } catch (e) {
       if (e.status === 403 && e.code === 'PLAN_LIMIT') {
         setPaywall(true)
@@ -484,9 +484,9 @@ export default function ReviewResultView() {
             <PrinterOutlined /> {deep ? '导出审查摘要 PDF' : '导出水印摘要 PDF'}
           </button>
           {deep ? (
-            <button className="btn btn-ghost" onClick={exportWord}><FileWordOutlined /> Word 红划线导出 .docx</button>
+            <button className="btn btn-ghost" onClick={() => exportWord('clean')}><FileWordOutlined /> 导出修订后合同 .docx</button>
           ) : (
-            <button className="btn btn-ghost" onClick={() => setPaywall(true)}><LockOutlined /> Word 红划线导出</button>
+            <button className="btn btn-ghost" onClick={() => setPaywall(true)}><LockOutlined /> 导出修订后合同</button>
           )}
           {deep
             ? <button className="btn btn-primary" onClick={() => navigate(`/draft/${id}`)}><EditOutlined /> 一键生成修订稿</button>

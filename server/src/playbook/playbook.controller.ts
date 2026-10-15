@@ -88,6 +88,50 @@ export class PlaybookController {
     return this.playbook.testRule(body?.pattern, body?.samples)
   }
 
+  @Post('rules/import')
+  @ApiOperation({
+    summary: '从企业范本批量导入候选规则',
+    description: '把 /tenant-templates/:id/extract-rules 返回、经用户人工勾选/编辑后的候选规则批量入库（source=AI，单次 ≤8 条），导入后立即启用。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['templateId', 'rules'],
+      properties: {
+        templateId: { type: 'string', description: '来源企业范本 ID' },
+        rules: {
+          type: 'array',
+          maxItems: 8,
+          items: {
+            type: 'object',
+            required: ['title', 'content', 'kind'],
+            properties: {
+              title: { type: 'string', maxLength: 80 },
+              content: { type: 'string', description: '完整规则内容句，落 naturalPrompt', maxLength: 300 },
+              kind: { type: 'string', enum: ['FORBIDDEN', 'PREFERENCE'] },
+              contractTypes: { type: 'array', items: { type: 'string' } },
+              keywords: { type: 'array', items: { type: 'string' } },
+              regex: { type: 'string', nullable: true },
+              severity: { type: 'string', enum: ['HIGH', 'MED', 'LOW'] },
+              suggestion: { type: 'string', maxLength: 300 },
+            },
+          },
+        },
+      },
+    },
+  })
+  importRules(
+    @Req() req: any,
+    @Body() body: { templateId?: string; rules?: Parameters<PlaybookService['importFromTemplate']>[3] },
+  ) {
+    return this.playbook.importFromTemplate(
+      req.user.tenantId,
+      req.user.userId,
+      body?.templateId ?? '',
+      Array.isArray(body?.rules) ? body!.rules : [],
+    )
+  }
+
   @Patch('rules/:id')
   @ApiOperation({ summary: '编辑企业规则' })
   @ApiParam({ name: 'id', description: '规则 ID' })

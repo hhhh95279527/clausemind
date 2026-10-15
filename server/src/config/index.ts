@@ -11,6 +11,8 @@ export const config = {
     baseUrl: process.env.APP_BASE_URL || `http://localhost:${Number(process.env.PORT) || 3000}`,
     // 前端地址（忘记密码邮件里的重置链接指向前端页面）
     frontUrl: process.env.APP_FRONT_URL || 'http://localhost:5173',
+    // 服务端 PDF 导出（Edge/Chromium 无头打印）：默认探测 Windows 常见安装路径，此处可显式指定
+    edgePath: process.env.EDGE_PATH || '',
   },
   // 试用计量：演示租户（按租户名匹配）不受限；FREE 租户每项功能终身免费 2 次
   trial: {
@@ -70,6 +72,9 @@ export const config = {
     },
     // 商务咨询（企业版留资等）通知邮箱：未配置时回退为 SMTP 发件邮箱（个人开发场景=自己的邮箱）
     leadNotifyEmail: process.env.LEAD_NOTIFY_EMAIL || process.env.SMTP_USER || '',
+    // 建议反馈模块的收件邮箱：用户提交的建议/意见通过 SMTP 发到此邮箱。
+    // 未配置时回退为 SMTP 发件邮箱（个人开发场景=自己的邮箱），避免把私人邮箱硬编码进入库代码
+    feedbackNotifyEmail: process.env.FEEDBACK_NOTIFY_EMAIL || process.env.SMTP_USER || '',
   },
 }
 

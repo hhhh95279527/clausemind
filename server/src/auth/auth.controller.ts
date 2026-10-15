@@ -20,7 +20,7 @@ const registerBodySchema: SchemaObject = {
   type: 'object',
   required: ['persona', 'username', 'email', 'password'],
   properties: {
-    persona: { type: 'string', enum: ['PERSONAL', 'TEAM'], description: '注册类型：PERSONAL=个人版空间，TEAM=团队演示空间' },
+    persona: { type: 'string', enum: ['PERSONAL', 'TEAM', 'INVITE'], description: '注册类型：PERSONAL=个人版空间，TEAM=团队演示空间，INVITE=凭团队邀请链接加入（需带 inviteToken，注册后待管理员审批）' },
     username: { type: 'string', minLength: 3, maxLength: 20, pattern: '^[a-zA-Z0-9_]{3,20}$', description: '用户名（3-20 位字母/数字/下划线，唯一）' },
     email: { type: 'string', format: 'email', description: '邮箱（仅格式校验，注册不强制验证码）' },
     password: { type: 'string', minLength: 8, description: '登录密码' },
@@ -28,6 +28,7 @@ const registerBodySchema: SchemaObject = {
     orgName: { type: 'string', description: '【TEAM】企业/团队名称' },
     companySize: { type: 'string', description: '【TEAM】团队规模' },
     position: { type: 'string', description: '【TEAM】职位' },
+    inviteToken: { type: 'string', description: '【INVITE】团队邀请链接中的 token' },
   },
 }
 

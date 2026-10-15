@@ -1,7 +1,9 @@
 // server/src/contract/review/docx-revision.ts
-// 在用户上传的原始 .docx 上直接注入 Word 原生修订痕迹（w:ins/w:del），
-// 其余 XML（样式/字体/标题/表格/图片/页眉页脚/页面设置）原样保留，
+// 在用户上传的原始 .docx 上应用修订，其余 XML（样式/字体/标题/表格/图片/页眉页脚/页面设置）原样保留，
 // 从而保证导出文件版式与输入文件一致。
+// 两种模式：
+// - clean（默认）：把采纳的改写直接落为最终正文，输出「修订后新合同」，无修订痕迹、可直接定稿
+// - redline：注入 Word 原生修订痕迹（w:del/w:ins），供对照复核
 //
 // 匹配模型（v1）：
 // - 以 <w:p> 段落为单位，拼接段内所有 <w:r>/<w:t> 文本后做原句定位（支持跨 run、空白归一化）
@@ -14,6 +16,9 @@ interface DocxEdit {
   quote: string
   ins: string
 }
+
+/** redline=Word 修订痕迹模式；clean=已应用修改、无痕迹的修订后合同 */
+export type DocxMode = 'redline' | 'clean'
 
 interface DocxInjectResult {
   buffer: Buffer
@@ -132,7 +137,7 @@ function plainRun(runXml: string, text: string, leafCount: number): string {
  * 在一个段落 XML 内应用修订区间（坐标均为段内全部 w:t 拼接文本的字符偏移，已确认互不重叠），
  * 返回新段落 XML。
  */
-function rewriteParagraph(paraInner: string, ranges: Range[]): string {
+function rewriteParagraph(paraInner: string, ranges: Range[], mode: DocxMode): string {
   interface RunInfo { outer: string; start: number; end: number; leafCount: number }
   const runs: RunInfo[] = []
   let m: RegExpExecArray | null
@@ -178,10 +183,15 @@ function rewriteParagraph(paraInner: string, ranges: Range[]): string {
         const s = Math.max(h.start, gStart)
         const e = Math.min(h.end, gEnd)
         if (s > cur) segs.push(plainRun(r.outer, runText.slice(cur - gStart, s - gStart), r.leafCount))
-        const delText = runText.slice(s - gStart, e - gStart)
-        if (delText) segs.push(delXml(r.outer, delText))
-        // 插入文本只在区间起点所在的那个 run 输出一次
-        if (h.start >= gStart && h.start < gEnd) segs.push(insXml(r.outer, h.edit.ins))
+        if (mode === 'clean') {
+          // clean（修订后新合同）：直接以改写文本顶替原句，不留任何修订痕迹，沿用原 run 的字体格式
+          if (h.start >= gStart && h.start < gEnd) segs.push(plainRun(r.outer, h.edit.ins, r.leafCount))
+        } else {
+          const delText = runText.slice(s - gStart, e - gStart)
+          if (delText) segs.push(delXml(r.outer, delText))
+          // 插入文本只在区间起点所在的那个 run 输出一次
+          if (h.start >= gStart && h.start < gEnd) segs.push(insXml(r.outer, h.edit.ins))
+        }
         cur = Math.max(cur, e)
       }
       if (cur < gEnd) segs.push(plainRun(r.outer, runText.slice(cur - gStart), r.leafCount))
@@ -193,13 +203,23 @@ function rewriteParagraph(paraInner: string, ranges: Range[]): string {
   return parts.join('')
 }
 
-/** 文末附加修订建议节（未在原文定位到的修订），插入 sectPr 之前 */
-function appendixXml(unmatched: DocxEdit[]): string {
+/** 文末附录节（未在原文定位到的修订），插入 sectPr 之前。clean 模式用纯文本列出，不产生修订痕迹 */
+function appendixXml(unmatched: DocxEdit[], mode: DocxMode): string {
   const p = (inner: string) => `<w:p>${inner}</w:p>`
   const run = (text: string, rPr: string) => `<w:r>${rPr}<w:t xml:space="preserve">${esc(text)}</w:t></w:r>`
+  const heading = mode === 'clean'
+    ? '以下采纳的修订未能自动定位到原文位置，请在定稿前人工确认并手动修改'
+    : '附加修订建议（以下原句未在原文中精确定位，请人工对照修改；红划线为建议删除、蓝下划线为建议替换内容）'
   let xml = p('<w:pPr><w:pageBreakBefore/></w:pPr>'
-    + run('附加修订建议（以下原句未在原文中精确定位，请人工对照修改；红划线为建议删除、蓝下划线为建议替换内容）', '<w:rPr><w:b/><w:sz w:val="28"/></w:rPr>'))
+    + run(heading, '<w:rPr><w:b/><w:sz w:val="28"/></w:rPr>'))
   for (const u of unmatched) {
+    if (mode === 'clean') {
+      xml += p(run('原文：', '<w:rPr><w:b/><w:color w:val="C00000"/></w:rPr>')
+        + run(u.quote, '<w:rPr><w:color w:val="C00000"/></w:rPr>'))
+      xml += p(run('改写：', '<w:rPr><w:b/><w:color w:val="1D4ED8"/></w:rPr>')
+        + run(u.ins, '<w:rPr><w:color w:val="1D4ED8"/></w:rPr>'))
+      continue
+    }
     xml += p(run('原文：', '<w:rPr><w:b/><w:color w:val="C00000"/></w:rPr>')
       + `<w:del w:id="${nextId()}" w:author="${esc(CHANGE_AUTHOR)}" w:date="${nowIso()}">`
       + `<w:r><w:rPr><w:color w:val="C00000"/></w:rPr><w:delText xml:space="preserve">${esc(u.quote)}</w:delText></w:r></w:del>`)
@@ -211,10 +231,15 @@ function appendixXml(unmatched: DocxEdit[]): string {
 }
 
 /**
- * 在 docx Buffer 上注入修订痕迹。
+ * 在 docx Buffer 上应用修订。
+ * @param mode redline=注入 Word 修订痕迹（w:del/w:ins）；clean=直接应用为最终正文，输出修订后新合同
  * @returns 新 Buffer + 应用条数/未命中清单
  */
-export async function injectTrackedChanges(docxBuffer: Buffer, edits: DocxEdit[]): Promise<DocxInjectResult> {
+export async function injectTrackedChanges(
+  docxBuffer: Buffer,
+  edits: DocxEdit[],
+  mode: DocxMode = 'redline',
+): Promise<DocxInjectResult> {
   const zip = await JSZip.loadAsync(docxBuffer)
   const docFile = zip.file('word/document.xml')
   if (!docFile) throw new Error('docx 中缺少 word/document.xml，无法注入修订')
@@ -253,7 +278,7 @@ export async function injectTrackedChanges(docxBuffer: Buffer, edits: DocxEdit[]
         c.p.done = true
       }
     }
-    body.push(ranges.length ? open + rewriteParagraph(inner, ranges) + close : whole)
+    body.push(ranges.length ? open + rewriteParagraph(inner, ranges, mode) + close : whole)
     last = pm.index + whole.length
   }
   body.push(xml.slice(last))
@@ -261,7 +286,7 @@ export async function injectTrackedChanges(docxBuffer: Buffer, edits: DocxEdit[]
   const unmatched = pending.filter((p) => !p.done).map((p) => p.edit)
   let outXml = body.join('')
   if (unmatched.length) {
-    const addendum = appendixXml(unmatched)
+    const addendum = appendixXml(unmatched, mode)
     // sectPr 必须保持为 body 最后一个子元素
     outXml = outXml.replace(/(<w:sectPr\b[\s\S]*?<\/w:sectPr>|<w:sectPr\b[^>]*\/>)/, `${addendum}$1`)
   }

@@ -16,6 +16,9 @@ import {
   ReloadOutlined, PlusOutlined, LogoutOutlined, CheckCircleFilled, CloseCircleFilled,
 } from '@ant-design/icons'
 import platformApi, { PLATFORM_TOKEN_KEY, PLATFORM_USER_KEY, platformErrMessage } from '@/utils/platformApi.js'
+import PlatformRulesTab from './PlatformRulesTab.jsx'
+import PlatformEvalTab from './PlatformEvalTab.jsx'
+import PlatformBillingTab from './PlatformBillingTab.jsx'
 
 const PLAN_OPTIONS = ['FREE', 'PERSONAL', 'TEAM', 'ENTERPRISE'].map((p) => ({ value: p, label: p }))
 const ROLE_OPTIONS = [
@@ -440,6 +443,23 @@ export default function PlatformConsole() {
       key: 'funnel',
       label: '埋点漏斗',
       children: <FunnelTab />,
+    },
+    {
+      key: 'rules',
+      label: '规则管理',
+      children: activeTab === 'rules'
+        ? <PlatformRulesTab onGoEval={() => setActiveTab('eval')} />
+        : null,
+    },
+    {
+      key: 'eval',
+      label: '离线评测',
+      children: activeTab === 'eval' ? <PlatformEvalTab /> : null,
+    },
+    {
+      key: 'billing',
+      label: '租户账单',
+      children: activeTab === 'billing' ? <PlatformBillingTab /> : null,
     },
   ]
 

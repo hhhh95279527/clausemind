@@ -88,28 +88,6 @@
 }
 .linkDanger { color: var(--color-danger, #dc2626); margin-right: 0; }
 
-/* 抽屉内结构化规则区 */
-.aiBox {
-  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-bg-container, #fff));
-  border-radius: 12px;
-  padding: 16px 18px 6px;
-}
-.testBox {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 12px 0 16px;
-}
-.testRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.testError {
-  color: var(--color-danger, #dc2626);
-  font-size: 12.5px;
-  background: color-mix(in srgb, var(--color-danger, #dc2626) 8%, transparent);
-  border-radius: 8px;
-  padding: 6px 10px;
-}
-
 /* 行业包卡片 */
 .packGrid {
   display: grid;

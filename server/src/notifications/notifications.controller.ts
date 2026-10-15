@@ -15,6 +15,6 @@ export class NotificationsController {
     description: '实时计算当前租户的站内通知（审查结果、到期提醒、套餐账单等）。',
   })
   list(@Req() req: Request) {
-    return this.notifications.list((req as any).user.tenantId)
+    return this.notifications.list((req as any).user.tenantId, (req as any).user.role)
   }
 }

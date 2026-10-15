@@ -44,13 +44,9 @@ export const usePlaybookStore = create((set, get) => ({
     set({ rules: get().rules.filter((r) => r.id !== id) })
   },
 
-  /** 自然语言 → 结构化草稿；无 Key 后端 409，调用方引导手写 */
+  /** 保存规则时由规则内容句自动生成机器命中条件；无 Key 后端 409，调用方走整句兜底 */
   parseRule: async (naturalPrompt, contractTypes) =>
     http.post('/playbook/rules/parse', { naturalPrompt, contractTypes }),
-
-  /** 样例条款本地试命中（不耗模型） */
-  testRule: async (pattern, samples) =>
-    http.post('/playbook/rules/test', { pattern, samples }),
 
   enablePack: async (code) => {
     const res = await http.post(`/playbook/packs/${code}/enable`)

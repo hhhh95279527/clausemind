@@ -37,6 +37,10 @@ model Tenant {
   orders             Order[]
   integrationConfigs IntegrationConfig[]
   integrationLeads   IntegrationLead[]
+  tenantTemplates    TenantTemplate[]
+  feedbackEntries    FeedbackEntry[]
+  tenantInvites      TenantInvite[]
+  contractVersions   ContractVersion[]
 
   @@map("tenants")
 }
@@ -103,6 +107,8 @@ model User {
   playbookRules    PlaybookRule[]
   orders           Order[]
   integrationLeads IntegrationLead[] @relation("IntegrationLeadUser")
+  tenantTemplates  TenantTemplate[]  @relation("TenantTemplateUploader")
+  feedbackEntries  FeedbackEntry[]   @relation("FeedbackEntryUser")
 
   @@index([tenantId])
   @@map("users")
@@ -384,6 +390,8 @@ model Contract {
   parseError     String?        @map("parse_error") @db.Text
   fileType       String         @default("txt") @db.VarChar(20)
   scene          ReviewScene    @default(LABOR)
+  // 合同类型来源：USER=用户手选 / AUTO=待 AI 识别 / AI=AI 自动识别（存量 NULL 视为 USER）
+  sceneSource    String?        @map("scene_source") @db.VarChar(10)
   charCount      Int            @default(0) @map("char_count")
   clausesCount   Int            @default(0) @map("clauses_count")
   reportMd       String?        @map("report_md") @db.Text
@@ -393,12 +401,13 @@ model Contract {
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
-  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  uploader    User             @relation("ContractUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploader    User              @relation("ContractUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
   clauses     Clause[]
   reviewTasks ReviewTask[]
   risks       Risk[]
-  ledgerLinks ContractLedger[] @relation("LedgerLinkedContract")
+  ledgerLinks ContractLedger[]  @relation("LedgerLinkedContract")
+  versions    ContractVersion[]
 
   @@index([tenantId, status])
   @@index([retainUntil])
@@ -470,14 +479,39 @@ model ReviewTask {
   createdAt  DateTime         @default(now()) @map("created_at")
   updatedAt  DateTime         @updatedAt @map("updated_at")
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  reviewer User?    @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reviewer User?             @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   risks    Risk[]
+  versions ContractVersion[]
 
   @@index([tenantId, status])
   @@index([contractId])
   @@map("review_tasks")
+}
+
+// 合同文档版本归档：ORIGINAL=上传原件（复用 contracts.storage_path，不复制文件）
+// OPINION=终审通过时归档的审查意见书 docx；REVISED=每次导出修订稿归档一版
+model ContractVersion {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  contractId     String   @map("contract_id")
+  taskId         String?  @map("task_id")
+  kind           String   @db.VarChar(20) // ORIGINAL | REVISED | OPINION
+  fileName       String   @map("file_name") @db.VarChar(300)
+  storagePath    String   @map("storage_path") @db.VarChar(500)
+  sizeBytes      Int      @default(0) @map("size_bytes")
+  appliedCount   Int?     @map("applied_count") // REVISED：原句锚点命中条数
+  unmatchedCount Int?     @map("unmatched_count") // REVISED：未命中进附加节条数
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract Contract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  task     ReviewTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, createdAt(sort: Desc)])
+  @@map("contract_versions")
 }
 
 enum ReviewTaskStatus {
@@ -671,6 +705,8 @@ model PlaybookRule {
   enabled       Boolean        @default(true)
   hitCount      Int            @default(0) @map("hit_count")
   source        PlaybookSource @default(MANUAL)
+  // 来源溯源：source=AI 时记录所来源的企业范本标题；MANUAL/SEED_PACK 为空
+  sourceLabel   String?        @map("source_label") @db.VarChar(200)
   createdById   String?        @map("created_by_id") @db.VarChar(50)
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
@@ -693,6 +729,28 @@ enum PlaybookSource {
   MANUAL
   AI
   SEED_PACK
+}
+
+// 企业自有合同范本：上传后可由 AI 提炼为 Playbook 审查规则（人工确认后导入）
+model TenantTemplate {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id") @db.VarChar(50)
+  title        String   @db.VarChar(200)
+  fileName     String   @map("file_name") @db.VarChar(255)
+  storagePath  String   @map("storage_path") @db.VarChar(500)
+  fileType     String   @map("file_type") @db.VarChar(20)
+  fileSize     Int      @map("file_size")
+  charCount    Int      @default(0) @map("char_count")
+  content      String   @db.Text
+  uploadedById String?  @map("uploaded_by_id") @db.VarChar(50)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploadedBy User?  @relation("TenantTemplateUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@map("tenant_templates")
 }
 
 // 模拟订单：不接真实支付，收银台一键 PAID 立即生效
@@ -819,4 +877,39 @@ model IntegrationLead {
   @@index([tenantId, createdAt])
   @@index([userId])
   @@map("integration_leads")
+}
+
+// 建议/意见反馈（个人版与企业版登录用户均可提交）：落库留底，提交后异步邮件通知平台
+model FeedbackEntry {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id") @db.VarChar(50)
+  userId    String?  @map("user_id") @db.VarChar(50)
+  category  String   @default("OTHER") @db.VarChar(20)
+  content   String   @db.VarChar(1000)
+  contact   String?  @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation("FeedbackEntryUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId])
+  @@map("feedback_entries")
+}
+
+// 团队邀请链接：管理员生成，有效期内可被多人接受注册（注册后 status=PENDING 需审批）
+model TenantInvite {
+  id            String    @id @default(cuid())
+  tenantId      String    @map("tenant_id") @db.VarChar(50)
+  createdById   String    @map("created_by") @db.VarChar(50)
+  token         String    @unique @db.VarChar(64)
+  expiresAt     DateTime  @map("expires_at")
+  acceptedCount Int       @default(0) @map("accepted_count")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("tenant_invites")
 }

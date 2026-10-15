@@ -1,22 +1,3 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.selfHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
 .headRow {
   display: flex;
   align-items: center;
@@ -25,10 +6,15 @@
   flex-wrap: wrap;
 }
 
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .tenantName {
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text);
 }
 
 .dashboard {
@@ -42,10 +28,6 @@
   align-items: center;
 }
 
-.block {
-  margin-top: 0;
-}
-
 .chartWrap {
   width: 100%;
 }
@@ -57,13 +39,13 @@
 }
 
 .gridLine {
-  stroke: var(--color-border);
+  stroke: #e5e7eb;
   stroke-width: 1;
   stroke-dasharray: 3 4;
 }
 
 .axisText {
-  fill: var(--color-text-3, #9ca3af);
+  fill: #9ca3af;
   font-size: 11px;
 }
 
@@ -73,7 +55,7 @@
   justify-content: center;
   margin-top: 6px;
   font-size: 12px;
-  color: var(--color-text-2, #6b7280);
+  color: #6b7280;
   flex-wrap: wrap;
 }
 
@@ -102,12 +84,12 @@
 .donutTotal {
   font-size: 20px;
   font-weight: 700;
-  fill: var(--color-text);
+  fill: #111827;
 }
 
 .donutHint {
   font-size: 11px;
-  fill: var(--color-text-3, #9ca3af);
+  fill: #9ca3af;
 }
 
 .donutLegend {
@@ -127,29 +109,21 @@
 }
 
 .donutLabel {
-  color: var(--color-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .donutPct {
-  color: var(--color-text-2, #6b7280);
+  color: #6b7280;
   width: 46px;
   text-align: right;
 }
 
 .donutCost {
-  color: var(--color-text);
   width: 84px;
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-
-.adminPage {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
 }
 
 .clickableRow {

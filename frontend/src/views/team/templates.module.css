@@ -127,3 +127,98 @@
 @media (max-width: 1100px) {
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── 我的范本（企业自有范本库）────────────────────────── */
+.topTabs { display: flex; }
+.myHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 12px 16px;
+}
+.myHint { font-size: 13px; color: var(--color-text-muted); line-height: 1.7; }
+.myLimitWarn { font-size: 12.5px; color: #b45309; }
+.myEmpty { min-height: 32vh; }
+.myCenter { min-height: 28vh; display: flex; align-items: center; justify-content: center; }
+
+.tplCell { display: flex; align-items: center; gap: 10px; }
+.tplCellIcon { font-size: 18px; color: var(--color-primary); }
+.tplCellSub { font-size: 12px; color: var(--color-text-muted); margin-top: 2px; word-break: break-all; }
+.rowActions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.myPreview {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.9;
+  margin: 0;
+}
+
+/* 编辑范本弹窗 */
+.myEditBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+.myEditCount {
+  margin-left: 8px;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+.myEditText textarea {
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+/* ── AI 提炼向导 ─────────────────────────────────────── */
+.myFocusRow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-primary-bg);
+  border: 1px solid color-mix(in srgb, #3370ff 25%, var(--color-border-light));
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.myWizardFoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.myCheckedInfo { font-size: 13px; color: var(--color-text-muted); }
+
+.candCard {
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-lg, 12px);
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--color-surface);
+}
+.candCardOff { opacity: 0.55; }
+.candHead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.candTitleInput {
+  font-weight: 600;
+  font-size: 14px;
+  max-width: 520px;
+}
+.candRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.candLabel { font-size: 12.5px; color: var(--color-text-muted); flex-shrink: 0; }
+.candLabelGap { margin-left: 8px; }
+.candField { display: flex; flex-direction: column; gap: 4px; }
+.candEvidence {
+  font-size: 12.5px;
+  color: var(--color-text-sub);
+  background: var(--color-bg-sub, #f7f8fa);
+  border-radius: 8px;
+  padding: 8px 10px;
+  line-height: 1.7;
+}
+.candTestRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.candMiss { font-size: 12.5px; color: var(--color-text-muted); display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }

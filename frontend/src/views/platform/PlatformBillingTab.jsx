@@ -1,24 +1,20 @@
-// frontend/src/views/monitor/BillingView.jsx
-// 配额账单页：本月 token 配额进度、按天峰/谷费用折线、功能费用占比环图、超额账期、历史账期。
-// 普通租户 /monitor/billing 只看自己；ADMIN /admin/billing 可切换查看任意租户。
-// 图表全部用轻量 SVG 自绘（与 antd Progress/Table 配合），不引入 echarts 重依赖。
+// frontend/src/views/platform/PlatformBillingTab.jsx
+// 超管控制台 · 租户账单：全租户当前账期汇总 → 点击行查看该租户完整账单
+// （本月配额进度、按天峰/谷费用折线、功能费用占比、超额账期、历史账期）。
+// 图表全部用轻量 SVG 自绘，不引入 echarts 重依赖。接口走 /api/platform/billing/*。
 import { useCallback, useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Alert, Button, Card, Col, Empty, Progress, Row, Space, Spin, Statistic, Table, Tag, Tooltip, Typography,
+  App as AntApp,
 } from 'antd'
 import {
   ArrowLeftOutlined, CrownFilled, ExclamationCircleFilled, ReloadOutlined, ThunderboltFilled, WalletFilled,
 } from '@ant-design/icons'
-import http from '@/utils/http.js'
-import styles from './BillingView.module.css'
+import platformApi, { platformErrMessage } from '@/utils/platformApi.js'
+import styles from './PlatformBillingTab.module.css'
 
 const { Text } = Typography
 
-const PLAN_COLOR = { FREE: 'default', PRO: 'blue', ENT: 'gold' }
-const PLAN_LABEL = { FREE: '免费版', PRO: '专业版', ENT: '企业版' }
-
-// 与瀑布页/后端一致的功能色板
 const FEATURE_COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#3b82f6', '#ec4899', '#9ca3af']
 const PEAK_COLOR = '#f59e0b'
 const OFF_COLOR = '#10b981'
@@ -104,7 +100,7 @@ function FeatureDonut({ items }) {
   return (
     <div className={styles.donutWrap}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="功能费用占比">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-border)" strokeWidth={18} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#e5e7eb" strokeWidth={18} />
         {total > 0 &&
           items.filter((i) => i.costCny > 0).map((i, idx) => {
             const frac = i.costCny / total
@@ -145,20 +141,22 @@ function FeatureDonut({ items }) {
   )
 }
 
-// ── 单租户账单主体（self 与 ADMIN 代查共用）────────────────────────
-function BillingDashboard({ tenantId, onBack }) {
+// ── 指定租户完整账单 ────────────────────────────────────────────────
+function TenantBillingDetail({ tenantId, onBack }) {
+  const { message } = AntApp.useApp()
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const url = tenantId ? `/admin/billing/tenants/${tenantId}` : '/monitor/billing'
-      setData(await http.get(url))
+      setData(await platformApi.get(`/billing/tenants/${tenantId}`))
+    } catch (err) {
+      message.error(platformErrMessage(err, '账单加载失败'))
     } finally {
       setLoading(false)
     }
-  }, [tenantId])
+  }, [tenantId, message])
 
   useEffect(() => { load() }, [load])
 
@@ -170,23 +168,18 @@ function BillingDashboard({ tenantId, onBack }) {
 
   return (
     <div className={styles.dashboard}>
-      {onBack && (
-        <div className={styles.backBar}>
-          <Button size="small" icon={<ArrowLeftOutlined />} onClick={onBack}>返回租户列表</Button>
-          <Button size="small" icon={<ReloadOutlined />} onClick={load} style={{ marginLeft: 8 }}>刷新</Button>
-        </div>
-      )}
+      <div className={styles.backBar}>
+        <Button size="small" icon={<ArrowLeftOutlined />} onClick={onBack}>返回租户列表</Button>
+        <Button size="small" icon={<ReloadOutlined />} onClick={load} style={{ marginLeft: 8 }}>刷新</Button>
+      </div>
 
       <div className={styles.headRow}>
         <Space>
           <span className={styles.tenantName}>{tenant.name}</span>
-          <Tag color={PLAN_COLOR[tenant.plan]}>{PLAN_LABEL[tenant.plan] || tenant.plan}</Tag>
+          <Tag>{tenant.plan}</Tag>
           {tenant.status === 'DISABLED' && <Tag color="red">已停用</Tag>}
           <Text type="secondary">账期 {period}（北京时间）</Text>
         </Space>
-        {!onBack && (
-          <Button size="small" icon={<ReloadOutlined />} onClick={load}>刷新</Button>
-        )}
       </div>
 
       <Row gutter={[16, 16]}>
@@ -210,7 +203,7 @@ function BillingDashboard({ tenantId, onBack }) {
           <Card size="small">
             <Statistic title="月度配额" value={fmtInt(tenant.quota)} suffix="tok" />
             <Text type="secondary" style={{ fontSize: 12 }}>
-              <CrownFilled /> {PLAN_LABEL[tenant.plan] || tenant.plan}套餐
+              <CrownFilled /> {tenant.plan} 套餐
             </Text>
           </Card>
         </Col>
@@ -219,7 +212,7 @@ function BillingDashboard({ tenantId, onBack }) {
             <Statistic
               title="配额状态"
               value={usage.overLimit ? '已超额' : usage.usedPct >= 80 ? '接近上限' : '正常'}
-              valueStyle={{ color: usage.overLimit ? 'var(--color-danger)' : usage.usedPct >= 80 ? 'var(--color-warning)' : 'var(--color-success)', fontSize: 20 }}
+              valueStyle={{ color: usage.overLimit ? '#dc2626' : usage.usedPct >= 80 ? '#d97706' : '#16a34a', fontSize: 20 }}
             />
             <Text type="secondary" style={{ fontSize: 12 }}>
               <ThunderboltFilled /> 次月 1 日重置
@@ -228,7 +221,7 @@ function BillingDashboard({ tenantId, onBack }) {
         </Col>
       </Row>
 
-      <Card size="small" className={styles.block} title="本月配额使用进度">
+      <Card size="small" title="本月配额使用进度">
         <Progress
           percent={Math.min(usage.usedPct, 100)}
           status={progressStatus}
@@ -243,7 +236,6 @@ function BillingDashboard({ tenantId, onBack }) {
 
       {overLimitMonths.length > 0 && (
         <Alert
-          className={styles.block}
           type="warning"
           showIcon
           icon={<ExclamationCircleFilled />}
@@ -260,7 +252,7 @@ function BillingDashboard({ tenantId, onBack }) {
         />
       )}
 
-      <Row gutter={[16, 16]} className={styles.block}>
+      <Row gutter={[16, 16]}>
         <Col xs={24} lg={15}>
           <Card size="small" title="按天峰谷费用（元）">
             {daily.some((d) => d.costCny > 0)
@@ -277,7 +269,7 @@ function BillingDashboard({ tenantId, onBack }) {
         </Col>
       </Row>
 
-      <Card size="small" className={styles.block} title="历史账期">
+      <Card size="small" title="历史账期">
         <Table
           size="small"
           rowKey="period"
@@ -319,8 +311,9 @@ function BillingDashboard({ tenantId, onBack }) {
   )
 }
 
-// ── ADMIN：全租户账单列表 ────────────────────────────────────────
-function AdminBilling() {
+// ── Tab 主体：全租户账单列表 ────────────────────────────────────────
+export default function PlatformBillingTab() {
+  const { message } = AntApp.useApp()
   const [list, setList] = useState(null)
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -328,21 +321,23 @@ function AdminBilling() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setList(await http.get('/admin/billing/tenants'))
+      setList(await platformApi.get('/billing/tenants'))
+    } catch (err) {
+      message.error(platformErrMessage(err, '租户账单加载失败'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [message])
 
   useEffect(() => { load() }, [load])
 
   if (selected) {
-    return <BillingDashboard tenantId={selected.tenantId} onBack={() => setSelected(null)} />
+    return <TenantBillingDetail tenantId={selected.tenantId} onBack={() => setSelected(null)} />
   }
 
   return (
-    <div className={styles.adminPage}>
-      <div className={styles.headRow}>
+    <div>
+      <div className={styles.headRow} style={{ marginBottom: 12 }}>
         <h2 className={styles.title}>租户配额账单（平台视角）</h2>
         <Tooltip title="刷新">
           <Button size="small" icon={<ReloadOutlined />} onClick={load} />
@@ -357,10 +352,7 @@ function AdminBilling() {
           onRow={(row) => ({ onClick: () => setSelected(row), className: styles.clickableRow })}
           columns={[
             { title: '租户', dataIndex: 'name' },
-            {
-              title: '套餐', dataIndex: 'plan', width: 100,
-              render: (p) => <Tag color={PLAN_COLOR[p]}>{PLAN_LABEL[p] || p}</Tag>,
-            },
+            { title: '套餐', dataIndex: 'plan', width: 120, render: (p) => <Tag>{p}</Tag> },
             {
               title: '状态', dataIndex: 'status', width: 90,
               render: (s) => (s === 'ACTIVE' ? <Tag color="green">正常</Tag> : <Tag color="red">停用</Tag>),
@@ -387,32 +379,12 @@ function AdminBilling() {
               sorter: (a, b) => a.costCny - b.costCny,
             },
             {
-              title: '', width: 80,
+              title: '', width: 100,
               render: () => <Button type="link" size="small">账单明细 →</Button>,
             },
           ]}
         />
       </Spin>
-    </div>
-  )
-}
-
-export default function BillingView() {
-  const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const isAdmin = pathname.startsWith('/admin')
-
-  return (
-    <div className={styles.page}>
-      {!isAdmin && (
-        <div className={styles.selfHead}>
-          <Space>
-            <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => navigate('/monitor')}>返回看板</Button>
-            <h2 className={styles.title}>配额与账单</h2>
-          </Space>
-        </div>
-      )}
-      {isAdmin ? <AdminBilling /> : <BillingDashboard />}
     </div>
   )
 }

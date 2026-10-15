@@ -50,9 +50,12 @@ export const useRevisionStore = create((set) => ({
 
   rebuttal: async (riskId) => (await http.post(`/risks/${riskId}/revision/rebuttal`)).text,
 
-  /** 触发浏览器下载 Word 红划线修订稿（带鉴权头，用 blob 跳转） */
-  downloadDocx: async (contractId) => {
-    const resp = await fetch(`/api/contracts/${contractId}/revisions/docx`, {
+  /**
+   * 触发浏览器下载修订后合同 Word（带鉴权头，用 blob 跳转）。
+   * mode=clean（默认）：已应用采纳修改、无痕迹可直接定稿的修订后新合同；mode=redline：保留 w:ins/w:del 修订痕迹。
+   */
+  downloadDocx: async (contractId, mode = 'clean') => {
+    const resp = await fetch(`/api/contracts/${contractId}/revisions/docx?mode=${mode}`, {
       headers: { Authorization: `Bearer ${useAuthStore.getState().accessToken}` },
     })
     if (!resp.ok) {

@@ -74,15 +74,15 @@ export default function DraftView() {
     toast.success('已全部接受')
   }
 
-  const doExport = async () => {
+  const doExport = async (mode = 'clean') => {
     try {
-      await downloadDocx(id)
+      await downloadDocx(id, mode)
     } catch (e) {
       if (e.status === 403 && e.code === 'PLAN_LIMIT') {
         setPaywall(true)
         return
       }
-      toast.warning('还没有已接受的修订，请先接受至少一条')
+      toast.warning('还没有已采纳的修改，请先采纳至少一条')
     }
   }
 
@@ -114,8 +114,11 @@ export default function DraftView() {
               <SwapOutlined /> 对比原版
             </button>
             <button className="btn btn-ghost" onClick={doAcceptAll}>全部接受</button>
-            <button className="btn btn-primary" onClick={doExport}>
-              <FileWordOutlined /> 导出 Word 红划线 <span className={styles.small} style={{ fontWeight: 400 }}>.docx</span>
+            <button className="btn btn-primary" onClick={() => doExport('clean')}>
+              <FileWordOutlined /> 导出修订后合同 <span className={styles.small} style={{ fontWeight: 400 }}>.docx</span>
+            </button>
+            <button className="btn btn-ghost" onClick={() => doExport('redline')}>
+              <FileWordOutlined /> 红划线版
             </button>
           </div>
         )}

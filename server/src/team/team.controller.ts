@@ -1,6 +1,7 @@
 // server/src/team/team.controller.ts
-// 团队席位接口（FR-18）。成员列表团队内可见；增/改/移除仅负责人（ADMIN）。
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common'
+// 团队席位接口（FR-18）。成员列表团队内可见；改/移除仅负责人（ADMIN）。
+// 邀请成员与加入审批见 invite 模块（/api/team/invites、/api/team/members/:id/approve）。
+import { Body, Controller, Delete, Get, Param, Patch, Req } from '@nestjs/common'
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { TeamService } from './team.service.js'
@@ -12,27 +13,9 @@ export class TeamController {
   constructor(private readonly team: TeamService) {}
 
   @Get('members')
-  @ApiOperation({ summary: '团队成员列表', description: '团队内所有成员可见。' })
+  @ApiOperation({ summary: '团队成员列表', description: '团队内所有成员可见（含待审批成员，status=PENDING）。' })
   list(@Req() req: any) {
     return this.team.listMembers(req.user.tenantId)
-  }
-
-  @Post('members')
-  @Roles('ADMIN')
-  @ApiOperation({ summary: '新增团队成员（仅 ADMIN）', description: '由负责人代创建成员账号（含初始密码），占用团队席位。' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['displayName'],
-      properties: {
-        displayName: { type: 'string', description: '成员姓名/显示名' },
-        email: { type: 'string', format: 'email', description: '邮箱（可选）' },
-        role: { type: 'string', enum: ['ADMIN', 'MANAGER', 'USER', 'READONLY'], description: '角色，默认 USER', default: 'USER' },
-      },
-    },
-  })
-  create(@Req() req: any, @Body() body: { displayName?: string; email?: string; role?: string }) {
-    return this.team.createMember(req.user.tenantId, req.user.userId, body || {})
   }
 
   @Patch('members/:id/role')

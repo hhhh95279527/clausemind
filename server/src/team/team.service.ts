@@ -1,24 +1,20 @@
 // server/src/team/team.service.ts
 // 团队席位与成员管理（FR-18，/api/team）：
-//   GET    /members             成员列表 + 席位使用（团队空间）
-//   POST   /members             演示环境直接创建账号并入团队（负责人，占席位）
+//   GET    /members             成员列表 + 席位使用（含 PENDING 待审批成员）
 //   PATCH  /members/:id/role    编辑角色（负责人）
 //   DELETE /members/:id         移除成员（负责人，不可移除自己/最后一个负责人）
+// 邀请链接生成/作废、成员加入审批（approve/reject）见 invite 模块。
 import {
   BadRequestException,
-  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common'
-import * as bcrypt from 'bcryptjs'
-import { randomBytes } from 'node:crypto'
 import { DatabaseService } from '../database/database.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
 import { AuditService } from '../audit/audit.service.js'
 
 const ALLOWED_ROLES = ['ADMIN', 'MANAGER', 'USER'] as const
 type MemberRole = (typeof ALLOWED_ROLES)[number]
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // 成员返回字段（列表/创建/改角色三处统一，与 serialize 入参形状一致）
 const MEMBER_SELECT = {
@@ -83,70 +79,6 @@ export class TeamService {
       seats: snap?.seats ?? null,
       usedSeats: snap?.usedSeats ?? users.length,
     }
-  }
-
-  /**
-   * 邀请/创建成员（演示环境直接创建已激活账号）。
-   * 新成员凭邮箱 + 一次性初始密码登录；正式环境将改为邮件接受邀请流程。
-   */
-  async createMember(tenantId: string, operatorId: string, dto: { displayName?: string; email?: string; role?: string }) {
-    await this.assertAccess(tenantId)
-
-    const email = (dto.email ?? '').trim().toLowerCase()
-    const displayName = (dto.displayName ?? '').trim()
-    const role = (dto.role ?? 'USER') as MemberRole
-
-    if (!displayName) throw new BadRequestException('请填写成员姓名')
-    if (displayName.length > 100) throw new BadRequestException('姓名过长（最多 100 字）')
-    if (!EMAIL_RE.test(email)) throw new BadRequestException('请填写正确的邮箱地址')
-    if (!ALLOWED_ROLES.includes(role)) throw new BadRequestException('角色不合法')
-
-    // 平台级唯一性：email 跨租户唯一（登录凭证），因此 findFirst 不带 tenantId
-    const exists = await this.db.user.findFirst({ where: { email } })
-    if (exists) throw new ConflictException('该邮箱已被账号使用')
-
-    // 席位拦截（SEAT_LIMIT → 403 PLAN_LIMIT，前端引导增购）
-    await this.entitlements.assertSeatAvailable(tenantId)
-
-    // 由邮箱生成唯一登录名
-    const base = email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'member'
-    let username = base
-    for (let i = 1; i <= 1000; i++) {
-      if (!(await this.db.user.findUnique({ where: { username } }))) break
-      username = `${base}_${i}`
-    }
-
-    // 一次性初始密码（去除易混淆字符）
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'
-    const raw = randomBytes(8)
-    let password = ''
-    for (let i = 0; i < 8; i++) password += alphabet[raw[i] % alphabet.length]
-
-    const user = await this.db.user.create({
-      data: {
-        username,
-        email,
-        displayName,
-        role,
-        status: 'ACTIVE',
-        emailVerified: false,
-        onboardingCompleted: true,
-        passwordHash: await bcrypt.hash(password, 12),
-        tenantId,
-      },
-      select: MEMBER_SELECT,
-    })
-
-    await this.audit.log({
-      tenantId,
-      userId: operatorId,
-      action: 'TEAM_MEMBER_CREATE',
-      resource: 'user',
-      resourceId: user.id,
-      detail: { displayName, email, role, demoDirectJoin: true },
-    })
-
-    return { member: this.serialize(user), username, initialPassword: password }
   }
 
   /** 编辑角色：不可降级自己；不可移除最后一个负责人 */

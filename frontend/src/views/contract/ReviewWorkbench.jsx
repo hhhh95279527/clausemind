@@ -3,20 +3,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  Button, Tag, Spin, Empty, Segmented, Modal, App, Statistic, Badge, Divider, Tooltip, Input,
+  Button, Tag, Spin, Empty, Segmented, Modal, App, Statistic, Badge, Divider, Tooltip, Input, Dropdown,
+  Select, Alert,
 } from 'antd'
 import {
   ArrowLeftOutlined, PlayCircleOutlined, FileSearchOutlined, PrinterOutlined,
-  FileWordOutlined,
+  FileWordOutlined, HistoryOutlined, DownloadOutlined,
   CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined, WarningOutlined,
-  SafetyCertificateFilled, MessageOutlined, RedoOutlined,
+  SafetyCertificateFilled, MessageOutlined, RedoOutlined, InfoCircleOutlined,
 } from '@ant-design/icons'
-import { useContractStore, CONTRACT_STATUS_META } from '@/stores/contract.js'
+import { useContractStore, CONTRACT_STATUS_META, SCENE_OPTIONS } from '@/stores/contract.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useMeStore } from '@/stores/me.js'
 import http from '@/utils/http.js'
 import { trackFirstResultSeen } from '@/utils/analytics.js'
 import RiskCard from '@/components/contract/RiskCard.jsx'
+import ArchiveDrawer from './ArchiveDrawer.jsx'
 import styles from './ReviewWorkbench.module.css'
 
 const CLAUSE_TYPE_TEXT = {
@@ -29,6 +31,15 @@ const SCENE_TEXT = {
   LABOR: '劳动', INTERNSHIP: '实习', LEASE: '租赁', SERVICE: '劳务', NDA: '保密',
   SALE: '买卖', LOAN: '借款', EQUITY: '股权', CUSTOM: '非标',
 }
+
+// 「修订后新合同」导出格式：clean=已应用修改、无痕迹可直接定稿；redline=保留 Word 修订痕迹
+const REVISION_EXPORT_MENU = [
+  { key: 'docx-clean', label: 'Word 修订后合同（终版 · 可直接定稿）' },
+  { key: 'docx-redline', label: 'Word 红划线修订稿（保留修订痕迹）' },
+  { type: 'divider' },
+  { key: 'pdf-clean', label: 'PDF 干净终版' },
+  { key: 'pdf-redline', label: 'PDF 红划线版' },
+]
 
 export default function ReviewWorkbench() {
   const { id } = useParams()
@@ -43,6 +54,7 @@ export default function ReviewWorkbench() {
     detail, loadingDetail, loadDetail,
     reviewing, reviewStages, liveRisks, reviewStats, reviewError, resetReviewRun, startReview,
     submitDecision, loadReport, downloadReportDocx,
+    exportRevisionDocx, exportRevisionPdf, updateContract,
   } = useContractStore()
 
   const [selectedClause, setSelectedClause] = useState(null)
@@ -53,7 +65,10 @@ export default function ReviewWorkbench() {
   const [reportMd, setReportMd] = useState('')
   const [reportHtml, setReportHtml] = useState('')
   const [reportOpen, setReportOpen] = useState(false)
+  const [archiveOpen, setArchiveOpen] = useState(false)
   const [exportingReport, setExportingReport] = useState(false)
+  const [exportingRev, setExportingRev] = useState('')
+  const [sceneUpdating, setSceneUpdating] = useState(false)
   // 企业态：结构化信息卡 + 审批评论
   const [structured, setStructured] = useState(null)
   const [structuredLoading, setStructuredLoading] = useState(false)
@@ -163,6 +178,23 @@ export default function ReviewWorkbench() {
     } finally { setCommentSending(false) }
   }
 
+  // 修改合同类型（决定本次审查适用哪一类公司红线）；旧审查结果与归档保留，仅提示重新审查
+  const handleSceneChange = async (scene) => {
+    setSceneUpdating(true)
+    try {
+      const res = await updateContract(id, { scene })
+      await loadDetail(id)
+      const detected = res?.detected?.scene
+      if (detected) {
+        message.success(`已按 AI 识别结果更新为「${SCENE_TEXT[detected] || detected}」，建议重新发起审查`)
+      } else if (scene === 'AUTO') {
+        message.success('已切换为「自动识别（AI）」，解析完成后自动回填类型；建议重新发起审查')
+      } else {
+        message.success('合同类型已变更，建议重新发起审查')
+      }
+    } finally { setSceneUpdating(false) }
+  }
+
   const handleStart = async () => {
     setDecisions({})
     await startReview(id)
@@ -256,6 +288,24 @@ export default function ReviewWorkbench() {
     }
   }
 
+  // 导出「修订后新合同」（核心交付物）：把已采纳的修改点应用到原始文档，保留原版式
+  const exportRevised = async (fmt) => {
+    setExportingRev(fmt)
+    try {
+      if (fmt === 'docx-clean') await exportRevisionDocx(id, 'clean')
+      else if (fmt === 'docx-redline') await exportRevisionDocx(id, 'redline')
+      else if (fmt === 'pdf-clean') await exportRevisionPdf(id, 'clean')
+      else await exportRevisionPdf(id, 'redline')
+      message.success('已生成修订后合同')
+    } catch (e) {
+      message.warning(e?.status === 403
+        ? (e.message || '当前套餐不支持导出，请升级套餐')
+        : (e?.message || '导出失败：请先在风险卡片上采纳要修改的点'))
+    } finally {
+      setExportingRev('')
+    }
+  }
+
   if (loadingDetail && !detail) {
     return <div className={styles.center}><Spin size="large" tip="加载合同…" /></div>
   }
@@ -280,9 +330,30 @@ export default function ReviewWorkbench() {
             <div className={styles.subtitle}>
               {contract.fileName} · {contract.clausesCount} 条 · {contract.charCount} 字
             </div>
+            <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>合同类型</span>
+              <Select
+                size="small"
+                style={{ width: 168 }}
+                value={contract.sceneSource === 'AUTO' ? 'AUTO' : contract.scene}
+                options={SCENE_OPTIONS}
+                loading={sceneUpdating}
+                disabled={sceneUpdating || reviewing}
+                onChange={handleSceneChange}
+              />
+            </div>
           </div>
         </div>
         <div className={styles.headerRight}>
+          {acceptedCount > 0 && (
+            <Dropdown
+              trigger={['click']}
+              menu={{ items: REVISION_EXPORT_MENU, onClick: ({ key }) => exportRevised(key) }}
+            >
+              <Button type="primary" icon={<DownloadOutlined />} loading={!!exportingRev}>导出修订后合同</Button>
+            </Dropdown>
+          )}
+          <Button icon={<HistoryOutlined />} onClick={() => setArchiveOpen(true)}>文档归档</Button>
           <Button icon={<ReloadOutlined />} onClick={() => loadDetail(id)}>刷新</Button>
           {contract.reportMd && <Button icon={<FileSearchOutlined />} onClick={openReport}>查看意见书</Button>}
           <Button
@@ -300,6 +371,15 @@ export default function ReviewWorkbench() {
         <div className={styles.errorBar}>
           <WarningOutlined /> 条款解析失败：{contract.parseError || '未知原因'}（可能为扫描版 PDF，请改为文本版或直接粘贴文本）
         </div>
+      )}
+
+      {/* AI 识别出的付费类型套餐未支持：本次仅通用规则审查，提示升级启用专项红线 */}
+      {review?.stats?.sceneNotice && (
+        <Alert
+          type="warning" showIcon icon={<InfoCircleOutlined />}
+          style={{ margin: '0 0 12px' }}
+          message={review.stats.sceneNotice}
+        />
       )}
 
       {/* 企业审批流条 */}
@@ -600,6 +680,16 @@ export default function ReviewWorkbench() {
                 <div className={styles.doneBox}>
                   <CheckCircleOutlined style={{ color: 'var(--color-success)', fontSize: 22 }} />
                   <div>审查通过{acceptedCount > 0 ? `，采纳 ${acceptedCount} 项` : ''}，意见书已归档</div>
+                  {acceptedCount > 0 && (
+                    <Dropdown
+                      trigger={['click']}
+                      menu={{ items: REVISION_EXPORT_MENU, onClick: ({ key }) => exportRevised(key) }}
+                    >
+                      <Button block type="primary" icon={<DownloadOutlined />} loading={!!exportingRev}>
+                        导出修订后合同
+                      </Button>
+                    </Dropdown>
+                  )}
                   <Button block icon={<FileSearchOutlined />} onClick={openReport}>查看意见书</Button>
                 </div>
               )}
@@ -652,6 +742,14 @@ export default function ReviewWorkbench() {
           dangerouslySetInnerHTML={{ __html: reportHtml }}
         />
       </Modal>
+
+      <ArchiveDrawer
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        contractId={id}
+        contractTitle={contract.title}
+        reviewTaskId={review?.id}
+      />
     </div>
   )
 }

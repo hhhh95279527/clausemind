@@ -26,11 +26,6 @@ const KnowledgeView   = lazy(() => import('@/views/KnowledgeView.jsx'))
 const AgentView       = lazy(() => import('@/views/AgentView.jsx'))
 const ContractList    = lazy(() => import('@/views/contract/ContractListView.jsx'))
 const ReviewWorkbench = lazy(() => import('@/views/contract/ReviewWorkbench.jsx'))
-const TraceWaterfall  = lazy(() => import('@/views/monitor/TraceWaterfall.jsx'))
-const BillingView     = lazy(() => import('@/views/monitor/BillingView.jsx'))
-const AdminView       = lazy(() => import('@/views/AdminView.jsx'))
-const EvalView        = lazy(() => import('@/views/admin/EvalView.jsx'))
-const RuleAdminView   = lazy(() => import('@/views/admin/RuleAdminView.jsx'))
 
 // ── 个人曲线页面（Phase 4）──────────────────────────────────────────────────
 const HomeView          = lazy(() => import('@/views/personal/HomeView.jsx'))
@@ -49,6 +44,12 @@ const DashboardView     = lazy(() => import('@/views/team/DashboardView.jsx'))
 const TeamView          = lazy(() => import('@/views/team/TeamView.jsx'))
 const IntegrationsView  = lazy(() => import('@/views/team/IntegrationsView.jsx'))
 const TemplatesView     = lazy(() => import('@/views/team/TemplatesView.jsx'))
+
+// ── 个人/企业共享页面 ────────────────────────────────────────────────────────
+const FeedbackView      = lazy(() => import('@/views/feedback/FeedbackView.jsx'))
+
+// ── 公开邀请落地页（无需登录，自带全屏布局）──────────────────────────────────
+const InviteLandingView = lazy(() => import('@/views/invite/InviteLandingView.jsx'))
 
 
 // ── 平台超管（独立账号体系，不进主导航，直接访问 URL）───────────────────────
@@ -119,6 +120,8 @@ export default function App() {
             <Route path="/reset-password" element={<ForgotPasswordView />} />
             <Route path="/privacy" element={<PrivacyView />} />
             <Route path="/terms" element={<TermsView />} />
+            {/* 团队邀请落地页（微信/飞书分享链接，公开访问） */}
+            <Route path="/invite/:token" element={<InviteLandingView />} />
 
             {/* ── 认证 + persona 驱动布局 ──────────────────────────────── */}
             {/* 个人曲线 */}
@@ -143,15 +146,10 @@ export default function App() {
             {/* 共享页面 */}
             <Route path="/templates" element={<AuthGuard><AuthedLayout><TemplatesView /></AuthedLayout></AuthGuard>} />
             <Route path="/knowledge" element={<AuthGuard><AuthedLayout><KnowledgeView /></AuthedLayout></AuthGuard>} />
+            <Route path="/feedback" element={<AuthGuard><AuthedLayout><FeedbackView /></AuthedLayout></AuthGuard>} />
 
-            {/* 系统管理（仅 ADMIN 可见，强制 TeamLayout，导航条目由 systemAdminNav 控制） */}
-            <Route path="/admin" element={<AuthGuard><TeamLayout><AdminView /></TeamLayout></AuthGuard>} />
-            <Route path="/admin/eval" element={<AuthGuard><TeamLayout><EvalView /></TeamLayout></AuthGuard>} />
-            <Route path="/admin/billing" element={<AuthGuard><TeamLayout><BillingView /></TeamLayout></AuthGuard>} />
-            <Route path="/admin/rules" element={<AuthGuard><TeamLayout><RuleAdminView /></TeamLayout></AuthGuard>} />
+            {/* 任务 Agent（企业业务工具，强制 TeamLayout；平台运维页统一在 /platform） */}
             <Route path="/agent" element={<AuthGuard><TeamLayout><AgentView /></TeamLayout></AuthGuard>} />
-            <Route path="/monitor/traces" element={<AuthGuard><TeamLayout><TraceWaterfall /></TeamLayout></AuthGuard>} />
-            <Route path="/monitor/billing" element={<AuthGuard><TeamLayout><BillingView /></TeamLayout></AuthGuard>} />
 
             {/* ── 旧路由重定向 ─────────────────────────────────────────── */}
             <Route path="/chat" element={<Navigate to={chatRedirect} replace />} />

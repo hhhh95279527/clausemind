@@ -4,7 +4,7 @@
 // - FREE 仅可在线预览；采用（生成 READY 文本合同）/ 下载 Word 为 PERSONAL+ 能力
 // - 个人 / 企业共用页面，权限随套餐
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Button, Drawer, Empty, Input, Modal, Segmented, Spin, Tag, message,
 } from 'antd'
@@ -26,6 +26,7 @@ import {
 import http from '@/utils/http.js'
 import { useAuthStore } from '@/stores/auth.js'
 import { useMeStore } from '@/stores/me.js'
+import MyTemplatesPanel from './MyTemplatesPanel.jsx'
 import css from './templates.module.css'
 
 const CATEGORIES = ['全部', '劳动合同类', '租赁类', '买卖借贷类', '股权服务类', '保密协议类']
@@ -65,8 +66,11 @@ const CLAUSE_LINE = /^第[一二三四五六七八九十两〇零\d]{1,5}条/
 
 export default function TemplatesView() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { entitlement, loadEntitlement } = useMeStore()
   const workspaceType = entitlement?.workspaceType
+  const isTeamSpace = workspaceType === 'TEAM'
+  const topTab = isTeamSpace && searchParams.get('tab') === 'mine' ? 'mine' : 'platform'
   const accessToken = useAuthStore((s) => s.accessToken)
 
   const [loading, setLoading] = useState(true)
@@ -192,6 +196,23 @@ export default function TemplatesView() {
 
   return (
     <div className={css.page}>
+      {isTeamSpace && (
+        <div className={css.topTabs}>
+          <Segmented
+            value={topTab}
+            onChange={(v) => setSearchParams(v === 'mine' ? { tab: 'mine' } : {}, { replace: true })}
+            options={[
+              { label: '平台范本', value: 'platform' },
+              { label: '我的范本', value: 'mine' },
+            ]}
+          />
+        </div>
+      )}
+
+      {topTab === 'mine' ? (
+        <MyTemplatesPanel />
+      ) : (
+        <>
       <div className={css.subHead}>16 套高频合同范本 · 劳动用工 / 租赁 / 买卖借贷 / 股权服务 / 保密 · 依据现行法规整理 · 在线预览 · 一键采用发起审查</div>
 
       <div className={css.toolbar}>
@@ -250,6 +271,8 @@ export default function TemplatesView() {
         <InfoCircleOutlined className={css.tipIcon} />
         <div>范本由平台依据现行法规整理，使用前请结合所在地规定与实际情况调整；免费仅可在线预览，「采用」后会在「合同审查」中生成一份可编辑的文本合同，可直接发起审查。</div>
       </div>
+        </>
+      )}
 
       {/* 范本预览抽屉 */}
       <Drawer

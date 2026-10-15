@@ -1,5 +1,5 @@
-// server/src/admin/rule-admin.service.ts
-// 审查规则管理后台：review_rules CRUD（平台级配置，无租户维度）+ 规则试运行（不落库）。
+// server/src/platform/rule-admin.service.ts
+// 全局审查规则管理：review_rules CRUD（平台级配置，对所有租户生效）+ 规则试运行（不落库）。
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma, Severity } from '@prisma/client'
 import { DatabaseService } from '../database/database.service.js'

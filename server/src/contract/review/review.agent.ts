@@ -17,6 +17,8 @@ import { config as appConfig, isValidAiKey } from '../../config/index.js'
 import { legalSearchTool, calculateTool, setToolsDatabase } from '../../services/agent/tools.js'
 import { runRuleEngine } from '../rules/rule.engine.js'
 import type { EngineRule } from '../rules/rule.engine.js'
+import { classifyScene, clausesToText } from '../parsing/scene-classifier.js'
+import { getPlanDef, type ReviewScene } from '../../billing/plans.config.js'
 import { getCheckpointer } from './checkpointer.js'
 import { buildOpinionMarkdown } from './report.js'
 import { getFeishuMcpTools } from '../../services/feishu/mcp-client.js'
@@ -49,6 +51,8 @@ interface ReviewState {
   clauses: ClauseSnapshot[]
   decisions: Record<string, { status: RiskStatus; comment: string | null }>
   finalDecision: 'APPROVED' | 'REJECTED' | null
+  /** 结果页提示（如：AI 识别出的付费类型套餐未支持，本次仅按通用规则审查）；null=无提示 */
+  sceneNotice: string | null
 }
 
 const State = Annotation.Root({
@@ -64,6 +68,10 @@ const State = Annotation.Root({
   }),
   finalDecision: Annotation<'APPROVED' | 'REJECTED' | null>({
     reducer: (_: unknown, n: 'APPROVED' | 'REJECTED' | null) => n,
+    default: () => null,
+  }),
+  sceneNotice: Annotation<string | null>({
+    reducer: (_: unknown, n: string | null) => n,
     default: () => null,
   }),
 })
@@ -109,17 +117,55 @@ async function loadClauses(state: ReviewState) {
 /** 用工类合同识别：决定 LABOR 域规则是否参与（标题或正文出现强用工特征词） */
 const LABOR_MARKER = /劳动合同|用人单位|劳动者|试用期|竞业限制|社会保险|社保|解除劳动合同|实习生?|员工入职|工资/
 
+// 付费场景：FREE 套餐的 allowedScenes 不含，AI 识别出时回退为通用规则审查
+const PAID_SCENES: ReviewScene[] = ['SALE', 'LOAN', 'EQUITY', 'CUSTOM']
+const SCENE_LABEL: Record<string, string> = {
+  LABOR: '劳动合同', INTERNSHIP: '实习协议', LEASE: '房屋租赁', SERVICE: '劳务/兼职',
+  NDA: '保密协议', SALE: '买卖', LOAN: '借款', EQUITY: '股权转让', CUSTOM: '非标合同',
+}
+
 async function ruleScan(state: ReviewState, cfg: any) {
   const [rules, contract, playbookRules] = await Promise.all([
     db!.reviewRule.findMany({ where: { enabled: true } }),
-    db!.contract.findUniqueOrThrow({ where: { id: state.contractId }, select: { title: true, scene: true, tenantId: true } }),
+    db!.contract.findUniqueOrThrow({
+      where: { id: state.contractId },
+      select: { title: true, scene: true, sceneSource: true, tenantId: true },
+    }),
     // Playbook 规则严格租户隔离；仅规则拥有方租户的合同受其约束
     db!.playbookRule.findMany({ where: { tenantId: state.tenantId, enabled: true } }),
   ])
   const haystack = contract.title + state.clauses.map((c) => c.title + c.content).join('')
   // 规则域：实习协议不构成劳动关系，明确排除 LABOR 域（社保/试用期等规则对实习是误报）；
   // 其余场景保留"正文用工特征词"文本兜底，覆盖用户类型选择不精确的情况
-  const scene = contract.scene || 'LABOR'
+  let scene = contract.scene || 'LABOR'
+  let sceneSource = contract.sceneSource
+  // 兜底：scene_source=AUTO 说明解析 worker 尚未回填（如解析失败后重试），用已入库条款现场识别一次
+  if (sceneSource === 'AUTO') {
+    try {
+      const detected = await classifyScene(clausesToText(state.clauses), contract.title)
+      if (detected.source !== 'DEFAULT') {
+        scene = detected.scene
+        sceneSource = 'AI'
+        await db!.contract.update({
+          where: { id: state.contractId },
+          data: { scene: detected.scene, sceneSource: 'AI' },
+        })
+        logger.info('review: scene fallback detected', { taskId: state.reviewTaskId, scene: detected.scene })
+      }
+    } catch (e) {
+      logger.warn('review: scene fallback classify failed', {
+        taskId: state.reviewTaskId, error: (e as Error).message,
+      })
+    }
+  }
+  // AI 识别出的付费类型 + 套餐不含该类型 → 本次仅加载"通用规则"（不提供专项红线），并给结果页升级提示
+  let sceneNotice: string | null = null
+  if (sceneSource === 'AI' && PAID_SCENES.includes(scene as ReviewScene)) {
+    const tenant = await db!.tenant.findUnique({ where: { id: state.tenantId }, select: { plan: true } })
+    if (!getPlanDef(tenant?.plan ?? 'FREE').allowedScenes.includes(scene as ReviewScene)) {
+      sceneNotice = `AI 识别为「${SCENE_LABEL[scene] || scene}」，当前套餐未包含该类型专项红线，本次仅按通用规则审查；升级后可启用该类型专项红线。`
+    }
+  }
   const internship = scene === 'INTERNSHIP'
   const labor = scene === 'LABOR' || (!internship && LABOR_MARKER.test(haystack))
   const findings = runRuleEngine(
@@ -129,10 +175,12 @@ async function ruleScan(state: ReviewState, cfg: any) {
   )
 
   // ── Playbook 公司红线/偏好规则并行扫描（FR-17）─────────────────────
-  // 合同场景过滤：contractTypes 为空=全类型；'ALL' 通用；否则须包含合同 scene
-  const pbApplicable = playbookRules.filter(
-    (r) => !r.contractTypes.length || r.contractTypes.includes('ALL') || r.contractTypes.includes(scene),
-  )
+  // 合同场景过滤：contractTypes 为空=全类型；'ALL' 通用；否则须包含合同 scene。
+  // sceneNotice 非空（AI 识别的付费类型且套餐不支持）时降级为仅加载通用规则。
+  const pbApplicable = playbookRules.filter((r) => {
+    const universal = !r.contractTypes.length || r.contractTypes.includes('ALL')
+    return sceneNotice ? universal : universal || r.contractTypes.includes(scene)
+  })
   const pbEngineRules: EngineRule[] = pbApplicable.map((r) => {
     const p = (r.pattern ?? {}) as {
       keywords?: string[]; regex?: string | null; severity?: Severity; suggestion?: string
@@ -211,8 +259,9 @@ async function ruleScan(state: ReviewState, cfg: any) {
   emit(cfg, 'stage', { stage: 'rule_scan', message: `规则引擎扫描完成，通用规则命中 ${findings.length} 项、公司红线规则命中 ${pbFindings.length} 项` })
   logger.info('review: rule scan done', {
     taskId: state.reviewTaskId, findings: findings.length, playbookFindings: pbFindings.length,
+    scene, sceneNotice: !!sceneNotice,
   })
-  return {}
+  return { sceneNotice }
 }
 
 // ── 节点3：Agent 语义审查（分批；工具核法条；结构化输出；引用校验）─
@@ -514,6 +563,8 @@ async function aggregate(state: ReviewState, cfg: any) {
       .slice(0, 3)
       .map((r) => ({ title: r.title, text: r.analysis, severity: r.severity })),
     deep: state.deep,
+    // 结果页提示（AI 识别的付费类型套餐未支持 → 本次仅通用规则审查）
+    sceneNotice: state.sceneNotice,
   }
   await db!.reviewTask.update({ where: { id: state.reviewTaskId }, data: { stats: stats as any } })
   await db!.contract.update({ where: { id: state.contractId }, data: { status: 'WAITING_REVIEW' } })
@@ -564,6 +615,25 @@ async function finalize(state: ReviewState, cfg: any) {
   ])
   const reportMd = buildOpinionMarkdown(contract, task, risks)
   await db!.contract.update({ where: { id: state.contractId }, data: { reportMd } })
+  // 归档意见书 docx（contract_versions OPINION）：幂等（同任务已有即跳过）；失败仅告警不阻断审查完成
+  try {
+    const archived = await db!.contractVersion.count({ where: { taskId: task.id, kind: 'OPINION' } })
+    if (!archived) {
+      const { buildOpinionDocx } = await import('./report-docx.js')
+      const buffer = await buildOpinionDocx(contract, task, risks)
+      const { archiveVersion } = await import('./archive.js')
+      await archiveVersion(db!, {
+        tenantId: contract.tenantId,
+        contractId: contract.id,
+        taskId: task.id,
+        kind: 'OPINION',
+        fileName: `审查意见书_${contract.title.slice(0, 80)}.docx`,
+        buffer,
+      })
+    }
+  } catch (e) {
+    console.warn('[archive] 意见书 docx 归档失败（不影响审查结果）:', (e as Error).message)
+  }
   emit(cfg, 'done', { stats: task.stats, riskCount: risks.length })
   return {}
 }

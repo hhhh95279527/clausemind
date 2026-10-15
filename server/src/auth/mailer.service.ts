@@ -35,19 +35,25 @@ export class MailerService {
     }
   }
 
-  /** 发送邮件；console 模式直接打印。任何失败只记日志、不抛出，避免阻断认证主链路 */
-  async send(mail: SendMailInput): Promise<void> {
+  /**
+   * 发送邮件；console 模式直接打印。任何失败只记日志、不抛出，避免阻断认证主链路。
+   * SMTP 模式返回 nodemailer 的发送结果（messageId/accepted/rejected/response），便于业务侧留痕；
+   * console 模式返回 undefined。
+   */
+  async send(mail: SendMailInput): Promise<{ messageId?: string; response?: string } | undefined> {
     if (this.consoleMode || !this.transporter) {
       // eslint-disable-next-line no-console
       console.log(
         `\n📮 [MailerService:console] → ${mail.to}\n   主题：${mail.subject}\n   ${mail.text}\n`,
       )
-      return
+      return undefined
     }
     try {
-      await this.transporter.sendMail({ from: config.mailer.smtp.from, ...mail })
+      const info = await this.transporter.sendMail({ from: config.mailer.smtp.from, ...mail })
+      return { messageId: info?.messageId, response: info?.response }
     } catch (err) {
       this.logger.error(`SMTP 发送失败（已降级，不阻断主流程）：${(err as Error).message}`)
+      return undefined
     }
   }
 
@@ -73,6 +79,56 @@ export class MailerService {
         ``,
         `如非本人操作，请忽略本邮件，账号不会受到任何影响。`,
       ].join('\n'),
+    })
+  }
+
+  /** 团队成员加入申请：通知租户管理员前往审批 */
+  async sendMemberApplyNotice(to: string, p: {
+    tenantName: string
+    applicantName: string
+    username: string
+    email: string
+    teamUrl: string
+  }): Promise<void> {
+    await this.send({
+      to,
+      subject: `【ClauseMind】${p.applicantName} 申请加入「${p.tenantName}」`,
+      text: [
+        `有一位新成员通过团队邀请链接申请加入「${p.tenantName}」，信息如下：`,
+        ``,
+        `姓名/昵称：${p.applicantName}`,
+        `登录账号：${p.username}`,
+        `绑定邮箱：${p.email}`,
+        `申请时间：${new Date().toLocaleString('zh-CN', { hour12: false })}`,
+        ``,
+        `请前往「团队席位」页面审批，通过后该成员才能登录团队空间：`,
+        `${p.teamUrl}/team`,
+      ].join('\n'),
+    })
+  }
+
+  /** 审批结果通知申请人 */
+  async sendApplyResult(to: string, p: {
+    tenantName: string
+    approved: boolean
+    frontUrl: string
+  }): Promise<void> {
+    await this.send({
+      to,
+      subject: p.approved
+        ? `【ClauseMind】你已加入「${p.tenantName}」`
+        : `【ClauseMind】加入「${p.tenantName}」的申请未通过`,
+      text: p.approved
+        ? [
+            `你申请加入「${p.tenantName}」团队空间已通过管理员审批，现在可以登录使用了：`,
+            ``,
+            `${p.frontUrl}/login`,
+          ].join('\n')
+        : [
+            `很抱歉，你申请加入「${p.tenantName}」团队空间未通过管理员审批。`,
+            ``,
+            `如有疑问，请与团队管理员直接联系。`,
+          ].join('\n'),
     })
   }
 }

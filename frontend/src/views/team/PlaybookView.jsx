@@ -1,11 +1,13 @@
 // frontend/src/views/team/PlaybookView.jsx
 // 企业 Playbook 审查规则（FR-17，文案对齐 docs/prototype/playbook.html）：
-// 红线规则 / 偏好口径 / 标准合同库（P1 占位）/ 行业专项包。
-// 自然语言 → AI 结构化草稿（无 Key 可手写）；样例条款本地试命中不耗模型。
+// 红线规则 / 偏好口径 / 标准合同库（跳转范本提炼）/ 行业专项包。
+// 规则列表带来源标注：AI 提炼（含来源范本标题，可溯源）/ 行业包 / 手动创建（无标签）。
+// 规则编辑：标题 + 合同类型（下拉）+ 规则内容（完整句子）；
+// 机器命中条件（关键词/阈值正则）保存时由 AI 按内容句静默自动生成，界面对用户不可见，无 Key 时整句兜底。
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Checkbox, Drawer, Empty, Form, Input, Popconfirm, Select, Spin, Switch, Tooltip,
+  Button, Drawer, Empty, Form, Input, Popconfirm, Select, Spin, Switch, Tooltip, message,
 } from 'antd'
 import {
   SafetyCertificateFilled, PlusOutlined, UploadOutlined, ApiOutlined,
@@ -49,6 +51,9 @@ const KIND_META = {
   PREFERENCE: { drawer: '偏好口径 · 命中后给出统一谈判建议，不判违规', defaultSeverity: 'LOW' },
 }
 
+/** 类型数组 → 缓存键（顺序无关） */
+const typesKeyOf = (types) => (types || []).slice().sort().join(',')
+
 function typeTags(types) {
   if (!types?.length) return <span className={`${shared.tag} ${shared.tagGray}`}>通用</span>
   return types.map((t) => (
@@ -63,7 +68,7 @@ export default function PlaybookView() {
   const { entitlement, loadEntitlement } = useMeStore()
   const {
     rules, packs, loading, loadAll, createRule, updateRule, toggleRule, deleteRule,
-    parseRule, testRule, enablePack,
+    parseRule, enablePack,
   } = usePlaybookStore()
 
   const [tab, setTab] = useState('FORBIDDEN')
@@ -71,12 +76,11 @@ export default function PlaybookView() {
   const [editing, setEditing] = useState(null) // null=新建；rule 对象=编辑
   const [drawerKind, setDrawerKind] = useState('FORBIDDEN')
   const [form] = Form.useForm()
-  const suggestionRef = useRef('')
-  const [parsing, setParsing] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResults, setTestResults] = useState(null)
   const [saving, setSaving] = useState(false)
   const [enabling, setEnabling] = useState(false)
+  // 保存时静默调 AI 生成机器命中条件；同内容+同类型复用上次结果（编辑未改内容时不重复消耗）
+  const [parsing, setParsing] = useState(false)
+  const patternCacheRef = useRef(null) // { content, typesKey, pattern }
 
   const isTeamSpace = entitlement?.workspaceType === 'TEAM'
 
@@ -107,96 +111,118 @@ export default function PlaybookView() {
     )
   }
 
+  /** 规则的完整内容句：早期数据可能只有留痕文案/描述，均缺失时回落到标题 */
+  const ruleContentOf = (rule) => {
+    const p = (rule.naturalPrompt || '').trim()
+    if (p && !p.startsWith('从企业范本')) return p
+    return (rule.description || '').trim() || rule.title
+  }
+
+  /** 列表副标题：仅在有真实内容句/描述时展示，避免与标题重复 */
+  const ruleSubText = (rule) => {
+    const p = (rule.naturalPrompt || '').trim()
+    if (p && !p.startsWith('从企业范本')) return p
+    return (rule.description || '').trim() || null
+  }
+
   const openCreate = (kind) => {
     setEditing(null)
     setDrawerKind(kind)
-    suggestionRef.current = ''
-    setTestResults(null)
     form.resetFields()
-    form.setFieldsValue({
-      kind,
-      contractTypes: kind === 'FORBIDDEN' ? ['SERVICE', 'LEASE'] : ['SERVICE'],
-      severity: KIND_META[kind].defaultSeverity,
-    })
+    form.setFieldsValue({ contractType: ['ALL'] })
+    patternCacheRef.current = null
     setDrawerOpen(true)
+  }
+
+  /** 「通用」与具体类型互斥：同时出现时按用户本次新增的项保留 */
+  const handleTypesChange = (next) => {
+    const specifics = next.filter((v) => v !== 'ALL')
+    const hasAll = next.includes('ALL')
+    if (hasAll && specifics.length) {
+      const prev = form.getFieldValue('contractType') || []
+      form.setFieldsValue({ contractType: prev.includes('ALL') ? specifics : ['ALL'] })
+      return
+    }
+    if (!next.length) form.setFieldsValue({ contractType: ['ALL'] })
   }
 
   const openEdit = (rule) => {
     setEditing(rule)
     setDrawerKind(rule.kind)
-    suggestionRef.current = rule.pattern?.suggestion || ''
-    setTestResults(null)
-    form.setFieldsValue({
-      title: rule.title,
-      description: rule.description || '',
-      naturalPrompt: rule.naturalPrompt || '',
-      contractTypes: rule.contractTypes?.length ? rule.contractTypes : ['ALL'],
-      keywords: (rule.pattern?.keywords || []).join('，'),
-      regex: rule.pattern?.regex || '',
-      severity: rule.pattern?.severity || (rule.kind === 'FORBIDDEN' ? 'HIGH' : 'LOW'),
-    })
+    form.resetFields()
+    // 空数组或含 ALL 均视为全类型；其余原样回显（支持一条规则适用多个类型）
+    const types = rule.contractTypes || []
+    const contractType = !types.length || types.includes('ALL') ? ['ALL'] : types
+    const content = ruleContentOf(rule)
+    form.setFieldsValue({ title: rule.title, contractType, content })
+    // 预填缓存：只改标题/类型且内容未动时，保存直接沿用原命中条件，不重复调 AI
+    const p = rule.pattern || {}
+    patternCacheRef.current = (p.keywords?.length || p.regex)
+      ? {
+          content,
+          typesKey: typesKeyOf(contractType),
+          pattern: {
+            keywords: p.keywords || [],
+            regex: p.regex || null,
+            severity: p.severity || KIND_META[rule.kind].defaultSeverity,
+            ...(p.suggestion ? { suggestion: p.suggestion } : {}),
+          },
+        }
+      : null
     setDrawerOpen(true)
   }
 
-  const doParse = async () => {
-    const prompt = (form.getFieldValue('naturalPrompt') || '').trim()
-    if (prompt.length < 4) { form.setFields([{ name: 'naturalPrompt', errors: ['请用一句话描述规则（至少 4 个字）'] }]); return }
+  /**
+   * 保存时由规则内容句静默生成机器命中条件：
+   * 内容+类型与缓存一致 → 复用；否则调 AI 重新生成；未配置 Key → 整句子串匹配兜底。
+   */
+  const generatePattern = async (content, types) => {
+    const cache = patternCacheRef.current
+    const typesKey = typesKeyOf(types)
+    if (cache && cache.content === content && cache.typesKey === typesKey) return cache.pattern
     setParsing(true)
+    let pattern
     try {
-      const res = await parseRule(prompt, form.getFieldValue('contractTypes') || [])
-      form.setFieldsValue({
-        keywords: (res.pattern.keywords || []).join('，'),
-        regex: res.pattern.regex || '',
-        severity: res.pattern.severity || 'MED',
-      })
-      suggestionRef.current = res.pattern.suggestion || ''
+      const res = await parseRule(content, types.includes('ALL') ? [] : types)
+      pattern = {
+        keywords: res.pattern.keywords || [],
+        regex: res.pattern.regex || null,
+        severity: res.pattern.severity || KIND_META[drawerKind].defaultSeverity,
+        ...(res.pattern.suggestion ? { suggestion: res.pattern.suggestion } : {}),
+      }
     } catch {
-      // 拦截器已 toast（409：未配置 Key，手写区始终可用）
+      // 409=未配置 Key：用规则整句做精确子串匹配兜底，不阻塞保存
+      pattern = { keywords: [content.slice(0, 200)], regex: null, severity: KIND_META[drawerKind].defaultSeverity }
+      message.warning('未配置 AI 模型，暂按规则整句精确匹配兜底；配置模型 Key 后可自动生成关键词与阈值识别')
     } finally {
       setParsing(false)
     }
-  }
-
-  const buildPattern = () => {
-    const kw = (form.getFieldValue('keywords') || '')
-      .split(/[,，、\s]+/).map((s) => s.trim()).filter(Boolean)
-    const regex = (form.getFieldValue('regex') || '').trim()
-    if (!kw.length && !regex) {
-      form.setFields([{ name: 'keywords', errors: ['关键词与正则至少填写一项，否则规则无法命中'] }])
-      return null
-    }
-    return { keywords: kw, regex: regex || null, severity: form.getFieldValue('severity') || 'MED', suggestion: suggestionRef.current || undefined }
-  }
-
-  const doTest = async () => {
-    const pattern = buildPattern()
-    if (!pattern) return
-    const raw = (form.getFieldValue('samples') || '').trim()
-    const samples = raw.split('\n').map((s) => s.trim()).filter(Boolean)
-    if (!samples.length) return
-    setTesting(true)
-    try {
-      const res = await testRule(pattern, samples)
-      setTestResults(res)
-    } catch {
-      // 拦截器已 toast（400：正则非法/样例为空）
-    } finally {
-      setTesting(false)
-    }
+    patternCacheRef.current = { content, typesKey, pattern }
+    return pattern
   }
 
   const doSave = async () => {
     const v = await form.validateFields()
-    const pattern = buildPattern()
-    if (!pattern) return
+    const content = (v.content || '').trim()
+    if (content.length < 4) {
+      form.setFields([{ name: 'content', errors: ['请用完整的话写明规则内容（至少 4 个字）'] }])
+      return
+    }
     setSaving(true)
     try {
+      const types = (v.contractType || []).length ? v.contractType : ['ALL']
+      const pattern = await generatePattern(content, types)
+      if (!pattern.keywords.length && !pattern.regex) {
+        message.error('规则匹配条件生成失败，请调整规则内容表述后重试')
+        return
+      }
       const payload = {
         title: v.title.trim(),
-        description: v.description?.trim() || null,
-        naturalPrompt: v.naturalPrompt?.trim() || '',
         kind: drawerKind,
-        contractTypes: v.contractTypes || [],
+        // 选「通用」存空数组（引擎口径：空=全类型），其余存所选类型数组（支持多选）
+        contractTypes: types.includes('ALL') ? [] : types,
+        // 规则内容句留痕，编辑时也作为回显来源
+        naturalPrompt: content,
         pattern,
       }
       if (editing) await updateRule(editing.id, payload)
@@ -245,7 +271,17 @@ export default function PlaybookView() {
               <tr key={r.id}>
                 <td>
                   <b>{r.title}</b>
-                  {r.description && <div className={css.cellSub}>{r.description}</div>}
+                  {ruleSubText(r) && <div className={css.cellSub}>{ruleSubText(r)}</div>}
+                  {r.source === 'AI' && (
+                    <Tooltip title={r.sourceLabel
+                      ? `由 AI 从企业范本《${r.sourceLabel}》提炼，导入前经人工确认`
+                      : '由 AI 从企业范本提炼，导入前经人工确认'}
+                    >
+                      <span className={`${shared.tag} ${shared.tagBlue}`} style={{ marginTop: 4 }}>
+                        AI 提炼{r.sourceLabel ? ` · ${r.sourceLabel.length > 12 ? r.sourceLabel.slice(0, 12) + '…' : r.sourceLabel}` : ''}
+                      </span>
+                    </Tooltip>
+                  )}
                   {r.source === 'SEED_PACK' && (
                     <span className={`${shared.tag} ${shared.tagPurple}`} style={{ marginTop: 4 }}>行业包</span>
                   )}
@@ -281,13 +317,20 @@ export default function PlaybookView() {
     <div className={css.panel}>
       <div className={css.panelHead}>
         <h3>标准合同库</h3>
-        <Tooltip title="标准合同 AI 抽取规则草稿即将上线">
-          <Button icon={<UploadOutlined />} disabled>上传标准合同</Button>
-        </Tooltip>
+        <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/templates?tab=mine')}>
+          上传 / 管理标准合同
+        </Button>
       </div>
       <div style={{ padding: '40px 0' }}>
-        <Empty description="上传公司标准合同，自动抽取规则草稿（即将上线）">
-          <span className={`${shared.tag} ${shared.tagGray}`}>标准合同规则自动抽取 · 即将上线</span>
+        <Empty
+          description={(
+            <span>
+              标准合同库已与「合同范本」打通：在 <b>合同范本 → 我的范本</b> 上传公司标准合同，
+              <br />即可用 AI 自动抽取规则草稿，勾选后导入红线规则（规则会标注来源范本，方便溯源）。
+            </span>
+          )}
+        >
+          <Button type="primary" ghost onClick={() => navigate('/templates?tab=mine')}>从范本提炼规则</Button>
         </Empty>
       </div>
     </div>
@@ -343,8 +386,10 @@ export default function PlaybookView() {
           <p className={shared.muted} style={{ margin: '4px 0 0' }}>把公司内部的合规标准变成 AI 的审查口径</p>
         </div>
         <div className={css.toolRight}>
-          <Tooltip title="标准合同 AI 抽取规则草稿即将上线">
-            <Button icon={<UploadOutlined />} disabled>上传标准合同</Button>
+          <Tooltip title="上传公司标准合同范本，AI 提炼候选规则，人工确认后导入">
+            <Button icon={<UploadOutlined />} onClick={() => navigate('/templates?tab=mine')}>
+              从范本提炼
+            </Button>
           </Tooltip>
           <Button
             type="primary" icon={<PlusOutlined />}
@@ -386,7 +431,7 @@ export default function PlaybookView() {
 
       {/* 新建 / 编辑规则抽屉 */}
       <Drawer
-        width={720}
+        width={460}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         title={
@@ -398,91 +443,42 @@ export default function PlaybookView() {
         footer={
           <div style={{ textAlign: 'right' }}>
             <Button onClick={() => setDrawerOpen(false)} style={{ marginRight: 8 }}>取消</Button>
-            <Button type="primary" loading={saving} onClick={doSave}>保存规则</Button>
+            <Button type="primary" loading={saving || parsing} onClick={doSave}>保存规则</Button>
           </div>
         }
         transitionName="" maskTransitionName=""
         destroyOnClose
       >
         <Form form={form} layout="vertical" requiredMark={false}>
-          <Form.Item label="规则名称" name="title" rules={[{ required: true, message: '请输入规则名称' }, { max: 200 }]}>
-            <Input placeholder="如：违约金不得超过合同总额 20%" />
+          <Form.Item label="规则标题" name="title" rules={[{ required: true, message: '请输入规则标题' }, { max: 200 }]}>
+            <Input placeholder="如：加班时长上限" />
           </Form.Item>
 
-          <Form.Item label="适用合同类型（多选）" name="contractTypes">
-            <Checkbox.Group options={TYPE_OPTIONS} />
+          <Form.Item
+            label="适用合同类型"
+            name="contractType"
+            rules={[{ required: true, message: '请选择适用的合同类型' }]}
+            extra="可多选：该规则将对所选类型的合同生效；选「通用」表示所有类型都适用"
+          >
+            <Select
+              mode="multiple"
+              maxTagCount="responsive"
+              placeholder="可多选，例如同时适用于劳动合同与保密协议"
+              options={TYPE_OPTIONS}
+              showSearch
+              optionFilterProp="label"
+              onChange={handleTypesChange}
+            />
           </Form.Item>
 
-          <Form.Item label="规则描述" name="description">
-            <TextArea rows={2} placeholder="一句话说明这条规则管什么、命中后应该怎么处理" />
+          <Form.Item
+            label="规则内容"
+            name="content"
+            rules={[{ required: true, message: '请填写规则内容' }]}
+            extra="用完整、通顺的一句话写清规则要求（谁应当/不得怎么做、具体阈值是多少）。保存后系统会自动按此内容识别合同中的相关条款。"
+          >
+            <TextArea rows={5} placeholder={'例如：每月加班时间不得超过 36 小时，超过部分应依法支付加班费。'} />
           </Form.Item>
-
-          <Form.Item label="自然语言描述" name="naturalPrompt">
-            <TextArea rows={3} placeholder="如：违约金不得超过合同总额的 20%，超出部分不予支持" />
-          </Form.Item>
-          <div style={{ marginTop: -12, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
-            <Button type="primary" size="small" loading={parsing} onClick={doParse}>
-              <span className={`${shared.tag} ${shared.tagPurple}`} style={{ marginRight: 6 }}>AI</span>
-              AI 转为结构化规则
-            </Button>
-            <span className={`${shared.small} ${shared.muted}`}>AI 生成关键词与匹配条件，可人工修改后再生效</span>
-          </div>
-
-          <div className={css.aiBox}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <span className={`${shared.tag} ${shared.tagPurple}`}>AI</span>
-              <b style={{ fontSize: 14 }}>结构化规则</b>
-              <span className={`${shared.small} ${shared.muted}`} style={{ marginLeft: 'auto' }}>可编辑，以保存内容为准</span>
-            </div>
-
-            <Form.Item label="关键词（逗号分隔）" name="keywords">
-              <Input placeholder="违约金，20%，总额，超过" />
-            </Form.Item>
-            <Form.Item
-              label="正则 / 匹配条件" name="regex"
-              extra="条件可手写：未配置模型 Key 时也能直接保存并参与规则引擎审查。"
-              rules={[{ validator: (_r, v) => (!v ? Promise.resolve() : (() => { try { new RegExp(v, 'm'); return Promise.resolve() } catch (e) { return Promise.reject(new Error('正则不合法：' + e.message)) } })()) }]}
-            >
-              <Input placeholder="可选；留空时按关键词全部出现判定命中" />
-            </Form.Item>
-            <Form.Item label="风险等级" name="severity">
-              <Select style={{ width: 200 }} options={[
-                { value: 'HIGH', label: '高风险（红线）' },
-                { value: 'MED', label: '中风险' },
-                { value: 'LOW', label: '低风险（仅提示）' },
-              ]} />
-            </Form.Item>
-
-            <div style={{ borderTop: '1px dashed var(--color-border)', margin: '16px 0' }} />
-
-            <Form.Item
-              label="样例测试（每条一行）" name="samples"
-              extra="可加「样例①：」前缀；逐行返回命中 / 不命中"
-            >
-              <TextArea rows={4} placeholder={'样例①：……应支付违约金，标准超过合同总额的 20%，按 30% 计。\n样例②：违约金数额不超过合同总额的 20%，超出部分不予支持。'} />
-            </Form.Item>
-            <Button size="small" loading={testing} onClick={doTest}>测试命中</Button>
-
-            {testResults && (
-              <div className={css.testBox}>
-                {testResults.regexError && (
-                  <div className={css.testError}>正则错误：{testResults.regexError}</div>
-                )}
-                {testResults.results.map((r, i) => (
-                  <div key={i} className={css.testRow}>
-                    {r.hit
-                      ? <span className={`${shared.tag} ${shared.tagGreen}`}>样例{i + 1}命中 · {r.mode === 'pattern' ? '正则' : '关键词'}{form.getFieldValue('severity') === 'HIGH' ? ' · 高风险（红线）' : ''}</span>
-                      : <span className={`${shared.tag} ${shared.tagGray}`}>样例{i + 1}未命中</span>}
-                    {r.matches[0] && <span className={`${shared.small} ${shared.muted}`}>「{r.matches[0].slice(0, 40)}」</span>}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className={shared.bannerWarn} style={{ marginTop: 16 }}>
-            未配置模型 Key 时可直接手写关键词与条件，不影响规则生效；AI 转换仅用于提升配置效率。
-          </div>
         </Form>
       </Drawer>
     </Spin>

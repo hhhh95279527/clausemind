@@ -8,6 +8,7 @@ import { QueueService, QUEUES } from '../../queue/queue.service.js'
 import { TraceService } from '../../observability/trace.service.js'
 import { extractText } from '../../services/rag/ingest.js'
 import { splitClauses, refineTypesWithLlm } from './clause-parser.js'
+import { classifyScene } from './scene-classifier.js'
 import { logger } from '../../utils/logger.js'
 
 interface ParseJobData {
@@ -83,6 +84,29 @@ export class ContractParseService implements OnModuleInit {
               },
             })),
           )
+
+          // 合同类型自动识别：仅当上传/改类型时选了「自动识别（AUTO）」才回填。
+          // 独立 try：识别失败或结论不确定一律保留占位，绝不影响解析主流程。
+          try {
+            const fresh = await this.db.contract.findUnique({
+              where: { id: contractId },
+              select: { sceneSource: true, title: true },
+            })
+            if (fresh?.sceneSource === 'AUTO') {
+              const result = await classifyScene(text, fresh.title)
+              if (result.source !== 'DEFAULT') {
+                await this.db.contract.update({
+                  where: { id: contractId },
+                  data: { scene: result.scene, sceneSource: 'AI' },
+                })
+                logger.info('contract-parse: scene auto-detected', {
+                  contractId, scene: result.scene, source: result.source, confidence: result.confidence,
+                })
+              }
+            }
+          } catch (e) {
+            logger.warn('contract-parse: scene classify failed', { contractId, error: (e as Error).message })
+          }
 
           await this.db.contract.update({
             where: { id: contractId },

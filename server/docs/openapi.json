@@ -23,9 +23,10 @@
                     "type": "string",
                     "enum": [
                       "PERSONAL",
-                      "TEAM"
+                      "TEAM",
+                      "INVITE"
                     ],
-                    "description": "注册类型：PERSONAL=个人版空间，TEAM=团队演示空间"
+                    "description": "注册类型：PERSONAL=个人版空间，TEAM=团队演示空间，INVITE=凭团队邀请链接加入（需带 inviteToken，注册后待管理员审批）"
                   },
                   "username": {
                     "type": "string",
@@ -59,6 +60,10 @@
                   "position": {
                     "type": "string",
                     "description": "【TEAM】职位"
+                  },
+                  "inviteToken": {
+                    "type": "string",
+                    "description": "【INVITE】团队邀请链接中的 token"
                   }
                 }
               }
@@ -1085,786 +1090,6 @@
         ]
       }
     },
-    "/api/admin/users": {
-      "get": {
-        "description": "仅返回当前租户成员；支持用户名/邮箱模糊搜索。",
-        "operationId": "AdminController_listUsers",
-        "parameters": [
-          {
-            "name": "q",
-            "required": false,
-            "in": "query",
-            "description": "用户名或邮箱模糊搜索",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "pageSize",
-            "required": false,
-            "in": "query",
-            "description": "每页条数，默认 20",
-            "schema": {}
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "页码，默认 1",
-            "schema": {}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "用户列表（本租户，分页）",
-        "tags": [
-          "admin"
-        ]
-      },
-      "post": {
-        "description": "管理员代创建账号并设置初始密码。用户名 3-50 位字母/数字/下划线/中划线；密码至少 8 位；用户名/邮箱重复返回 409。",
-        "operationId": "AdminController_createUser",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "username",
-                  "password"
-                ],
-                "properties": {
-                  "username": {
-                    "type": "string",
-                    "minLength": 3,
-                    "maxLength": 50,
-                    "pattern": "^[a-zA-Z0-9_-]{3,50}$"
-                  },
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "description": "邮箱（可选）"
-                  },
-                  "password": {
-                    "type": "string",
-                    "minLength": 8,
-                    "description": "初始密码"
-                  },
-                  "displayName": {
-                    "type": "string",
-                    "description": "显示名，缺省同用户名"
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "ADMIN",
-                      "MANAGER",
-                      "USER",
-                      "READONLY"
-                    ],
-                    "description": "角色，默认 USER",
-                    "default": "USER"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "新增本租户用户",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/users/{id}": {
-      "put": {
-        "description": "仅可操作本租户用户（跨租户 403）。不能修改自己的角色或状态；role 取值 ADMIN/MANAGER/USER/READONLY，status 取值 ACTIVE/DISABLED。",
-        "operationId": "AdminController_updateUser",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "目标用户 ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "ADMIN",
-                      "MANAGER",
-                      "USER",
-                      "READONLY"
-                    ]
-                  },
-                  "status": {
-                    "type": "string",
-                    "enum": [
-                      "ACTIVE",
-                      "DISABLED"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "修改用户角色/状态",
-        "tags": [
-          "admin"
-        ]
-      },
-      "delete": {
-        "description": "将目标用户置为 DISABLED，不物理删除以保留审计关联；不能禁用自己；跨租户返回 403。",
-        "operationId": "AdminController_deleteUser",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "目标用户 ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "禁用用户（软删除）",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/eval-runs": {
-      "get": {
-        "description": "EvalRun 为平台基线数据（无租户维度），本租户 ADMIN 可分页查看。",
-        "operationId": "AdminController_listEvalRuns",
-        "parameters": [
-          {
-            "name": "pageSize",
-            "required": false,
-            "in": "query",
-            "description": "每页条数，默认 20",
-            "schema": {}
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "页码，默认 1",
-            "schema": {}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "离线评测记录列表",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/eval-runs/{id}": {
-      "get": {
-        "description": "含评测汇总与逐 case 结果（是否通过、得分、实际输出、评审理由、耗时）。",
-        "operationId": "AdminController_getEvalRun",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "评测运行 ID（EvalRun id）",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "评测记录详情",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/billing/tenants": {
-      "get": {
-        "description": "管理后台账单总览：各租户当前账期费用汇总（按费用倒序）。",
-        "operationId": "AdminController_listTenantBilling",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "全租户当前账期汇总",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/billing/tenants/{tenantId}": {
-      "get": {
-        "description": "含峰谷计价、功能占比、历史账期与超额记录。",
-        "operationId": "AdminController_getTenantBilling",
-        "parameters": [
-          {
-            "name": "tenantId",
-            "required": true,
-            "in": "path",
-            "description": "租户 ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "指定租户完整账单",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/rules": {
-      "get": {
-        "description": "平台级 16+ 条声明式审查规则（scope=ALL/LABOR/INTERNSHIP 三域），支持关键词/启停过滤与分页。",
-        "operationId": "AdminController_listRules",
-        "parameters": [
-          {
-            "name": "q",
-            "required": false,
-            "in": "query",
-            "description": "按规则编码/名称/分类关键词搜索",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "scope",
-            "required": false,
-            "in": "query",
-            "description": "按生效域过滤",
-            "schema": {
-              "enum": [
-                "ALL",
-                "LABOR",
-                "INTERNSHIP"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "enabled",
-            "required": false,
-            "in": "query",
-            "description": "按启停状态过滤",
-            "schema": {
-              "enum": [
-                "true",
-                "false"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "name": "pageSize",
-            "required": false,
-            "in": "query",
-            "description": "每页条数，默认 50",
-            "schema": {}
-          },
-          {
-            "name": "page",
-            "required": false,
-            "in": "query",
-            "description": "页码，默认 1",
-            "schema": {}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "平台审查规则列表",
-        "tags": [
-          "admin"
-        ]
-      },
-      "post": {
-        "operationId": "AdminController_createRule",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "规则名称"
-                  },
-                  "severity": {
-                    "type": "string",
-                    "enum": [
-                      "HIGH",
-                      "MED",
-                      "LOW"
-                    ],
-                    "description": "风险等级"
-                  },
-                  "category": {
-                    "type": "string",
-                    "description": "风险分类"
-                  },
-                  "scope": {
-                    "type": "string",
-                    "enum": [
-                      "ALL",
-                      "LABOR",
-                      "INTERNSHIP"
-                    ],
-                    "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
-                  },
-                  "pattern": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "匹配正则（可空）"
-                  },
-                  "keywords": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "关键词列表"
-                  },
-                  "prompt": {
-                    "type": "string",
-                    "description": "Agent 轨判定提示词"
-                  },
-                  "suggestion": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "修改建议"
-                  },
-                  "legalBasis": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "法律依据条文"
-                  },
-                  "description": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "规则说明"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "是否启用"
-                  },
-                  "sortOrder": {
-                    "type": "integer",
-                    "description": "排序权重"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "新建平台审查规则",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/rules/try": {
-      "post": {
-        "description": "用已有规则（id）或临时规则体（rule）对给定文本试跑；labor/internship 控制劳动域规则是否生效（实习场景强制短路劳动规则）。",
-        "operationId": "AdminController_tryRule",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "已存在规则 ID（与 rule 二选一）"
-                  },
-                  "rule": {
-                    "type": "object",
-                    "properties": {
-                      "code": {
-                        "type": "string",
-                        "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
-                      },
-                      "name": {
-                        "type": "string",
-                        "description": "规则名称"
-                      },
-                      "severity": {
-                        "type": "string",
-                        "enum": [
-                          "HIGH",
-                          "MED",
-                          "LOW"
-                        ],
-                        "description": "风险等级"
-                      },
-                      "category": {
-                        "type": "string",
-                        "description": "风险分类"
-                      },
-                      "scope": {
-                        "type": "string",
-                        "enum": [
-                          "ALL",
-                          "LABOR",
-                          "INTERNSHIP"
-                        ],
-                        "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
-                      },
-                      "pattern": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "匹配正则（可空）"
-                      },
-                      "keywords": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        },
-                        "description": "关键词列表"
-                      },
-                      "prompt": {
-                        "type": "string",
-                        "description": "Agent 轨判定提示词"
-                      },
-                      "suggestion": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "修改建议"
-                      },
-                      "legalBasis": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "法律依据条文"
-                      },
-                      "description": {
-                        "type": "string",
-                        "nullable": true,
-                        "description": "规则说明"
-                      },
-                      "enabled": {
-                        "type": "boolean",
-                        "description": "是否启用"
-                      },
-                      "sortOrder": {
-                        "type": "integer",
-                        "description": "排序权重"
-                      }
-                    },
-                    "description": "临时规则体（与 id 二选一）"
-                  },
-                  "text": {
-                    "type": "string",
-                    "description": "待试跑的条款/合同文本"
-                  },
-                  "labor": {
-                    "type": "boolean",
-                    "description": "是否按劳动关系场景执行劳动域规则"
-                  },
-                  "internship": {
-                    "type": "boolean",
-                    "description": "是否实习协议场景（true 时短路 LABOR 域）"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "规则试跑（规则管理后台）",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/admin/rules/{id}": {
-      "get": {
-        "operationId": "AdminController_getRule",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "规则 ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "规则详情",
-        "tags": [
-          "admin"
-        ]
-      },
-      "put": {
-        "operationId": "AdminController_updateRule",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "规则 ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "code": {
-                    "type": "string",
-                    "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "规则名称"
-                  },
-                  "severity": {
-                    "type": "string",
-                    "enum": [
-                      "HIGH",
-                      "MED",
-                      "LOW"
-                    ],
-                    "description": "风险等级"
-                  },
-                  "category": {
-                    "type": "string",
-                    "description": "风险分类"
-                  },
-                  "scope": {
-                    "type": "string",
-                    "enum": [
-                      "ALL",
-                      "LABOR",
-                      "INTERNSHIP"
-                    ],
-                    "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
-                  },
-                  "pattern": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "匹配正则（可空）"
-                  },
-                  "keywords": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "关键词列表"
-                  },
-                  "prompt": {
-                    "type": "string",
-                    "description": "Agent 轨判定提示词"
-                  },
-                  "suggestion": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "修改建议"
-                  },
-                  "legalBasis": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "法律依据条文"
-                  },
-                  "description": {
-                    "type": "string",
-                    "nullable": true,
-                    "description": "规则说明"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "是否启用"
-                  },
-                  "sortOrder": {
-                    "type": "integer",
-                    "description": "排序权重"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "更新平台审查规则",
-        "tags": [
-          "admin"
-        ]
-      },
-      "delete": {
-        "operationId": "AdminController_deleteRule",
-        "parameters": [
-          {
-            "name": "id",
-            "required": true,
-            "in": "path",
-            "description": "规则 ID",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "删除平台审查规则",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
     "/api/contracts/upload": {
       "post": {
         "description": "支持 txt/md/docx/pdf/jpg/jpeg/png（图片走视觉 OCR）。按套餐限制单文件大小（FREE 8MB / 会员 15MB），上传后经魔数真实类型校验并异步入解析队列，返回建档的合同记录。",
@@ -1901,10 +1126,11 @@
                       "SALE",
                       "LOAN",
                       "EQUITY",
-                      "CUSTOM"
+                      "CUSTOM",
+                      "AUTO"
                     ],
-                    "description": "合同场景，缺省 LABOR；付费场景 SALE/LOAN/EQUITY/CUSTOM 受套餐拦截",
-                    "default": "LABOR"
+                    "description": "合同类型；传 AUTO=AI 自动识别（缺省即 AUTO）。付费场景 SALE/LOAN/EQUITY/CUSTOM 手选时受套餐拦截，AI 识别出的付费场景不拦截（回退为通用规则审查）",
+                    "default": "AUTO"
                   }
                 }
               }
@@ -1963,10 +1189,11 @@
                       "SALE",
                       "LOAN",
                       "EQUITY",
-                      "CUSTOM"
+                      "CUSTOM",
+                      "AUTO"
                     ],
-                    "description": "合同场景，缺省 LABOR",
-                    "default": "LABOR"
+                    "description": "合同类型；传 AUTO=AI 自动识别（缺省即 AUTO）",
+                    "default": "AUTO"
                   }
                 }
               }
@@ -2139,6 +1366,66 @@
           }
         ],
         "summary": "合同详情",
+        "tags": [
+          "contract"
+        ]
+      },
+      "patch": {
+        "description": "手动指定合同类型，或传 `scene=AUTO` 让 AI 重新自动识别（已解析完成时立即识别并回填，尚未解析完则交给解析 worker）。\n类型决定该合同适用哪些公司红线规则；修改不会自动失效旧审查结果，建议重新发起审查。跨租户访问返回 404。",
+        "operationId": "ContractController_updateScene",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "scene"
+                ],
+                "properties": {
+                  "scene": {
+                    "type": "string",
+                    "enum": [
+                      "LABOR",
+                      "INTERNSHIP",
+                      "LEASE",
+                      "SERVICE",
+                      "NDA",
+                      "SALE",
+                      "LOAN",
+                      "EQUITY",
+                      "CUSTOM",
+                      "AUTO"
+                    ],
+                    "description": "合同类型；传 AUTO 让 AI 自动识别"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "修改合同类型",
         "tags": [
           "contract"
         ]
@@ -2522,6 +1809,37 @@
         ]
       }
     },
+    "/api/reviews/{taskId}/report/pdf": {
+      "get": {
+        "description": "终审完成且具备导出权益。服务端 Edge 无头打印生成，内容口径与 Word 版一致。文件名经 Content-Disposition 以 UTF-8 编码返回，并写审计日志。",
+        "operationId": "ContractController_reportPdf",
+        "parameters": [
+          {
+            "name": "taskId",
+            "required": true,
+            "in": "path",
+            "description": "审查任务 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "导出审查意见书（PDF）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
     "/api/contracts/{id}/revisions": {
       "get": {
         "description": "返回该合同全部风险点及对应的 AI 改写建议、接受状态。跨租户访问返回 404。",
@@ -2630,7 +1948,7 @@
     },
     "/api/contracts/{id}/revisions/docx": {
       "get": {
-        "description": "docx 原件在原 OOXML 上注入 w:ins/w:del 修订痕迹（Word 中可逐条接受/拒绝，版式保留）；其他来源走文本重建。响应头 X-Revision-Applied/-Unmatched 标示原句命中/未命中条数。",
+        "description": "clean（默认）：把已采纳的改写直接应用进原件，输出无修订痕迹、可直接定稿的「修订后新合同」，保留全部原始版式；redline：注入 w:ins/w:del 修订痕迹供对照复核。docx 原件在原 OOXML 上应用，其他来源走文本重建。响应头 X-Revision-Applied/-Unmatched 标示原句命中/未命中条数。",
         "operationId": "RevisionController_docx",
         "parameters": [
           {
@@ -2638,6 +1956,19 @@
             "required": true,
             "in": "path",
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "required": false,
+            "in": "query",
+            "description": "默认 clean（修订后新合同）",
+            "schema": {
+              "enum": [
+                "clean",
+                "redline"
+              ],
               "type": "string"
             }
           }
@@ -2652,7 +1983,7 @@
             "bearer": []
           }
         ],
-        "summary": "改稿台：导出 Word 红划线修订稿（.docx）",
+        "summary": "改稿台：导出 Word 修订后合同（.docx）",
         "tags": [
           "contract"
         ]
@@ -2788,6 +2119,117 @@
           }
         ],
         "summary": "改稿台：模拟对方就该风险点进行反驳",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/revisions/pdf": {
+      "get": {
+        "description": "variant=redline 保留红/蓝修订痕迹（删除线=原文、下划线=改写）；variant=clean 仅呈现修订后正文。服务端 Edge 无头打印生成，深度权益门禁与 docx 导出一致。",
+        "operationId": "RevisionController_revisionPdf",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "variant",
+            "required": false,
+            "in": "query",
+            "description": "默认 redline（红划线版）",
+            "schema": {
+              "enum": [
+                "redline",
+                "clean"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "改稿台：导出修订稿 PDF（红划线版 / 干净终版）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/versions": {
+      "get": {
+        "description": "按时间倒序返回：ORIGINAL 原始合同（无归档行时用合同原件动态合成）、OPINION 审查意见书、REVISED 修订稿（每次导出归档一版）。跨租户访问返回 404。",
+        "operationId": "RevisionController_versions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "文档归档：获取合同的文档版本时间线",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/versions/{versionId}/download": {
+      "get": {
+        "description": "ORIGINAL 直接流式返回上传原件；OPINION/REVISED 返回归档文件。下载已归档文件不消耗试用次数、不重复归档。跨租户访问返回 404。",
+        "operationId": "RevisionController_downloadVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "文档归档：下载某个归档版本",
         "tags": [
           "contract"
         ]
@@ -3548,6 +2990,105 @@
         ]
       }
     },
+    "/api/playbook/rules/import": {
+      "post": {
+        "description": "把 /tenant-templates/:id/extract-rules 返回、经用户人工勾选/编辑后的候选规则批量入库（source=AI，单次 ≤8 条），导入后立即启用。",
+        "operationId": "PlaybookController_importRules",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "templateId",
+                  "rules"
+                ],
+                "properties": {
+                  "templateId": {
+                    "type": "string",
+                    "description": "来源企业范本 ID"
+                  },
+                  "rules": {
+                    "type": "array",
+                    "maxItems": 8,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "title",
+                        "content",
+                        "kind"
+                      ],
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "content": {
+                          "type": "string",
+                          "description": "完整规则内容句，落 naturalPrompt",
+                          "maxLength": 300
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "FORBIDDEN",
+                            "PREFERENCE"
+                          ]
+                        },
+                        "contractTypes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "keywords": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "regex": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "severity": {
+                          "type": "string",
+                          "enum": [
+                            "HIGH",
+                            "MED",
+                            "LOW"
+                          ]
+                        },
+                        "suggestion": {
+                          "type": "string",
+                          "maxLength": 300
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "从企业范本批量导入候选规则",
+        "tags": [
+          "playbook"
+        ]
+      }
+    },
     "/api/playbook/rules/{id}": {
       "patch": {
         "operationId": "PlaybookController_update",
@@ -4239,7 +3780,7 @@
     },
     "/api/team/members": {
       "get": {
-        "description": "团队内所有成员可见。",
+        "description": "团队内所有成员可见（含待审批成员，status=PENDING）。",
         "operationId": "TeamController_list",
         "parameters": [],
         "responses": {
@@ -4253,60 +3794,6 @@
           }
         ],
         "summary": "团队成员列表",
-        "tags": [
-          "team"
-        ]
-      },
-      "post": {
-        "description": "由负责人代创建成员账号（含初始密码），占用团队席位。",
-        "operationId": "TeamController_create",
-        "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": [
-                  "displayName"
-                ],
-                "properties": {
-                  "displayName": {
-                    "type": "string",
-                    "description": "成员姓名/显示名"
-                  },
-                  "email": {
-                    "type": "string",
-                    "format": "email",
-                    "description": "邮箱（可选）"
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "ADMIN",
-                      "MANAGER",
-                      "USER",
-                      "READONLY"
-                    ],
-                    "description": "角色，默认 USER",
-                    "default": "USER"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "summary": "新增团队成员（仅 ADMIN）",
         "tags": [
           "team"
         ]
@@ -4895,6 +4382,426 @@
         "summary": "下载范本（Word .docx）",
         "tags": [
           "templates"
+        ]
+      }
+    },
+    "/api/tenant-templates/upload": {
+      "post": {
+        "description": "仅团队空间可用。支持文字版 txt/md/docx/pdf（≤30MB），同步提取全文入库；不支持扫描件/图片。每租户上限 30 份。",
+        "operationId": "TenantTemplateController_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "范本文件（txt/md/docx/pdf）"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "范本标题，缺省取文件名（去扩展名）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "上传企业合同范本（multipart）",
+        "tags": [
+          "tenant-templates"
+        ]
+      }
+    },
+    "/api/tenant-templates": {
+      "get": {
+        "description": "返回当前租户的企业范本（不含正文大字段）与数量上限。",
+        "operationId": "TenantTemplateController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "企业范本列表",
+        "tags": [
+          "tenant-templates"
+        ]
+      }
+    },
+    "/api/tenant-templates/{id}": {
+      "get": {
+        "description": "在线预览用；跨租户访问返回 404。",
+        "operationId": "TenantTemplateController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "企业范本详情（含全文）",
+        "tags": [
+          "tenant-templates"
+        ]
+      },
+      "patch": {
+        "description": "仅修改库内在线文本（在线预览与 AI 提炼规则以修改后的正文为准），不改动磁盘原始上传文件；如需替换文件请删除后重新上传。跨租户访问返回 404。",
+        "operationId": "TenantTemplateController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "范本标题（可选）"
+                  },
+                  "content": {
+                    "type": "string",
+                    "maxLength": 200000,
+                    "description": "范本正文（可选，传则整体替换，字数统计同步更新）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "在线编辑企业范本（标题/正文）",
+        "tags": [
+          "tenant-templates"
+        ]
+      },
+      "delete": {
+        "description": "删除范本记录与磁盘文件；已从该范本导入的审查规则独立保留，不受影响。",
+        "operationId": "TenantTemplateController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除企业范本",
+        "tags": [
+          "tenant-templates"
+        ]
+      }
+    },
+    "/api/tenant-templates/{id}/extract-rules": {
+      "post": {
+        "description": "不落库，返回候选规则数组（≤8 条，每条含范本原句依据 evidence），由用户人工勾选/编辑后再调 /playbook/rules/import 导入。未配置 Key 返回 503，月度 token 超限返回 429。",
+        "operationId": "TenantTemplateController_extract",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "范本 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "focus": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "可选，提炼重点（如\"付款与违约条款\"）；留空则全文提炼"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "AI 从范本提炼候选审查规则",
+        "tags": [
+          "tenant-templates"
+        ]
+      }
+    },
+    "/api/feedback": {
+      "post": {
+        "description": "个人版/企业版登录用户均可提交。内容落库留底，并异步发送通知邮件到平台反馈邮箱；邮件发送失败不影响提交结果。单用户每日限 5 条。",
+        "operationId": "FeedbackController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "category": {
+                    "type": "string",
+                    "enum": [
+                      "FEATURE",
+                      "BUG",
+                      "EXPERIENCE",
+                      "OTHER"
+                    ],
+                    "description": "建议类型：功能建议 / 问题反馈 / 体验优化 / 其他，缺省 OTHER"
+                  },
+                  "content": {
+                    "type": "string",
+                    "description": "建议内容（5~1000 字）"
+                  },
+                  "contact": {
+                    "type": "string",
+                    "description": "联系方式（可选，手机/邮箱/微信等，最多 100 字）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "提交建议反馈",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/public/invite/{token}": {
+      "get": {
+        "description": "邀请落地页使用，无需登录。仅返回企业名、邀请人、有效期等展示信息；链接失效返回 valid=false。",
+        "operationId": "InviteController_getPublicInvite",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "description": "邀请链接 token",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "【公开】查询邀请链接信息",
+        "tags": [
+          "invite"
+        ]
+      }
+    },
+    "/api/team/invites": {
+      "post": {
+        "description": "链接 7 天内有效，可被多人接受注册；接受者注册为待审批普通成员。",
+        "operationId": "InviteController_createInvite",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "生成团队邀请链接（仅 ADMIN）",
+        "tags": [
+          "invite"
+        ]
+      }
+    },
+    "/api/team/invites/{id}": {
+      "delete": {
+        "description": "作废后链接无法再注册；已提交的待审批申请不受影响。",
+        "operationId": "InviteController_revokeInvite",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "邀请记录 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "作废邀请链接（仅 ADMIN）",
+        "tags": [
+          "invite"
+        ]
+      }
+    },
+    "/api/team/members/{id}/approve": {
+      "post": {
+        "description": "通过后成员状态变为 ACTIVE 并占用席位，可登录团队空间；席位不足时拦截。",
+        "operationId": "InviteController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "待审批成员的用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "审批通过成员加入申请（仅 ADMIN）",
+        "tags": [
+          "invite"
+        ]
+      }
+    },
+    "/api/team/members/{id}/reject": {
+      "post": {
+        "description": "删除该待审批账号（无业务数据），对方可使用原邮箱重新申请。",
+        "operationId": "InviteController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "待审批成员的用户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "拒绝成员加入申请（仅 ADMIN）",
+        "tags": [
+          "invite"
         ]
       }
     },
@@ -5686,6 +5593,587 @@
           "platform"
         ]
       }
+    },
+    "/api/platform/rules": {
+      "get": {
+        "description": "平台级声明式审查规则（scope=ALL/LABOR/INTERNSHIP 三域），所有租户的每次审查都会执行，支持关键词/启停过滤与分页。",
+        "operationId": "PlatformController_listRules",
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "description": "按规则编码/名称/分类关键词搜索",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "required": false,
+            "in": "query",
+            "description": "按生效域过滤",
+            "schema": {
+              "enum": [
+                "ALL",
+                "LABOR",
+                "INTERNSHIP"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "enabled",
+            "required": false,
+            "in": "query",
+            "description": "按启停状态过滤",
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数，默认 50",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "平台审查规则列表",
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "PlatformController_createRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "规则名称"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "HIGH",
+                      "MED",
+                      "LOW"
+                    ],
+                    "description": "风险等级"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "风险分类"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "ALL",
+                      "LABOR",
+                      "INTERNSHIP"
+                    ],
+                    "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "匹配正则（可空）"
+                  },
+                  "keywords": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "关键词列表"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Agent 轨判定提示词"
+                  },
+                  "suggestion": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "修改建议"
+                  },
+                  "legalBasis": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "法律依据条文"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "规则说明"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "description": "排序权重"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "新建平台审查规则（全平台立即生效）",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/rules/try": {
+      "post": {
+        "description": "用已有规则（id）或临时规则体（rule）对给定文本试跑；labor/internship 控制劳动域规则是否生效（实习场景强制短路劳动规则）。",
+        "operationId": "PlatformController_tryRule",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "已存在规则 ID（与 rule 二选一）"
+                  },
+                  "rule": {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "type": "string",
+                        "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
+                      },
+                      "name": {
+                        "type": "string",
+                        "description": "规则名称"
+                      },
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "HIGH",
+                          "MED",
+                          "LOW"
+                        ],
+                        "description": "风险等级"
+                      },
+                      "category": {
+                        "type": "string",
+                        "description": "风险分类"
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "ALL",
+                          "LABOR",
+                          "INTERNSHIP"
+                        ],
+                        "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "匹配正则（可空）"
+                      },
+                      "keywords": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "关键词列表"
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "description": "Agent 轨判定提示词"
+                      },
+                      "suggestion": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "修改建议"
+                      },
+                      "legalBasis": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "法律依据条文"
+                      },
+                      "description": {
+                        "type": "string",
+                        "nullable": true,
+                        "description": "规则说明"
+                      },
+                      "enabled": {
+                        "type": "boolean",
+                        "description": "是否启用"
+                      },
+                      "sortOrder": {
+                        "type": "integer",
+                        "description": "排序权重"
+                      }
+                    },
+                    "description": "临时规则体（与 id 二选一）"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "待试跑的条款/合同文本"
+                  },
+                  "labor": {
+                    "type": "boolean",
+                    "description": "是否按劳动关系场景执行劳动域规则"
+                  },
+                  "internship": {
+                    "type": "boolean",
+                    "description": "是否实习协议场景（true 时短路 LABOR 域）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "规则试跑（不落库）",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/rules/{id}": {
+      "get": {
+        "operationId": "PlatformController_getRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "平台审查规则详情",
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "operationId": "PlatformController_updateRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "type": "string",
+                    "description": "规则编码（唯一，新增时必填，如 labor_probation_over_limit）"
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "规则名称"
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "HIGH",
+                      "MED",
+                      "LOW"
+                    ],
+                    "description": "风险等级"
+                  },
+                  "category": {
+                    "type": "string",
+                    "description": "风险分类"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "ALL",
+                      "LABOR",
+                      "INTERNSHIP"
+                    ],
+                    "description": "生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习"
+                  },
+                  "pattern": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "匹配正则（可空）"
+                  },
+                  "keywords": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "关键词列表"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "description": "Agent 轨判定提示词"
+                  },
+                  "suggestion": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "修改建议"
+                  },
+                  "legalBasis": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "法律依据条文"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "规则说明"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "是否启用"
+                  },
+                  "sortOrder": {
+                    "type": "integer",
+                    "description": "排序权重"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "更新平台审查规则（全平台立即生效）",
+        "tags": [
+          "platform"
+        ]
+      },
+      "delete": {
+        "operationId": "PlatformController_deleteRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "规则 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "删除平台审查规则",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/eval-runs": {
+      "get": {
+        "description": "EvalRun 为平台基线数据（无租户维度），分页返回。",
+        "operationId": "PlatformController_listEvalRuns",
+        "parameters": [
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "description": "每页条数，默认 20",
+            "schema": {}
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "description": "页码，默认 1",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "离线评测记录列表",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/eval-runs/{id}": {
+      "get": {
+        "description": "含评测汇总与逐 case 结果（是否通过、得分、实际输出、评审理由、耗时）。",
+        "operationId": "PlatformController_getEvalRun",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "评测运行 ID（EvalRun id）",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "评测记录详情",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/billing/tenants": {
+      "get": {
+        "description": "平台账单总览：各租户当前账期 token 用量与费用汇总（按费用倒序）。",
+        "operationId": "PlatformController_listTenantBilling",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "全租户当前账期汇总",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/billing/tenants/{tenantId}": {
+      "get": {
+        "description": "含峰谷计价、功能占比、历史账期与超额记录。",
+        "operationId": "PlatformController_getTenantBilling",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "path",
+            "description": "租户 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "指定租户完整账单",
+        "tags": [
+          "platform"
+        ]
+      }
     }
   },
   "info": {
@@ -5749,8 +6237,20 @@
       "description": "合同范本库：预览 / 采用 / 下载"
     },
     {
+      "name": "tenant-templates",
+      "description": "企业自有范本库：上传 / 预览 / 删除 / AI 提炼审查规则（仅团队空间）"
+    },
+    {
       "name": "notifications",
       "description": "站内通知"
+    },
+    {
+      "name": "feedback",
+      "description": "建议反馈：提交建议 / Bug / 体验意见（邮件通知平台）"
+    },
+    {
+      "name": "invite",
+      "description": "团队邀请：邀请链接生成/作废、公开落地页查询、成员加入审批"
     },
     {
       "name": "analytics",
@@ -5761,12 +6261,8 @@
       "description": "租户用量监控：配额 / 账单 / Trace 链路"
     },
     {
-      "name": "admin",
-      "description": "租户管理后台：成员 / 评测 / 规则配置（本租户 ADMIN）"
-    },
-    {
       "name": "platform",
-      "description": "平台超级管理员：租户 / 转账审核 / 跨租户链路 / 漏斗（独立账号体系）"
+      "description": "平台超级管理员：租户 / 转账审核 / 跨租户链路 / 漏斗 / 全局规则 / 离线评测 / 租户账单（独立账号体系）"
     },
     {
       "name": "health",

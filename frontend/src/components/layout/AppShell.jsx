@@ -1,6 +1,6 @@
 // frontend/src/components/layout/AppShell.jsx
-// 个人/企业布局共用壳：侧边栏（主分组 + 可选系统管理分组）+ 顶部栏 + 滚动箭头
-// 两个布局的差异仅在导航数据（nav config）与是否存在系统管理分组，故以 props 参数化
+// 个人/企业布局共用壳：侧边栏（nav config 参数化）+ 顶部栏 + 滚动箭头
+// 平台运维入口（规则/评测/账单/链路等）统一在独立的 /platform 超管控制台，不出现在租户侧边栏
 import { useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { SunOutlined, MoonOutlined, LogoutOutlined, UserOutlined, MenuOutlined } from '@ant-design/icons'
@@ -13,7 +13,7 @@ import ScrollArrows from './ScrollArrows.jsx'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide.jsx'
 import styles from './LayoutSidebar.module.css'
 
-export default function AppShell({ items, systemItems, children }) {
+export default function AppShell({ items, children }) {
   const location = useLocation()
   const navigate = useNavigate()
   const theme = useAppStore((s) => s.theme)
@@ -23,9 +23,6 @@ export default function AppShell({ items, systemItems, children }) {
   const isDark = theme === 'dark'
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
-  const hasRole = useAuthStore((s) => s.hasRole)
-  // 仅平台 ADMIN 可见系统管理分组；按需扩展为团队 ADMIN
-  const canSeeSystem = !!systemItems && hasRole('ADMIN')
 
   // 路由切换后自动收起移动端抽屉
   useEffect(() => {
@@ -78,13 +75,6 @@ export default function AppShell({ items, systemItems, children }) {
         </div>
         <nav className={styles['sidebar-nav']}>
           {items.map(renderNavItem)}
-
-          {canSeeSystem && (
-            <>
-              <div className={styles['nav-group-title']}>系统管理</div>
-              {systemItems.map(renderNavItem)}
-            </>
-          )}
         </nav>
         <div className={styles['sidebar-footer']}>
           <button

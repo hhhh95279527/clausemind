@@ -26,6 +26,27 @@ export const RISK_STATUS_META = {
 export const SEVERITY_COLOR = { HIGH: '#dc2626', MED: '#d97706', LOW: '#2563eb' }
 export const SEVERITY_TEXT = { HIGH: '高风险', MED: '中风险', LOW: '低风险' }
 
+// 合同类型下拉项（企业端上传弹窗 / 审查工作台改类型共用）；AUTO=让 AI 自动识别并匹配对应类型的红线规则
+export const SCENE_OPTIONS = [
+  { label: '自动识别（AI）', value: 'AUTO' },
+  { label: '劳动合同', value: 'LABOR' },
+  { label: '实习协议', value: 'INTERNSHIP' },
+  { label: '劳务合同', value: 'SERVICE' },
+  { label: '租赁合同', value: 'LEASE' },
+  { label: '保密协议 NDA', value: 'NDA' },
+  { label: '买卖合同', value: 'SALE' },
+  { label: '借款合同', value: 'LOAN' },
+  { label: '股权转让协议', value: 'EQUITY' },
+  { label: '非标合同', value: 'CUSTOM' },
+]
+
+// 合同类型来源（sceneSource）
+export const SCENE_SOURCE_META = {
+  AUTO: { text: '识别中', color: 'processing' },
+  AI: { text: 'AI 识别', color: 'purple' },
+  USER: { text: '手动指定', color: 'default' },
+}
+
 // 解析失败已上报的合同 ID：同一合同多次进入详情/轮询只计一次（质量指标不去重会虚增）
 const parseFailReported = new Set()
 
@@ -57,7 +78,7 @@ export const useContractStore = create((set, get) => ({
   },
 
   // ── 上传合同文件（XHR 监听进度；服务端异步入队解析）────────────
-  uploadFile: async (file, title, scene = 'LABOR') => {
+  uploadFile: async (file, title, scene = 'AUTO') => {
     const formData = new FormData()
     formData.append('file', file)
     if (title) formData.append('title', title)
@@ -80,7 +101,7 @@ export const useContractStore = create((set, get) => ({
   },
 
   // ── 粘贴文本建档 ────────────────────────────────────────────
-  uploadText: async ({ title, content, scene = 'LABOR' }) => {
+  uploadText: async ({ title, content, scene = 'AUTO' }) => {
     const result = await http.post('/contracts/text', { title, content, scene })
     useAppStore.getState().toast.success('合同已创建，正在解析条款…')
     await get().loadContracts()
@@ -94,6 +115,15 @@ export const useContractStore = create((set, get) => ({
   // ── 合同助手窄域问答（FREE 仅 1 轮，锁定由后端返回 locked）────
   askContract: async (contractId, question) =>
     http.post(`/contracts/${contractId}/ask`, { question }),
+
+  // ── 修改合同类型（scene='AUTO' 触发 AI 重新识别）；历史审查结果保留 ──
+  updateContract: async (id, payload) => {
+    const res = await http.patch(`/contracts/${id}`, payload)
+    set((s) => ({
+      contracts: s.contracts.map((c) => (c.id === id ? { ...c, ...res.contract } : c)),
+    }))
+    return res
+  },
 
   deleteContract: async (id) => {
     await http.delete(`/contracts/${id}`)
@@ -179,25 +209,42 @@ export const useContractStore = create((set, get) => ({
 
   // 意见书 Word 下载（FR-21：终审完成 + PERSONAL+；403/PLAN_LIMIT 由调用侧处理）
   downloadReportDocx: async (taskId, filename = '审查意见书.docx') => {
-    const resp = await fetch(`/api/reviews/${taskId}/report/docx`, {
-      headers: { Authorization: `Bearer ${useAuthToken()}` },
-    })
-    if (!resp.ok) {
-      const data = await resp.json().catch(() => ({}))
-      throw Object.assign(new Error(data.error?.message || '导出失败'), {
-        status: resp.status, code: data.error?.code, reason: data.error?.reason,
-      })
-    }
-    const blob = await resp.blob()
+    await downloadBinary(`/api/reviews/${taskId}/report/docx`, filename)
     trackReportExported('report_docx', get().detail?.contract?.scene)
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
+  },
+
+  // 修订后新合同 Word（核心交付物）：mode=clean（默认）把已采纳的改写直接应用进原件、无痕迹可直接定稿；mode=redline 保留红划线修订痕迹
+  exportRevisionDocx: async (contractId, mode = 'clean') => {
+    const name = await downloadBinary(
+      `/api/contracts/${contractId}/revisions/docx?mode=${mode}`,
+      `修订后合同${mode === 'redline' ? '·红划线' : ''}.docx`,
+    )
+    trackReportExported('revision_docx', get().detail?.contract?.scene)
+    return name
+  },
+
+  // ── 文档归档时间线（原始合同 / 审查意见书 / 修订稿链）──────────
+  loadVersions: async (contractId) => http.get(`/contracts/${contractId}/versions`),
+
+  // 下载归档版本（原件 / 意见书 / 修订稿）：下载已归档文件不消耗试用次数
+  downloadVersion: async (contractId, versionId, fallbackName = '合同文档') =>
+    downloadBinary(`/api/contracts/${contractId}/versions/${encodeURIComponent(versionId)}/download`, fallbackName),
+
+  // 修订稿 PDF（variant：redline 红划线版 / clean 干净终版）
+  exportRevisionPdf: async (contractId, variant = 'redline') => {
+    const name = await downloadBinary(
+      `/api/contracts/${contractId}/revisions/pdf?variant=${variant}`,
+      `修订稿${variant === 'clean' ? '·干净终版' : ''}.pdf`,
+    )
+    trackReportExported('revision_pdf', get().detail?.contract?.scene)
+    return name
+  },
+
+  // 意见书 PDF（与 Word 版同内容口径）
+  exportReportPdf: async (taskId) => {
+    const name = await downloadBinary(`/api/reviews/${taskId}/report/pdf`, '审查意见书.pdf')
+    trackReportExported('report_pdf', get().detail?.contract?.scene)
+    return name
   },
 }))
 
@@ -205,4 +252,28 @@ export const useContractStore = create((set, get) => ({
 import { useAuthStore } from './auth.js'
 function useAuthToken() {
   return useAuthStore.getState().accessToken
+}
+
+// 二进制下载通用实现：优先采用响应头文件名（RFC5987 filename*，中文可读），回退到调用方给的兜底名
+async function downloadBinary(url, fallbackName = 'download') {
+  const resp = await fetch(url, { headers: { Authorization: `Bearer ${useAuthToken()}` } })
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({}))
+    throw Object.assign(new Error(data.error?.message || '导出失败'), {
+      status: resp.status, code: data.error?.code, reason: data.error?.reason,
+    })
+  }
+  const disposition = resp.headers.get('Content-Disposition') || ''
+  const matched = /filename\*=UTF-8''([^;]+)/i.exec(disposition)
+  const filename = matched ? decodeURIComponent(matched[1]) : fallbackName
+  const blob = await resp.blob()
+  const objectUrl = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = objectUrl
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(objectUrl)
+  return filename
 }

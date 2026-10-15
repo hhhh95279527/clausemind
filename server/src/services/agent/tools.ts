@@ -342,7 +342,7 @@ const ruleLookupTool = tool(
   },
 )
 
-// ── 工具10：合同范本目录查询 ───────────────────────────────────
+// ── 工具10：合同范本目录查询（平台标准范本 + 本企业上传的自有范本）──
 const templateSearchTool = tool(
   async ({ keyword, scene }) => {
     logger.info('tool:template_search', { keyword, scene })
@@ -356,17 +356,52 @@ const templateSearchTool = tool(
         t.title.toLowerCase().includes(k) || t.summary.toLowerCase().includes(k) || t.category.includes(keyword))
     }
     if (sceneVal) items = items.filter((t) => t.scene === sceneVal)
-    if (!items.length) return '平台范本库中没有匹配的范本。'
-    return `平台范本库共 ${items.length} 份匹配范本：\n${items.map((t) =>
-      `${t.title}（${t.category} / ${SCENE_LABELS[t.scene] || t.scene}）：${t.summary}`,
-    ).join('\n')}`
+
+    const parts: string[] = []
+    if (items.length) {
+      parts.push(`【平台标准范本】共 ${items.length} 份匹配：\n${items.map((t) =>
+        `${t.title}（${t.category} / ${SCENE_LABELS[t.scene] || t.scene}）：${t.summary}`,
+      ).join('\n')}`)
+    }
+
+    // 企业自有范本（tenant_templates）：仅当前租户，标题或正文命中关键词
+    if (db) {
+      const tenantId = await requireTenantId()
+      if (tenantId) {
+        const where: any = { tenantId }
+        if (keyword) {
+          where.OR = [
+            { title: { contains: keyword, mode: 'insensitive' } },
+            { content: { contains: keyword, mode: 'insensitive' } },
+          ]
+        }
+        const own = await db.tenantTemplate.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+          select: { title: true, charCount: true, createdAt: true },
+        })
+        if (own.length) {
+          parts.push(`【本企业自有范本】共 ${own.length} 份匹配：\n${own.map((t, i) =>
+            `${i + 1}. ${t.title}（${t.charCount} 字，${t.createdAt.toISOString().slice(0, 10)} 上传）`,
+          ).join('\n')}`)
+        }
+      }
+    }
+
+    if (!parts.length) {
+      return keyword
+        ? `平台范本库与本企业自有范本中都没有匹配"${keyword}"的范本。`
+        : '暂无可用的合同范本。'
+    }
+    return parts.join('\n\n')
   },
   {
     name: 'template_search',
-    description: '查询平台合同范本目录（16 份标准范本：劳动合同/实习/租赁/买卖/借贷/股权/NDA 等）。用户问"有没有某某合同范本""推荐个模板"时使用。',
+    description: '查询合同范本：平台 16 份标准范本（劳动合同/实习/租赁/买卖/借贷/股权/NDA 等）+ 当前企业自己上传的自有范本。用户问"有没有某某合同范本""推荐个模板""我们公司上传过哪些范本"时使用。',
     schema: z.object({
-      keyword: z.string().optional().describe('范本名称/用途关键词，如"实习""租赁"；不传则列全部'),
-      scene: z.string().optional().describe('按审查场景过滤，可选，如 INTERNSHIP/实习协议、LEASE/房屋租赁'),
+      keyword: z.string().optional().describe('范本名称/用途关键词，如"实习""租赁""采购"；不传则列全部'),
+      scene: z.string().optional().describe('按审查场景过滤（仅对平台范本生效），可选，如 INTERNSHIP/实习协议、LEASE/房屋租赁'),
     }),
   },
 )

@@ -21,7 +21,10 @@ import { createChatModel } from '../../services/model.js'
 import { config as appConfig, isValidAiKey } from '../../config/index.js'
 import { PlanLimitException } from '../../billing/plan-limit.exception.js'
 import { logger } from '../../utils/logger.js'
-import { injectTrackedChanges } from './docx-revision.js'
+import { injectTrackedChanges, type DocxMode } from './docx-revision.js'
+import { archiveVersion } from './archive.js'
+import { PdfExportService } from './pdf-export.service.js'
+import { tokenizeEdits, type EditToken } from './revision-anchor.js'
 
 const RevisionItemSchema = z.object({
   index: z.number().describe('风险序号（输入中的第 N 条，从 0 开始）'),
@@ -40,6 +43,7 @@ export class RevisionService {
     private readonly entitlements: EntitlementsService,
     private readonly quota: QuotaService,
     private readonly trial: TrialService,
+    private readonly pdf: PdfExportService,
   ) {}
 
   /** 取合同最近一次审查任务（含风险） */
@@ -71,6 +75,19 @@ export class RevisionService {
     if (task?.isDeep || this.entitlements.isDeep(plan)) return
     await this.trial.assertTrialAvailable(tenantId, feature)
     await this.trial.consumeTrial(tenantId, feature)
+  }
+
+  /**
+   * 取「已采纳的修改点」→ 可直接应用的修订列表。
+   * 采纳口径包含两处：审查结果里的逐条采纳（risk.status=ACCEPTED）、改稿台的接受（revisionStatus=ACCEPTED）。
+   * 替换文本优先用 AI 改写句 rewritten；未走改稿台时退回审查给出的具体修改建议 suggestion。
+   * 返回的 Risk 是浅拷贝，rewritten 已填充为最终替换文本（下游 tokenizeEdits/injectTrackedChanges 统一读 rewritten）。
+   */
+  private acceptedEdits(risks: Risk[]): Risk[] {
+    return risks
+      .filter((r) => r.status === 'ACCEPTED' || r.revisionStatus === 'ACCEPTED')
+      .map((r) => ({ ...r, rewritten: (r.rewritten || r.suggestion || '').trim() }))
+      .filter((r) => !!r.rewritten)
   }
 
   /** 取风险项并经 reviewTask→contract 校验租户归属（risks 表无 tenantId 列） */
@@ -230,40 +247,79 @@ export class RevisionService {
     return { text: String(reply.content || '').trim() }
   }
 
-  /** 导出 Word 红划线修订稿
-   *  全文完整输出（未改条款原样保留；有改条款在原文位置内联 w:del 原句 + w:ins 改写），
-   *  在 Word 中「接受全部修订」即得到完整的修订后合同。未接受的修订不计入。 */
-  async exportDocx(tenantId: string, contractId: string, plan: string, res: Response) {
+  /** 导出 Word 修订文档
+   *  mode=clean（默认）：已应用采纳修订的「修订后新合同」——改写直接落为最终正文，无修订痕迹，可直接定稿
+   *  mode=redline：内联 w:del 原句 + w:ins 改写，供对照复核（Word 里「接受全部修订」也得同一结果）
+   *  全文完整输出（未改条款原样保留）；原件是 docx 时保留全部原始版式。导出成功即归档一版。 */
+  async exportDocx(tenantId: string, contractId: string, plan: string, res: Response, mode: DocxMode = 'clean') {
     const { contract, task, risks, clauses } = await this.load(tenantId, contractId)
     await this.assertDeepWithTrial(tenantId, task, plan, 'EXPORT')
-    const accepted = risks.filter((r) => r.revisionStatus === 'ACCEPTED' && r.rewritten)
+    const accepted = this.acceptedEdits(risks)
     if (!accepted.length) {
-      throw new NotFoundException('还没有已接受的修订，请先在改稿台接受至少一条')
+      throw new NotFoundException('还没有已采纳的修改，请先在审查结果中采纳至少一条修改建议')
     }
+    const downloadName = this.buildDownloadName(contract.fileName, contract.title, mode)
+    const archiveCtx = { tenantId, contractId, taskId: task?.id ?? null, createdById: contract.uploadedBy }
 
-    // 优先原件保真：上传原件是 docx 且磁盘文件还在 → 直接在原 OOXML 上注入修订，
+    // 优先原件保真：上传原件是 docx 且磁盘文件还在 → 直接在原 OOXML 上应用修订，
     // 标题层级/字体/表格/页面设置等全部版式原样保留。
     if (contract.fileType.toLowerCase() === 'docx' && contract.storagePath) {
-      const sent = await this.exportFromOriginalDocx(
-        contract.storagePath,
-        this.buildDownloadName(contract.fileName, contract.title),
-        accepted,
-        res,
-      )
-      if (sent) return
+      const result = await this.buildFromOriginalDocx(contract.storagePath, accepted, mode)
+      if (result) {
+        await this.archiveRevision(archiveCtx, downloadName, result.buffer, result.applied, result.unmatched.length)
+        res.setHeader('X-Revision-Applied', String(result.applied))
+        res.setHeader('X-Revision-Unmatched', String(result.unmatched.length))
+        this.sendDocxResponse(res, downloadName, result.buffer)
+        return
+      }
     }
 
-    const buffer = await this.buildTextRebuildDocx(contract.title, accepted, clauses)
-    const downloadName = this.buildDownloadName(contract.fileName, contract.title)
-    this.sendDocxResponse(res, downloadName, buffer)
+    const rebuilt = await this.buildTextRebuildDocx(contract.title, accepted, clauses, mode)
+    await this.archiveRevision(archiveCtx, downloadName, rebuilt.buffer, accepted.length, rebuilt.unmatched)
+    res.setHeader('X-Revision-Applied', String(accepted.length))
+    res.setHeader('X-Revision-Unmatched', String(rebuilt.unmatched))
+    this.sendDocxResponse(res, downloadName, rebuilt.buffer)
   }
 
-  /** 文件名：劳动合同.docx → 劳动合同（修订后）.docx；粘贴文本用合同标题 */
-  private buildDownloadName(fileName: string, title: string): string {
+  /** 导出修订稿 PDF（redline=红划线版 / clean=干净终版）：与 docx 导出同门禁，按需生成不重复归档 */
+  async exportPdf(tenantId: string, contractId: string, plan: string, variant: 'redline' | 'clean', res: Response) {
+    const { contract, task, risks, clauses } = await this.load(tenantId, contractId)
+    await this.assertDeepWithTrial(tenantId, task, plan, 'EXPORT')
+    const accepted = this.acceptedEdits(risks)
+    if (!accepted.length) {
+      throw new NotFoundException('还没有已采纳的修改，请先在审查结果中采纳至少一条修改建议')
+    }
+    const html = this.pdf.buildRevisionHtml({ title: contract.title, clauses, accepted, variant })
+    const buffer = await this.pdf.htmlToPdf(html, { contractId: contract.id })
+    const base = /^粘贴文本/.test(contract.fileName)
+      ? contract.title
+      : contract.fileName.replace(/\.[^.]+$/, '') || contract.title
+    const downloadName = variant === 'clean' ? `${base}（修订后）.pdf` : `${base}（修订稿·红划线）.pdf`
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="revised-contract.pdf"; filename*=UTF-8''${encodeURIComponent(downloadName)}`,
+    )
+    res.end(buffer)
+  }
+
+  /** 导出成功后归档一版修订稿（archiveVersion 失败仅告警，不阻断导出） */
+  private async archiveRevision(
+    ctx: { tenantId: string; contractId: string; taskId: string | null; createdById?: string | null },
+    fileName: string,
+    buffer: Buffer,
+    applied: number,
+    unmatched: number,
+  ) {
+    await archiveVersion(this.db, { ...ctx, kind: 'REVISED', fileName, buffer, appliedCount: applied, unmatchedCount: unmatched })
+  }
+
+  /** 文件名：劳动合同.docx → 劳动合同（修订后）.docx（clean）/ 劳动合同（修订稿·红划线）.docx（redline） */
+  private buildDownloadName(fileName: string, title: string, mode: DocxMode = 'clean'): string {
     const baseName = /^粘贴文本/.test(fileName)
       ? title
       : fileName.replace(/\.[^.]+$/, '') || title
-    return `${baseName}（修订后）.docx`
+    return mode === 'clean' ? `${baseName}（修订后）.docx` : `${baseName}（修订稿·红划线）.docx`
   }
 
   /**
@@ -280,50 +336,46 @@ export class RevisionService {
   }
 
   /**
-   * 原件注入分支。磁盘文件丢失/损坏/非 docx 时返回 false，由调用方回退到文本重建，
+   * 原件注入分支。磁盘文件丢失/损坏/非 docx 时返回 null，由调用方回退到文本重建，
    * 绝不让用户因为历史数据拿不到导出文件。
    */
-  private async exportFromOriginalDocx(
+  private async buildFromOriginalDocx(
     storagePath: string,
-    downloadName: string,
     accepted: Risk[],
-    res: Response,
-  ): Promise<boolean> {
+    mode: DocxMode,
+  ): Promise<Awaited<ReturnType<typeof injectTrackedChanges>> | null> {
     try {
       const original = await readFile(storagePath)
       const result = await injectTrackedChanges(
         original,
         accepted.map((r) => ({ quote: r.quote, ins: r.rewritten! })),
+        mode,
       )
-      this.sendDocxResponse(res, downloadName, null)
-      // 供前端/排障观察原句定位命中率（未命中的修订已写入文末附加节，不会丢失）
-      res.setHeader('X-Revision-Applied', String(result.applied))
-      res.setHeader('X-Revision-Unmatched', String(result.unmatched.length))
-      res.end(result.buffer)
       logger.info('revision: exported from original docx', {
         applied: result.applied, unmatched: result.unmatched.length,
       })
-      return true
+      return result
     } catch (e) {
       logger.warn('revision: original docx unavailable, fallback to text rebuild', {
         storagePath, error: (e as Error).message,
       })
-      return false
+      return null
     }
   }
 
   /** 文本重建分支（粘贴文本 / txt / md / pdf / 图片 / 原件丢失的历史合同） */
-  private async buildTextRebuildDocx(title: string, accepted: Risk[], clauses: Clause[]) {
+  private async buildTextRebuildDocx(title: string, accepted: Risk[], clauses: Clause[], mode: DocxMode): Promise<{ buffer: Buffer; unmatched: number }> {
+    let unmatchedTotal = 0
+    const subtitle = mode === 'clean'
+      ? `由 ClauseMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 已采纳并应用 ${accepted.length} 条修订`
+      : `由 ClauseMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 共接受 ${accepted.length} 条修订（红色删除线为原文、蓝色下划线为改写，可在 Word 中接受/拒绝）`
     const children: Paragraph[] = [
       new Paragraph({
         heading: HeadingLevel.HEADING_1,
         children: [new TextRun({ text: title, bold: true })],
       }),
       new Paragraph({
-        children: [new TextRun({
-          text: `由 ClauseMind 生成 · ${new Date().toLocaleDateString('zh-CN')} · 共接受 ${accepted.length} 条修订（红色删除线为原文、蓝色下划线为改写，可在 Word 中接受/拒绝）`,
-          color: '6b7280', size: 20,
-        })],
+        children: [new TextRun({ text: subtitle, color: '6b7280', size: 20 })],
         spacing: { after: 240 },
       }),
     ]
@@ -346,9 +398,10 @@ export class RevisionService {
         continue
       }
 
-      // 有修订：把原句定位到条款原文中的位置，内联替换为 删除痕迹（红）+插入痕迹（蓝）
+      // 有修订：把原句定位到条款原文中的位置，内联替换（clean=直接落为终稿；redline=红删+蓝下划线）
       const { tokens, unmatched } = tokenizeEdits(clause.content, revs)
-      children.push(...revisionParagraphs(tokens))
+      unmatchedTotal += unmatched.length
+      children.push(...revisionParagraphs(tokens, mode))
       // 锚点重叠/找不到的修订：原文已完整保留在上方，修订痕迹作为附加建议追加，绝不静默丢失
       for (const r of unmatched) {
         children.push(new Paragraph({
@@ -357,11 +410,15 @@ export class RevisionService {
         }))
         children.push(new Paragraph({
           spacing: { before: 40, after: 40 },
-          children: [buildDelRun(r.quote)],
+          children: [mode === 'clean'
+            ? new TextRun({ text: r.quote, color: 'C00000' })
+            : buildDelRun(r.quote)],
         }))
         children.push(new Paragraph({
           spacing: { after: 120 },
-          children: [buildInsRun(r.rewritten!)],
+          children: [mode === 'clean'
+            ? new TextRun({ text: `${r.rewritten!}（建议替换为以上改写）`, color: '1D4ED8' })
+            : buildInsRun(r.rewritten!)],
         }))
       }
     }
@@ -371,7 +428,7 @@ export class RevisionService {
       title,
       sections: [{ properties: {}, children }],
     })
-    return Packer.toBuffer(doc)
+    return { buffer: await Packer.toBuffer(doc), unmatched: unmatchedTotal }
   }
 
   // ── 内部：一次性结构化生成多条修订 ──
@@ -421,53 +478,11 @@ function plainParagraphs(text: string): Paragraph[] {
   }))
 }
 
-type EditToken =
-  | { type: 'plain'; text: string }
-  | { type: 'edit'; del: string; ins: string }
-
-/**
- * 在条款原文中定位每条已接受修订的原句锚点，切成 原文片段 / 修订替换 的有序 token。
- * - quote 经引用校验可能带首尾「…」省略号，取其核心片段定位
- * - 锚点重叠或找不到的修订进 unmatched（调用方追加呈现），正文保证完整不丢
- */
-function tokenizeEdits(content: string, revs: Risk[]): { tokens: EditToken[]; unmatched: Risk[] } {
-  const located: Array<{ start: number; end: number; r: Risk }> = []
-  const unmatched: Risk[] = []
-
-  const candidates = revs
-    .map((r) => {
-      const core = r.quote.replace(/^…+|…+$/g, '')
-      const start = core ? content.indexOf(core) : -1
-      return { r, start, end: start >= 0 ? start + core.length : -1 }
-    })
-    .sort((a, b) => (a.start - b.start) || (b.end - a.end))
-
-  let cursorEnd = 0
-  for (const c of candidates) {
-    if (c.start < 0 || c.start < cursorEnd) {
-      unmatched.push(c.r)
-      continue
-    }
-    located.push({ start: c.start, end: c.end, r: c.r })
-    cursorEnd = c.end
-  }
-
-  const tokens: EditToken[] = []
-  let pos = 0
-  for (const loc of located) {
-    if (loc.start > pos) tokens.push({ type: 'plain', text: content.slice(pos, loc.start) })
-    tokens.push({ type: 'edit', del: content.slice(loc.start, loc.end), ins: loc.r.rewritten! })
-    pos = loc.end
-  }
-  if (pos < content.length) tokens.push({ type: 'plain', text: content.slice(pos) })
-  return { tokens, unmatched }
-}
-
 /**
  * 把 token 序列渲染为段落：修订与未改文字同段混排（行内红划线效果），
  * token 内的换行同样切分为新段落，保留原文版式。
  */
-function revisionParagraphs(tokens: EditToken[]): Paragraph[] {
+function revisionParagraphs(tokens: EditToken[], mode: DocxMode = 'redline'): Paragraph[] {
   const paraRuns: any[][] = [[]]
   const appendText = (text: string, makeRun: (t: string, brk: number) => any) => {
     const lines = text.split('\n')
@@ -480,6 +495,9 @@ function revisionParagraphs(tokens: EditToken[]): Paragraph[] {
   for (const tk of tokens) {
     if (tk.type === 'plain') {
       appendText(tk.text, (t, brk) => new TextRun({ text: t, break: brk }))
+    } else if (mode === 'clean') {
+      // 修订后新合同：只呈现改写后的最终正文，不保留删除痕迹
+      appendText(tk.ins, (t, brk) => new TextRun({ text: t, break: brk }))
     } else {
       appendText(tk.del, buildDelRun)
       appendText(tk.ins, buildInsRun)

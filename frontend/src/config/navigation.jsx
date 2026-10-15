@@ -5,10 +5,8 @@ import {
   MessageOutlined,
   ReadOutlined,
   RobotOutlined,
-  BarChartOutlined,
   SolutionOutlined,
   AppstoreOutlined,
-  SettingOutlined,
   SafetyCertificateOutlined,
   HomeOutlined,
   FileAddOutlined,
@@ -20,8 +18,8 @@ import {
   TeamOutlined,
   ApiOutlined,
   PlayCircleOutlined,
-  LineChartOutlined,
   EditOutlined,
+  BulbOutlined,
 } from '@ant-design/icons'
 
 // ── persona 枚举（与后端 workspaceType 对齐，Phase 1+2 落库后生效）──────────
@@ -36,7 +34,7 @@ export const publicFooterLinks = [
   { path: '/terms',  label: '用户协议' },
 ]
 
-// ── 个人布局：侧边栏 6 项 ────────────────────────────────────────────────────
+// ── 个人布局：侧边栏 7 项 ────────────────────────────────────────────────────
 export const personalNav = [
   { path: '/home',          icon: HomeOutlined,         label: '工作台' },
   { path: '/new',           icon: FileAddOutlined,      label: '审合同' },
@@ -44,29 +42,22 @@ export const personalNav = [
   { path: '/templates',     icon: BookOutlined,         label: '合同范本' },
   { path: '/knowledge',     icon: ReadOutlined,         label: '法规问答' },
   { path: '/me/billing',    icon: CreditCardOutlined,   label: '我的订阅' },
+  { path: '/feedback',      icon: BulbOutlined,         label: '建议反馈' },
 ]
 
-// ── 企业布局：侧边栏 9 项 ─────────────────────────────────────────────────────
+// ── 企业布局：侧边栏（仅业务功能；平台运维工具统一在 /platform 超管控制台）────
 export const teamNav = [
   { path: '/dashboard',     icon: DashboardOutlined,   label: '合规仪表盘' },
   { path: '/contracts',     icon: SafetyCertificateOutlined, label: '合同审查' },
   { path: '/ledger',        icon: FolderOutlined,       label: '合同台账' },
   { path: '/templates',     icon: BookOutlined,         label: '合同范本' },
   { path: '/knowledge',     icon: ReadOutlined,         label: '法规问答' },
+  { path: '/agent',         icon: RobotOutlined,        label: '任务 Agent' },
   { path: '/playbook',      icon: PlayCircleOutlined,   label: '审查规则' },
   { path: '/team',          icon: TeamOutlined,         label: '团队席位' },
   { path: '/integrations',  icon: ApiOutlined,          label: '集成中心' },
   { path: '/billing',       icon: CreditCardOutlined,   label: '我的套餐' },
-]
-
-// ── 系统管理分组：仅平台 ADMIN 可见，挂在 TeamLayout 底部 ──────────────────
-export const systemAdminNav = [
-  { path: '/admin',             icon: SettingOutlined,    label: '用户管理',    group: '系统管理' },
-  { path: '/admin/rules',       icon: SafetyCertificateOutlined, label: '规则后台', group: '系统管理' },
-  { path: '/admin/eval',        icon: LineChartOutlined,  label: '离线评测',    group: '系统管理' },
-  { path: '/agent',             icon: RobotOutlined,      label: '任务 Agent',  group: '系统管理' },
-  { path: '/monitor/traces',    icon: BarChartOutlined,   label: '调用链路',    group: '系统管理' },
-  { path: '/monitor/billing',   icon: CreditCardOutlined, label: '租户账单',    group: '系统管理' },
+  { path: '/feedback',      icon: BulbOutlined,         label: '建议反馈' },
 ]
 
 // ── 顶部栏页面元信息（覆盖所有路由）──────────────────────────────────────
@@ -90,7 +81,8 @@ export const pageMeta = {
   '/dashboard':     { title: '合规仪表盘', icon: DashboardOutlined,  desc: '统计卡、待办、风险趋势、到期分桶' },
   '/contracts':     { title: '合同审查',   icon: SafetyCertificateOutlined, desc: '双轨审查 + 人工终审 + 审批流' },
   '/ledger':        { title: '合同台账',   icon: FolderOutlined,     desc: '全生命周期：新建 / 续签 / 解除 / 到期预警' },
-  '/playbook':      { title: '审查规则',   icon: PlayCircleOutlined, desc: '红线 / 偏好 / 标准库 / 行业包' },
+  '/agent':         { title: '任务 Agent', icon: RobotOutlined,      desc: '自然语言任务自动拆解与工具调用可视化' },
+  '/playbook':      { title: '审查规则',   icon: PlayCircleOutlined,  desc: '红线 / 偏好 / 标准库 / 行业包' },
   '/team':          { title: '团队席位',   icon: TeamOutlined,       desc: '成员、角色、席位用量' },
   '/integrations':  { title: '集成中心',   icon: ApiOutlined,         desc: '飞书 Webhook / MCP，其他联系开通' },
   '/billing':       { title: '我的套餐',   icon: CreditCardOutlined,  desc: '团队席位、增购、企业版留资' },
@@ -98,16 +90,7 @@ export const pageMeta = {
   // 共享
   '/templates':     { title: '合同范本',   icon: BookOutlined,       desc: '劳动 / 租赁 / 劳务 / NDA / 通用' },
   '/knowledge':     { title: '法规问答',   icon: ReadOutlined,       desc: '平台法规问答为主，我的资料次级' },
-
-  // 系统管理（仅 ADMIN）
-  '/admin':           { title: '用户管理',     icon: SettingOutlined,    desc: '租户成员、角色、状态' },
-  '/admin/rules':     { title: '规则后台',     icon: SafetyCertificateOutlined, desc: 'review_rules 规则 CRUD 与试运行' },
-  '/admin/eval':      { title: '离线评测',     icon: LineChartOutlined,  desc: 'precision/recall/F1、recall@k、忠实度' },
-  '/admin/billing':   { title: '租户账单',     icon: CreditCardOutlined, desc: '全租户配额、峰谷费用与超额账期' },
-  '/agent':           { title: '任务 Agent',  icon: RobotOutlined,      desc: '复杂任务自动拆解，工具调用可视化' },
-  '/monitor':         { title: '用量看板',     icon: BarChartOutlined,   desc: 'Token 消耗、费用、缓存命中率' },
-  '/monitor/traces':  { title: '调用链路',     icon: BarChartOutlined,   desc: 'LLM/工具/检索 Span 时间轴' },
-  '/monitor/billing': { title: '配额与账单',   icon: BarChartOutlined,   desc: '月度配额、峰谷费用、功能占比、超额记录' },
+  '/feedback':      { title: '建议反馈',   icon: BulbOutlined,       desc: '功能建议 / 问题反馈 / 体验优化，直达产品团队' },
 
   // 旧路由（重定向目标，保留 meta 防兜底）
   '/chat':          { title: '智能对话',     icon: MessageOutlined,    desc: '已收编为合同助手' },

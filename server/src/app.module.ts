@@ -13,7 +13,6 @@ import { HealthModule } from './health/health.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
 import { AgentModule } from './agent/agent.module'
 import { MonitorModule } from './monitor/monitor.module'
-import { AdminModule } from './admin/admin.module'
 import { ContractModule } from './contract/contract.module.js'
 import { EntitlementsModule } from './billing/entitlements.module.js'
 import { BillingModule } from './billing/billing.module.js'
@@ -24,8 +23,11 @@ import { DashboardModule } from './dashboard/dashboard.module.js'
 import { TeamModule } from './team/team.module.js'
 import { IntegrationsModule } from './integrations/integrations.module.js'
 import { TemplatesModule } from './templates/templates.module.js'
+import { TenantTemplatesModule } from './tenant-templates/tenant-templates.module.js'
 import { AnalyticsModule } from './analytics/analytics.module.js'
 import { NotificationsModule } from './notifications/notifications.module.js'
+import { FeedbackModule } from './feedback/feedback.module.js'
+import { InviteModule } from './invite/invite.module.js'
 import { PlatformModule } from './platform/platform.module.js'
 import { FeishuModule } from './services/feishu/feishu.module.js'
 import { DingtalkModule } from './services/dingtalk/dingtalk.module.js'
@@ -48,7 +50,6 @@ import { logger } from './utils/logger.js'
     KnowledgeModule,
     AgentModule,
     MonitorModule,
-    AdminModule,
     // 业务层：合同风险审查
     ContractModule,
     // 增长改造 v2：套餐权益判定（全局）
@@ -69,8 +70,14 @@ import { logger } from './utils/logger.js'
     IntegrationsModule,
     // 企业/个人共用：合同范本库（FR-20，采用/下载按套餐放行）
     TemplatesModule,
+    // 企业自有范本库：上传范本 → AI 提炼审查规则（仅团队空间）
+    TenantTemplatesModule,
     // 站内通知铃铛（FR-22，实时计算）
     NotificationsModule,
+    // 建议反馈（个人版/企业版用户均可提交，邮件通知平台）
+    FeedbackModule,
+    // 团队邀请链接与加入审批
+    InviteModule,
     // 埋点漏斗（FR-26，ADMIN 看板 + 公开接收端）
     AnalyticsModule,
     // 飞书 Webhook / digest / MCP（FR-25，无配置即降级）
@@ -108,9 +115,18 @@ export class AppModule implements NestModule, OnApplicationShutdown {
     consumer.apply(contractFileUpload)
       .forRoutes({ path: 'api/contracts/upload', method: RequestMethod.POST })
 
+    // 企业范本上传：复用知识库 multer（30MB，txt/md/pdf/docx）
+    consumer.apply(fileUpload)
+      .forRoutes({ path: 'api/tenant-templates/upload', method: RequestMethod.POST })
+
     // 发起审查属 AI 消耗入口，纳入入口限流
     consumer.apply(RateLimiterMiddleware).forRoutes(
       { path: 'api/contracts/*/reviews', method: RequestMethod.POST },
+    )
+
+    // 建议反馈提交入口，纳入 IP 维度限流（另有每用户每日条数限制）
+    consumer.apply(RateLimiterMiddleware).forRoutes(
+      { path: 'api/feedback', method: RequestMethod.POST },
     )
   }
 

@@ -1,14 +1,38 @@
 // server/src/platform/platform.controller.ts
 // 平台超管接口（/api/platform）：全部 @Roles('PLATFORM_ADMIN')，登录端点除外
-import { Body, Controller, Get, Param, Post, Put, Req, Query, NotFoundException } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Req, Query, NotFoundException } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger'
 import type { Request } from 'express'
 import { PlatformService } from './platform.service.js'
+import { RuleAdminService, type RuleInput, type RuleListQuery } from './rule-admin.service.js'
 import { OrdersService } from '../billing/orders.service.js'
 import { MonitorService } from '../monitor/monitor.service.js'
+import { BillingService } from '../monitor/billing.service.js'
 import { AnalyticsService } from '../analytics/analytics.service.js'
+import { DatabaseService } from '../database/database.service.js'
 import { Roles } from '../auth/decorators/roles.decorator.js'
 import { Public } from '../auth/decorators/public.decorator.js'
+import { logger } from '../utils/logger.js'
+
+/** 平台审查规则入参（对应 RuleAdminService.RuleInput，interface 无法运行时反射，显式声明 schema） */
+const ruleInputSchema: SchemaObject = {
+  type: 'object',
+  properties: {
+    code: { type: 'string', description: '规则编码（唯一，新增时必填，如 labor_probation_over_limit）' },
+    name: { type: 'string', description: '规则名称' },
+    severity: { type: 'string', enum: ['HIGH', 'MED', 'LOW'], description: '风险等级' },
+    category: { type: 'string', description: '风险分类' },
+    scope: { type: 'string', enum: ['ALL', 'LABOR', 'INTERNSHIP'], description: '生效域：ALL 全场景 / LABOR 劳动关系 / INTERNSHIP 实习' },
+    pattern: { type: 'string', nullable: true, description: '匹配正则（可空）' },
+    keywords: { type: 'array', items: { type: 'string' }, description: '关键词列表' },
+    prompt: { type: 'string', description: 'Agent 轨判定提示词' },
+    suggestion: { type: 'string', nullable: true, description: '修改建议' },
+    legalBasis: { type: 'string', nullable: true, description: '法律依据条文' },
+    description: { type: 'string', nullable: true, description: '规则说明' },
+    enabled: { type: 'boolean', description: '是否启用' },
+    sortOrder: { type: 'integer', description: '排序权重' },
+  },
+}
 
 @ApiTags('platform')
 @Controller('api/platform')
@@ -18,6 +42,9 @@ export class PlatformController {
     private readonly orders: OrdersService,
     private readonly monitor: MonitorService,
     private readonly analytics: AnalyticsService,
+    private readonly rules: RuleAdminService,
+    private readonly billing: BillingService,
+    private readonly db: DatabaseService,
   ) {}
 
   /** 平台超管登录（公开端点；独立账号体系，与租户用户不共用） */
@@ -273,6 +300,186 @@ export class PlatformController {
     const detail = await this.monitor.getTraceDetailById(id)
     if (!detail) throw new NotFoundException('链路不存在')
     return detail
+  }
+
+  // ── 全局审查规则（review_rules 对所有租户生效，仅平台超管可改）──────────
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Get('rules')
+  @ApiOperation({
+    summary: '平台审查规则列表',
+    description: '平台级声明式审查规则（scope=ALL/LABOR/INTERNSHIP 三域），所有租户的每次审查都会执行，支持关键词/启停过滤与分页。',
+  })
+  @ApiQuery({ name: 'q', required: false, description: '按规则编码/名称/分类关键词搜索' })
+  @ApiQuery({ name: 'scope', required: false, enum: ['ALL', 'LABOR', 'INTERNSHIP'], description: '按生效域过滤' })
+  @ApiQuery({ name: 'enabled', required: false, enum: ['true', 'false'], description: '按启停状态过滤' })
+  @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
+  @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 50' })
+  listRules(
+    @Query('q') q?: string,
+    @Query('scope') scope?: string,
+    @Query('enabled') enabled?: string,
+    @Query('page') page = '1',
+    @Query('pageSize') pageSize = '50',
+  ) {
+    const query: RuleListQuery = { q, scope, enabled, page: Number(page), pageSize: Number(pageSize) }
+    return this.rules.list(query)
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Post('rules/try')
+  @ApiOperation({
+    summary: '规则试跑（不落库）',
+    description: '用已有规则（id）或临时规则体（rule）对给定文本试跑；labor/internship 控制劳动域规则是否生效（实习场景强制短路劳动规则）。',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', description: '已存在规则 ID（与 rule 二选一）' },
+        rule: { ...ruleInputSchema, description: '临时规则体（与 id 二选一）' },
+        text: { type: 'string', description: '待试跑的条款/合同文本' },
+        labor: { type: 'boolean', description: '是否按劳动关系场景执行劳动域规则' },
+        internship: { type: 'boolean', description: '是否实习协议场景（true 时短路 LABOR 域）' },
+      },
+    },
+  })
+  tryRule(@Body() body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean; internship?: boolean }) {
+    return this.rules.tryRule(body)
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Get('rules/:id')
+  @ApiOperation({ summary: '平台审查规则详情' })
+  @ApiParam({ name: 'id', description: '规则 ID' })
+  getRule(@Param('id') id: string) {
+    return this.rules.get(id)
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Post('rules')
+  @ApiOperation({ summary: '新建平台审查规则（全平台立即生效）' })
+  @ApiBody({ schema: ruleInputSchema })
+  createRule(@Body() body: RuleInput) {
+    logger.info('platform: review rule created', { code: body.code })
+    return this.rules.create(body)
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Put('rules/:id')
+  @ApiOperation({ summary: '更新平台审查规则（全平台立即生效）' })
+  @ApiParam({ name: 'id', description: '规则 ID' })
+  @ApiBody({ schema: ruleInputSchema })
+  updateRule(@Param('id') id: string, @Body() body: RuleInput) {
+    logger.info('platform: review rule updated', { id, fields: Object.keys(body) })
+    return this.rules.update(id, body)
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Delete('rules/:id')
+  @ApiOperation({ summary: '删除平台审查规则' })
+  @ApiParam({ name: 'id', description: '规则 ID' })
+  deleteRule(@Param('id') id: string) {
+    logger.info('platform: review rule deleted', { id })
+    return this.rules.remove(id)
+  }
+
+  // ── 离线评测（EvalRun 为平台基线数据，无租户维度）────────────────────
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Get('eval-runs')
+  @ApiOperation({ summary: '离线评测记录列表', description: 'EvalRun 为平台基线数据（无租户维度），分页返回。' })
+  @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
+  @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 20' })
+  listEvalRuns(@Query('page') page = '1', @Query('pageSize') pageSize = '20') {
+    const skip = (Number(page) - 1) * Number(pageSize)
+    const take = Number(pageSize)
+
+    return Promise.all([
+      this.db.evalRun.findMany({ orderBy: { startedAt: 'desc' }, skip, take }),
+      this.db.evalRun.count(),
+    ]).then(([runs, total]) => ({
+      total,
+      page: Number(page),
+      pageSize: Number(pageSize),
+      items: runs.map((r) => ({
+        id: r.id,
+        status: r.status,
+        caseCount: r.caseCount,
+        passCount: r.passCount,
+        commitSha: r.commitSha,
+        summary: r.summary,
+        startedAt: r.startedAt.toISOString(),
+        finishedAt: r.finishedAt?.toISOString() ?? null,
+      })),
+    }))
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Get('eval-runs/:id')
+  @ApiOperation({ summary: '评测记录详情', description: '含评测汇总与逐 case 结果（是否通过、得分、实际输出、评审理由、耗时）。' })
+  @ApiParam({ name: 'id', description: '评测运行 ID（EvalRun id）' })
+  async getEvalRun(@Param('id') id: string) {
+    const run = await this.db.evalRun.findUnique({ where: { id } })
+    if (!run) throw new ForbiddenException('评测记录不存在')
+
+    const results = await this.db.evalResult.findMany({
+      where: { runId: id },
+      orderBy: [{ passed: 'asc' }, { caseId: 'asc' }],
+      include: {
+        case: { select: { id: true, type: true, title: true, tags: true, expected: true } },
+      },
+    })
+
+    return {
+      run: {
+        id: run.id,
+        status: run.status,
+        caseCount: run.caseCount,
+        passCount: run.passCount,
+        commitSha: run.commitSha,
+        summary: run.summary,
+        startedAt: run.startedAt.toISOString(),
+        finishedAt: run.finishedAt?.toISOString() ?? null,
+      },
+      results: results.map((r) => ({
+        id: r.id,
+        caseId: r.caseId,
+        passed: r.passed,
+        score: r.score,
+        actual: r.actual,
+        judgeReason: r.judgeReason,
+        latencyMs: r.latencyMs,
+        case: r.case,
+      })),
+    }
+  }
+
+  // ── 租户配额账单（平台视角：全租户汇总 + 指定租户完整账单）──────────────
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Get('billing/tenants')
+  @ApiOperation({ summary: '全租户当前账期汇总', description: '平台账单总览：各租户当前账期 token 用量与费用汇总（按费用倒序）。' })
+  listTenantBilling() {
+    return this.billing.listTenantBilling()
+  }
+
+  @Roles('PLATFORM_ADMIN')
+  @ApiBearerAuth('platform')
+  @Get('billing/tenants/:tenantId')
+  @ApiOperation({ summary: '指定租户完整账单', description: '含峰谷计价、功能占比、历史账期与超额记录。' })
+  @ApiParam({ name: 'tenantId', description: '租户 ID' })
+  getTenantBilling(@Param('tenantId') tenantId: string) {
+    return this.billing.getBilling(tenantId)
   }
 }
 

@@ -385,7 +385,7 @@ textarea.input {
   border-radius: 4px;
 }
 
-/* EvalView 失败用例行高亮 */
+/* 离线评测（超管控制台）失败用例行高亮 */
 .eval-row-failed > td {
   background: rgba(239, 68, 68, 0.06) !important;
 }

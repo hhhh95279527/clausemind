@@ -31,7 +31,8 @@ const TYPE_CODES = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'L
 const SEVERITIES: Severity[] = ['HIGH', 'MED', 'LOW']
 
 const PatternSchema = z.object({
-  keywords: z.array(z.string().min(1).max(40)).max(20).optional(),
+  // 单个关键词放宽到 200 字：未配置 AI Key 时允许用"规则整句"做子串匹配兜底
+  keywords: z.array(z.string().min(1).max(200)).max(20).optional(),
   regex: z.string().max(500).nullable().optional(),
   severity: z.enum(['HIGH', 'MED', 'LOW']).optional(),
   suggestion: z.string().max(500).optional(),
@@ -58,6 +59,10 @@ function assertRegex(regex?: string | null) {
 }
 
 const HIT_WINDOW_DAYS = 30
+/** 单租户规则总数上限（防 AI 批量提炼滥用） */
+const MAX_RULES_PER_TENANT = 200
+/** 单次从企业范本导入的候选上限，与提炼接口产出上限对齐 */
+const MAX_IMPORT_RULES = 8
 
 @Injectable()
 export class PlaybookService {
@@ -88,6 +93,7 @@ export class PlaybookService {
       hitCount: r.hitCount,
       hit30d,
       source: r.source,
+      sourceLabel: r.sourceLabel,
       createdAt: r.createdAt,
       updatedAt: r.updatedAt,
     }
@@ -189,6 +195,84 @@ export class PlaybookService {
     return { rule: this.serialize(rule, 0) }
   }
 
+  /**
+   * 从企业范本批量导入候选规则（人工勾选/编辑后调用）。
+   * 逐条走 cleanDto 同款校验；source=AI，naturalPrompt 留痕来源范本；
+   * 范本存在性强制租户隔离，规则数受 MAX_RULES_PER_TENANT 约束。
+   */
+  async importFromTemplate(
+    tenantId: string,
+    userId: string,
+    templateId: string,
+    rules: Array<{
+      title?: string
+      /** 完整规则内容句，落 naturalPrompt */
+      content?: string
+      kind?: PlaybookKind
+      contractTypes?: string[]
+      keywords?: string[]
+      regex?: string | null
+      severity?: Severity
+      suggestion?: string
+    }>,
+  ) {
+    await this.assertAccess(tenantId)
+    if (!templateId || typeof templateId !== 'string') {
+      throw new BadRequestException('缺少范本 ID')
+    }
+    const template = await this.db.tenantTemplate.findFirst({ where: { id: templateId, tenantId } })
+    if (!template) throw new NotFoundException('企业范本不存在')
+    if (!Array.isArray(rules) || !rules.length) throw new BadRequestException('请至少勾选一条规则')
+    if (rules.length > MAX_IMPORT_RULES) {
+      throw new BadRequestException(`单次最多导入 ${MAX_IMPORT_RULES} 条规则`)
+    }
+
+    const existing = await this.db.playbookRule.count({ where: { tenantId } })
+    if (existing + rules.length > MAX_RULES_PER_TENANT) {
+      throw new BadRequestException(`每个工作空间最多保存 ${MAX_RULES_PER_TENANT} 条规则，请先清理不用的规则`)
+    }
+
+    const data = rules.map((r) => {
+      // 人工编辑后的正则可能写坏：非法时降级为 null（只要关键词仍可命中），不拖垮整批导入
+      let regex = r.regex?.trim() ? r.regex.trim() : null
+      if (regex) {
+        try { new RegExp(regex, 'm') } catch { regex = null }
+      }
+      const content = r.content?.trim() ?? ''
+      const cleaned = this.cleanDto({
+        title: r.title,
+        naturalPrompt: content || undefined,
+        kind: r.kind,
+        contractTypes: r.contractTypes,
+        pattern: { keywords: r.keywords ?? [], regex, severity: r.severity, suggestion: r.suggestion },
+      })
+      if (!cleaned.title) throw new BadRequestException('存在标题为空的规则')
+      if (!cleaned.pattern) throw new BadRequestException(`规则「${cleaned.title}」缺少有效的关键词或正则`)
+      return {
+        tenantId,
+        createdById: userId,
+        title: cleaned.title,
+        description: null as string | null,
+        // 优先存完整规则内容句；早期版本无 content 时回落到来源留痕
+        naturalPrompt: content.slice(0, 1000) || `从企业范本《${template.title}》AI 提炼，导入前经人工确认`,
+        kind: (cleaned.kind ?? 'FORBIDDEN') as PlaybookKind,
+        contractTypes: cleaned.contractTypes ?? [],
+        enabled: true,
+        pattern: cleaned.pattern as any,
+        source: 'AI' as const,
+        // 溯源：记录提炼自哪份企业范本（编辑规则不会覆盖该字段）
+        sourceLabel: template.title.slice(0, 200),
+      }
+    })
+
+    await this.db.playbookRule.createMany({ data })
+    await this.audit.log({
+      tenantId, userId, action: 'PLAYBOOK_RULE_IMPORT', resource: 'playbook_rule', resourceId: template.id,
+      detail: { templateTitle: template.title, imported: data.length },
+    })
+    return { imported: data.length }
+  }
+
   async updateRule(tenantId: string, userId: string, id: string, dto: RuleUpsertDto) {
     await this.assertAccess(tenantId)
     const existing = await this.db.playbookRule.findFirst({ where: { id, tenantId } })
@@ -251,9 +335,14 @@ export class PlaybookService {
     const structured = model.withStructuredOutput(ParseSchema, { method: 'jsonMode' })
     const out = await structured.invoke([
       ['human', `请把下面这条公司合同审查口径转成结构化匹配规则。
-要求：关键词必须来自规则语义本身、尽量使用合同条款中会真实出现的中文原词；
-正则可选，只在能显著降低误报时给出，不要给可能灾难性回溯的复杂正则；
-适用类型提示：${contractTypes.join(',') || '通用'}。
+通用要求：关键词尽量使用合同条款中会真实出现的中文事实词（不要"不得超过""无效"等评价词）；
+不要给可能灾难性回溯的复杂正则；适用类型提示：${contractTypes.join(',') || '通用'}。
+
+数字阈值铁律（小时/日/月/比例%/金额/倍数等，极易配反，务必遵守）：
+- 合规条款本身就会写出阈值数字（如合规写法"每月加班不超过36小时"含"36"），所以严禁把阈值数字放进 keywords，否则合规写法被误判、违规写法（"不超过40小时"）反而漏判；
+- 此类规则 keywords 只放不带数字的事实词（如"加班""小时"），并必须给出 regex 匹配"超出阈值的违规写法"（如 加班[^。；\\n]{0,12}(?:3[7-9]|[4-9]\\d|[1-9]\\d{2,})\\s*小时；比例超20%：(?:2[1-9]|[3-9]\\d|100)\\s*%）；
+- 不带数字阈值的规则 regex 返回空字符串。
+
 规则：${prompt}`],
     ] as any)
     const pattern: PlaybookPattern = {
@@ -293,12 +382,16 @@ export class PlaybookService {
 
     const results = list.slice(0, 10).map((text) => {
       const r = tryRuleOnText({ pattern: pattern.regex ?? null, keywords: pattern.keywords ?? [] }, text)
+      const kws = (pattern.keywords ?? []).filter(Boolean)
       return {
         sample: text.slice(0, 300),
         hit: r.hit,
         mode: r.mode,
         regexError: r.regexError,
         matches: r.matches.slice(0, 5).map((m) => m.quote),
+        // 未命中诊断：正则存在且合法但没匹配上；关键词（AND 全包含）缺了哪些
+        regexMissed: !r.hit && !!pattern.regex && !r.regexError,
+        missingKeywords: r.hit ? [] : kws.filter((kw) => !text.includes(kw)),
       }
     })
     return { results, regexError: null }

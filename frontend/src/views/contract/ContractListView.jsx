@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Button, Table, Tag, Modal, Tabs, Upload, Input, Form, Segmented, Popconfirm, Typography, App,
+  Button, Table, Tag, Modal, Tabs, Upload, Input, Form, Segmented, Popconfirm, Typography, App, Select,
 } from 'antd'
 import {
   UploadOutlined, FileTextOutlined, DeleteOutlined, AuditOutlined, ReloadOutlined,
-  ExperimentOutlined,
+  ExperimentOutlined, HistoryOutlined,
 } from '@ant-design/icons'
-import { useContractStore } from '@/stores/contract.js'
+import { useContractStore, SCENE_OPTIONS } from '@/stores/contract.js'
+import ArchiveDrawer from './ArchiveDrawer.jsx'
 import styles from './ContractListView.module.css'
 
 const { TextArea } = Input
@@ -28,6 +29,9 @@ const SCENE_TEXT = {
   LABOR: '劳动合同', INTERNSHIP: '实习协议', LEASE: '租赁合同', SERVICE: '劳务合同',
   NDA: '保密协议', SALE: '买卖合同', LOAN: '借款合同', EQUITY: '股权转让协议', CUSTOM: '非标合同',
 }
+
+// 列表内联小标签（类型来源 / Playbook 命中）
+const MINI_TAG_STYLE = { marginLeft: 8, fontSize: 12, lineHeight: '18px', padding: '0 6px' }
 
 // 审查状态（合同/任务整体阶段）
 const REVIEW_PHASE_TAG = {
@@ -53,6 +57,7 @@ export default function ContractListView() {
   } = useContractStore()
   const [filter, setFilter] = useState('')
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [archive, setArchive] = useState(null)   // { id, title } 打开文档归档抽屉
   const [tab, setTab] = useState('file')
   const [file, setFile] = useState(null)
   const [submitting, setSubmitting] = useState(false)
@@ -75,9 +80,10 @@ export default function ContractListView() {
   const handleFileOk = async () => {
     if (!file) { message.warning('请先选择合同文件'); return }
     const title = form.getFieldValue('title')
+    const scene = form.getFieldValue('fileScene') || 'AUTO'
     setSubmitting(true)
     try {
-      const c = await uploadFile(file, title)
+      const c = await uploadFile(file, title, scene)
       setUploadOpen(false); setFile(null); form.resetFields()
       navigate(`/contracts/${c.id}`)
     } finally { setSubmitting(false) }
@@ -85,9 +91,9 @@ export default function ContractListView() {
 
   const handleTextOk = async () => {
     try {
-      const v = await form.validateFields(['textTitle', 'content'])
+      const v = await form.validateFields(['textTitle', 'content', 'textScene'])
       setSubmitting(true)
-      const c = await uploadText({ title: v.textTitle, content: v.content })
+      const c = await uploadText({ title: v.textTitle, content: v.content, scene: v.textScene || 'AUTO' })
       setUploadOpen(false); form.resetFields()
       navigate(`/contracts/${c.id}`)
     } finally { setSubmitting(false) }
@@ -144,9 +150,10 @@ export default function ContractListView() {
             <a onClick={() => navigate(`/contracts/${row.id}`)}>{t}</a>
           </div>
           <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            {SCENE_TEXT[row.scene] || '合同'} · {row.charCount} 字
+            {row.sceneSource === 'AUTO' ? '类型识别中…' : (SCENE_TEXT[row.scene] || '合同')} · {row.charCount} 字
+            {row.sceneSource === 'AI' && <Tag color="purple" style={MINI_TAG_STYLE}>AI 识别</Tag>}
             {row.playbookHitCount > 0 && (
-              <Tag color="purple" style={{ marginLeft: 8, fontSize: 12, lineHeight: '18px', padding: '0 6px' }}>
+              <Tag color="purple" style={MINI_TAG_STYLE}>
                 红线 {row.playbookHitCount}
               </Tag>
             )}
@@ -195,7 +202,7 @@ export default function ContractListView() {
     {
       title: '操作',
       key: 'actions',
-      width: 150,
+      width: 210,
       render: (_, row) => {
         const rs = row.review?.status
         let actionText = '审查工作台'
@@ -210,6 +217,12 @@ export default function ContractListView() {
               onClick={() => navigate(`/contracts/${row.id}`)}
             >
               {actionText}
+            </Button>
+            <Button
+              type="link" size="small" icon={<HistoryOutlined />}
+              onClick={() => setArchive({ id: row.id, title: row.title })}
+            >
+              归档
             </Button>
             <Popconfirm
               title="确认删除该合同？条款、审查记录与风险将一并删除"
@@ -276,6 +289,14 @@ export default function ContractListView() {
                 <Form.Item name="title" label="合同标题（可选，默认用文件名）">
                   <Input placeholder="例如：2026 年度 SaaS 服务合同" />
                 </Form.Item>
+                <Form.Item
+                  name="fileScene"
+                  label="合同类型"
+                  initialValue="AUTO"
+                  extra="决定本次审查适用哪一类公司红线规则；不确定时保持「自动识别（AI）」，解析完成后自动判断类型"
+                >
+                  <Select options={SCENE_OPTIONS} />
+                </Form.Item>
                 <Upload.Dragger
                   accept=".txt,.md,.pdf,.docx,.jpg,.jpeg,.png"
                   maxCount={1}
@@ -298,6 +319,14 @@ export default function ContractListView() {
             children: (
               <Form form={form} layout="vertical">
                 <Form.Item name="textTitle" label="合同标题"><Input placeholder="例如：员工劳动合同（赵某）" /></Form.Item>
+                <Form.Item
+                  name="textScene"
+                  label="合同类型"
+                  initialValue="AUTO"
+                  extra="决定本次审查适用哪一类公司红线规则；不确定时保持「自动识别（AI）」"
+                >
+                  <Select options={SCENE_OPTIONS} />
+                </Form.Item>
                 <Form.Item name="content" label="合同正文" rules={[{ required: true, message: '合同内容不能为空' }]}>
                   <TextArea rows={10} placeholder="粘贴合同全文，条款请使用「第一条 / 第二条 …」格式以便自动切分" />
                 </Form.Item>
@@ -306,6 +335,13 @@ export default function ContractListView() {
           },
         ]} />
       </Modal>
+
+      <ArchiveDrawer
+        open={!!archive}
+        onClose={() => setArchive(null)}
+        contractId={archive?.id}
+        contractTitle={archive?.title}
+      />
     </div>
   )
 }

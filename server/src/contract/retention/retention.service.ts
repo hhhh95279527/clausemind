@@ -8,6 +8,7 @@ import fs from 'fs/promises'
 import { DatabaseService } from '../../database/database.service.js'
 import { QueueService, QUEUES } from '../../queue/queue.service.js'
 import { logger } from '../../utils/logger.js'
+import { removeContractVersions } from '../review/archive.js'
 
 @Injectable()
 export class RetentionService implements OnModuleInit {
@@ -34,13 +35,14 @@ export class RetentionService implements OnModuleInit {
       tenantId: { in: freeTenants.map((t) => t.id) },
     }
     // 先取磁盘原件路径，DB 删除后清理文件，避免 uploads/ 孤儿文件
-    const expired = await this.db.contract.findMany({ where, select: { storagePath: true } })
+    const expired = await this.db.contract.findMany({ where, select: { id: true, storagePath: true } })
     const result = await this.db.contract.deleteMany({ where })
     if (result.count > 0) {
       logger.info('retention: expired FREE contracts removed', { count: result.count })
       await Promise.all(
-        expired.map((c) => (c.storagePath ? fs.unlink(c.storagePath).catch(() => {}) : null)),
+        expired.map((c) => c.storagePath ? fs.unlink(c.storagePath).catch(() => {}) : null),
       )
+      await Promise.all(expired.map((c) => removeContractVersions(c.id)))
     }
     return result.count
   }

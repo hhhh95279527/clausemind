@@ -12,7 +12,7 @@ import type { UserRole, WorkspaceType, TenantPlan } from '@prisma/client'
 import { VerificationCodeService } from './verification-code.service.js'
 import { MailerService } from './mailer.service.js'
 
-type RegisterPersona = 'PERSONAL' | 'TEAM'
+type RegisterPersona = 'PERSONAL' | 'TEAM' | 'INVITE'
 
 export interface RegisterDto {
   persona: RegisterPersona
@@ -24,6 +24,8 @@ export interface RegisterDto {
   orgName?: string
   companySize?: string
   position?: string
+  // 邀请流（persona=INVITE）：团队邀请链接 token
+  inviteToken?: string
 }
 
 /** 用户名规则：3-20 位字母、数字或下划线（登录时与邮箱二选一） */
@@ -72,8 +74,9 @@ export class AuthService {
     private readonly mailer: MailerService,
   ) {}
 
-  // ── 注册：个人 / 企业双路径分流（FR-3）────────────────────────
-  // PERSONAL → FREE 个人空间；TEAM → TEAM 团队版演示空间（原型确认：默认含 5 席演示）
+  // ── 注册：个人 / 企业 / 团队邀请三路径（FR-3 + 邀请审批流）────────
+  // PERSONAL → FREE 个人空间；TEAM → TEAM 团队版演示空间（默认含 5 席演示）
+  // INVITE → 凭团队邀请链接加入指定租户，role=USER、status=PENDING，管理员审批通过才可登录
   // 注册不强制邮箱验证码：用户名 + 密码即可开户；邮箱归属在首次"验证码登录"时自然验证
   async register(dto: RegisterDto, meta: TokenMeta = {}) {
     const email = this.normalizeEmail(dto.email)
@@ -84,11 +87,30 @@ export class AuthService {
     if (!dto.password || dto.password.length < 8) {
       throw new BadRequestException('密码至少 8 位')
     }
-    if (dto.persona !== 'PERSONAL' && dto.persona !== 'TEAM') {
+    if (dto.persona !== 'PERSONAL' && dto.persona !== 'TEAM' && dto.persona !== 'INVITE') {
       throw new BadRequestException('请选择注册身份（个人 / 企业）')
     }
     if (dto.persona === 'TEAM' && !(dto.orgName || '').trim()) {
       throw new BadRequestException('请填写企业名称')
+    }
+
+    // 邀请流：先校验链接（无效/过期/撤销直接拒绝，且不暴露租户敏感信息）
+    let invite: { id: string; tenantId: string; tenant: { name: string } } | null = null
+    if (dto.persona === 'INVITE') {
+      const token = (dto.inviteToken || '').trim()
+      if (!token) throw new BadRequestException('邀请链接无效')
+      const row = await this.db.tenantInvite.findUnique({
+        where: { token },
+        include: { tenant: { select: { name: true, workspaceType: true, status: true } } },
+      })
+      if (!row || row.tenant.workspaceType !== 'TEAM' || row.tenant.status !== 'ACTIVE') {
+        throw new BadRequestException('邀请链接无效')
+      }
+      if (row.revokedAt) throw new BadRequestException('邀请链接已被撤销')
+      if (row.expiresAt.getTime() <= Date.now()) {
+        throw new BadRequestException('邀请链接已过期，请联系管理员重新获取')
+      }
+      invite = { id: row.id, tenantId: row.tenantId, tenant: { name: row.tenant.name } }
     }
 
     const [existingUsername, existingEmail] = await Promise.all([
@@ -105,9 +127,32 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 12)
     const displayName = (dto.displayName || '').trim() || username
 
-    const isTeam = dto.persona === 'TEAM'
     // 租户 + 用户在一个事务里创建（UserProfile 已下线，不再创建）
     const created = await this.db.$transaction(async (tx) => {
+      // 邀请流：不建新租户，直接加入邀请指向的团队，状态待审批
+      if (dto.persona === 'INVITE' && invite) {
+        const user = await tx.user.create({
+          data: {
+            username,
+            email,
+            passwordHash,
+            displayName,
+            role: 'USER' as UserRole,
+            status: 'PENDING',
+            tenantId: invite.tenantId,
+            emailVerified: false,
+            onboardingCompleted: true,
+            metadata: { inviteId: invite.id },
+          },
+        })
+        await tx.tenantInvite.update({
+          where: { id: invite.id },
+          data: { acceptedCount: { increment: 1 } },
+        })
+        return user
+      }
+
+      const isTeam = dto.persona === 'TEAM'
       const tenant = await tx.tenant.create({
         data: isTeam
           ? {
@@ -139,9 +184,43 @@ export class AuthService {
       })
     })
 
+    // 邀请流：不签发登录凭证，异步通知租户管理员审批，前端展示「等待审批」
+    if (dto.persona === 'INVITE' && invite) {
+      this.notifyAdminsNewApply(invite.tenantId, invite.tenant.name, {
+        displayName, username, email,
+      }).catch((err) => logger.warn('invite apply notify failed', { error: (err as Error).message }))
+      return { pending: true, tenantName: invite.tenant.name }
+    }
+
     const user = await this.buildUserPayload(created.id)
     const tokens = await this.issueTokens(user, meta)
     return { user, ...tokens }
+  }
+
+  /** 新成员凭邀请注册后，邮件通知该团队全部负责人（有绑定邮箱者） */
+  private async notifyAdminsNewApply(
+    tenantId: string,
+    tenantName: string,
+    applicant: { displayName: string; username: string; email: string },
+  ) {
+    const admins = await this.db.user.findMany({
+      where: { tenantId, role: 'ADMIN', status: 'ACTIVE' },
+      select: { email: true },
+    })
+    await Promise.all(
+      admins
+        .map((a) => a.email)
+        .filter((v): v is string => !!v)
+        .map((adminEmail) =>
+          this.mailer.sendMemberApplyNotice(adminEmail, {
+            tenantName,
+            applicantName: applicant.displayName,
+            username: applicant.username,
+            email: applicant.email,
+            teamUrl: config.app.frontUrl,
+          }),
+        ),
+    )
   }
 
   // ── 邮箱验证码登录：仅允许已注册 / 已绑定该邮箱的账号（FR-4）──────
@@ -152,6 +231,9 @@ export class AuthService {
     const user = await this.db.user.findUnique({ where: { email: normalized } })
     if (!user) {
       throw new BadRequestException('该邮箱未绑定账号，请先注册或使用用户名密码登录')
+    }
+    if (user.status === 'PENDING') {
+      throw new UnauthorizedException('你的加入申请正在等待团队管理员审批，通过后即可登录')
     }
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('账号已被禁用')
@@ -172,6 +254,9 @@ export class AuthService {
     })
     if (!user) {
       throw new BadRequestException('该邮箱未绑定账号，请先注册后再使用验证码登录')
+    }
+    if (user.status === 'PENDING') {
+      throw new UnauthorizedException('加入申请待管理员审批，暂时无法接收验证码')
     }
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('账号已被禁用，无法接收验证码')
@@ -206,6 +291,9 @@ export class AuthService {
       where: { OR: [{ username }, { email: username }] },
     })
     if (!user) throw new UnauthorizedException('用户不存在')
+    if (user.status === 'PENDING') {
+      throw new UnauthorizedException('你的加入申请正在等待团队管理员审批，通过后即可登录')
+    }
     if (user.status !== 'ACTIVE') throw new UnauthorizedException('账号已被禁用')
 
     const valid = await bcrypt.compare(password, user.passwordHash)

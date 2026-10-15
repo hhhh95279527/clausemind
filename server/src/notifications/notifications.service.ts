@@ -7,6 +7,7 @@ import { DatabaseService } from '../database/database.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
 
 type NotificationType =
+  | 'JOIN_REQUEST'
   | 'LEDGER_EXPIRY'
   | 'PROBATION_EXPIRY'
   | 'QUOTA_80'
@@ -34,7 +35,7 @@ export class NotificationsService {
     private readonly entitlements: EntitlementsService,
   ) {}
 
-  async list(tenantId: string): Promise<{ items: AppNotification[] }> {
+  async list(tenantId: string, role?: string): Promise<{ items: AppNotification[] }> {
     const now = new Date()
     const [tenant, snapshot] = await Promise.all([
       this.db.tenant.findUnique({ where: { id: tenantId } }),
@@ -44,6 +45,23 @@ export class NotificationsService {
 
     const isTeam = snapshot.workspaceType === 'TEAM'
     const items: AppNotification[] = []
+
+    // ── ⓪ 待审批的团队加入申请（仅负责人可见，最高优先级）──────────────
+    if (isTeam && role === 'ADMIN') {
+      const pendingCount = await this.db.user.count({
+        where: { tenantId, status: 'PENDING' },
+      })
+      if (pendingCount > 0) {
+        items.push({
+          id: 'join:request',
+          type: 'JOIN_REQUEST',
+          level: 'danger',
+          title: `${pendingCount} 位成员等待加入审批`,
+          desc: '新成员通过邀请链接注册，审批通过后才能登录团队空间',
+          actionUrl: '/team',
+        })
+      }
+    }
 
     // ── ①② 台账/试用期到期（仅团队空间）──────────────────────
     if (isTeam) {

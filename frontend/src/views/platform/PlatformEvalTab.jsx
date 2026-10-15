@@ -1,13 +1,12 @@
-// frontend/src/views/admin/EvalView.jsx
-// 离线评测报告：EvalRun 列表（commit / 通过率 / 分组指标）→ 抽屉查看 EvalResult 明细，
-// 失败用例红色高亮，展开可看 actual 与 expected 的差异。
+// frontend/src/views/platform/PlatformEvalTab.jsx
+// 超管控制台 · 离线评测报告：EvalRun 列表（commit / 通过率 / 分组指标）→ 抽屉查看 EvalResult 明细。
+// EvalRun 是平台基线数据（无租户维度），接口走 /api/platform/eval-runs（PLATFORM_ADMIN 鉴权）。
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  Button, Table, Tag, Drawer, Spin, Empty, Typography, Space, Statistic, Row, Col,
+  Button, Table, Tag, Drawer, Spin, Empty, Typography, Space, Statistic, Row, Col, App as AntApp,
 } from 'antd'
-import { ArrowLeftOutlined, ReloadOutlined, CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
-import http from '@/utils/http.js'
+import { ReloadOutlined, CheckCircleFilled, CloseCircleFilled } from '@ant-design/icons'
+import platformApi, { platformErrMessage } from '@/utils/platformApi.js'
 
 const { Text } = Typography
 
@@ -32,8 +31,8 @@ function shortSha(sha) {
   return sha ? sha.slice(0, 8) : '-'
 }
 
-export default function EvalView() {
-  const navigate = useNavigate()
+export default function PlatformEvalTab() {
+  const { message } = AntApp.useApp()
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState({ items: [], total: 0 })
   const [page, setPage] = useState(1)
@@ -42,12 +41,14 @@ export default function EvalView() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const d = await http.get('/admin/eval-runs', { params: { page, pageSize: 10 } })
+      const d = await platformApi.get('/eval-runs', { params: { page, pageSize: 10 } })
       setData(d)
+    } catch (err) {
+      message.error(platformErrMessage(err, '评测记录加载失败'))
     } finally {
       setLoading(false)
     }
-  }, [page])
+  }, [page, message])
 
   useEffect(() => { load() }, [load])
 
@@ -60,41 +61,29 @@ export default function EvalView() {
         return <Tag color={color}>{text}</Tag>
       },
     },
-    {
-      title: '开始时间', dataIndex: 'startedAt', width: 160,
-      render: fmtDateTime,
-    },
-    {
-      title: 'Commit', dataIndex: 'commitSha', width: 100,
-      render: (sha) => <Text code>{shortSha(sha)}</Text>,
-    },
+    { title: '开始时间', dataIndex: 'startedAt', width: 160, render: fmtDateTime },
+    { title: 'Commit', dataIndex: 'commitSha', width: 100, render: (sha) => <Text code>{shortSha(sha)}</Text> },
     {
       title: '通过率', width: 110,
       render: (_, row) => {
         const rate = row.caseCount ? row.passCount / row.caseCount : 0
-        const color = rate >= 0.95 ? 'var(--color-success)' : rate >= 0.8 ? 'var(--color-warning)' : 'var(--color-danger)'
+        const color = rate >= 0.95 ? '#16a34a' : rate >= 0.8 ? '#d97706' : '#dc2626'
         return <span style={{ color, fontWeight: 600 }}>{row.passCount}/{row.caseCount}（{pct(rate)}）</span>
       },
     },
-    {
-      title: '分组指标',
-      render: (_, row) => <GroupMetrics summary={row.summary} />,
-    },
+    { title: '分组指标', render: (_, row) => <GroupMetrics summary={row.summary} /> },
     {
       title: '操作', width: 90,
       render: (_, row) => (
-        <Button type="link" size="small" onClick={() => setActiveId(row.id)}>查看明细</Button>
+        <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); setActiveId(row.id) }}>查看明细</Button>
       ),
     },
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin')}>返回后台</Button>
-          <h2 style={{ margin: 0, fontSize: 18 }}>离线评测报告</h2>
-        </Space>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>离线评测报告</h2>
         <Button size="small" icon={<ReloadOutlined />} onClick={load}>刷新</Button>
       </div>
 
@@ -146,17 +135,19 @@ function GroupMetrics({ summary }) {
 }
 
 function EvalRunDetail({ runId }) {
+  const { message } = AntApp.useApp()
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     let alive = true
     setLoading(true)
-    http.get(`/admin/eval-runs/${runId}`)
+    platformApi.get(`/eval-runs/${runId}`)
       .then((d) => { if (alive) setDetail(d) })
+      .catch((err) => message.error(platformErrMessage(err, '评测明细加载失败')))
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
-  }, [runId])
+  }, [runId, message])
 
   if (loading) return <Spin style={{ display: 'block', marginTop: 80 }} />
   if (!detail) return <Empty description="记录不可用" style={{ marginTop: 80 }} />
@@ -168,8 +159,8 @@ function EvalRunDetail({ runId }) {
     {
       title: '', dataIndex: 'passed', width: 32,
       render: (ok) => ok
-        ? <CheckCircleFilled style={{ color: 'var(--color-success)' }} />
-        : <CloseCircleFilled style={{ color: 'var(--color-danger)' }} />,
+        ? <CheckCircleFilled style={{ color: '#16a34a' }} />
+        : <CloseCircleFilled style={{ color: '#dc2626' }} />,
     },
     {
       title: '分组', width: 88,
@@ -184,14 +175,8 @@ function EvalRunDetail({ runId }) {
         </div>
       ),
     },
-    {
-      title: '得分', dataIndex: 'score', width: 72, align: 'right',
-      render: (v) => v.toFixed(2),
-    },
-    {
-      title: '耗时', dataIndex: 'latencyMs', width: 72, align: 'right',
-      render: (v) => `${v}ms`,
-    },
+    { title: '得分', dataIndex: 'score', width: 72, align: 'right', render: (v) => v.toFixed(2) },
+    { title: '耗时', dataIndex: 'latencyMs', width: 72, align: 'right', render: (v) => `${v}ms` },
   ]
 
   return (
@@ -270,17 +255,17 @@ function ResultDiff({ result }) {
   }
 
   return (
-    <div style={{ padding: '4px 8px', background: 'var(--color-bg)', borderRadius: 6, fontSize: 13 }}>
+    <div style={{ padding: '4px 8px', background: '#f5f6fa', borderRadius: 6, fontSize: 13 }}>
       {rows}
     </div>
   )
 }
 
 function DiffLine({ label, value, ok, bad }) {
-  const color = bad ? 'var(--color-danger)' : ok ? 'var(--color-text)' : 'var(--color-text-sub)'
+  const color = bad ? '#dc2626' : ok ? '#111827' : '#6b7280'
   return (
     <div style={{ display: 'flex', gap: 12, padding: '2px 0' }}>
-      <span style={{ width: 80, flexShrink: 0, color: 'var(--color-text-sub)' }}>{label}</span>
+      <span style={{ width: 80, flexShrink: 0, color: '#6b7280' }}>{label}</span>
       <span style={{ color, fontWeight: bad ? 600 : 400 }}>{value}</span>
     </div>
   )

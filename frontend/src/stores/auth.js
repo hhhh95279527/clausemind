@@ -37,11 +37,6 @@ export const useAuthStore = create(
         isAuthenticated: false,
       }),
 
-      // ── 检查是否某角色 ────────────────────────────────────────
-      hasRole: (...roles) => {
-        const { user } = get()
-        return user ? roles.includes(user.role) : false
-      },
     }),
     {
       name: 'clausemind-auth',

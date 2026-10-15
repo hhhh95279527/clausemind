@@ -3,7 +3,7 @@
 // 所有查询强制 tenantId 过滤；跨租户访问一律 404。
 import {
   BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
-  NotFoundException, OnModuleInit, Param, Post, Req, Res,
+  NotFoundException, OnModuleInit, Param, Patch, Post, Req, Res,
 } from '@nestjs/common'
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiProduces, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
@@ -18,6 +18,7 @@ import { initSse } from '../utils/sse.js'
 import { logger } from '../utils/logger.js'
 import { assertRealFileType } from '../utils/file-guard.js'
 import { ContractParseService } from './parsing/contract-parse.service.js'
+import { classifyScene, clausesToText } from './parsing/scene-classifier.js'
 import { OnboardingService } from './onboarding/onboarding.service.js'
 import { ContractAssistantService } from './assistant/contract-assistant.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
@@ -27,6 +28,8 @@ import { getPlanDef, type ReviewScene } from '../billing/plans.config.js'
 import { Prisma } from '@prisma/client'
 import { setReviewDatabase, startReview, resumeReview, serializeRisk } from './review/review.agent.js'
 import { buildOpinionDocx } from './review/report-docx.js'
+import { PdfExportService } from './review/pdf-export.service.js'
+import { removeContractVersions } from './review/archive.js'
 import { StructuredService } from './review/structured.service.js'
 import { AuditService } from '../audit/audit.service.js'
 import { FeishuNotifyService } from '../services/feishu/feishu-notify.service.js'
@@ -53,6 +56,7 @@ export class ContractController implements OnModuleInit {
     private readonly feishu: FeishuNotifyService,
     private readonly dingtalk: DingtalkNotifyService,
     private readonly wework: WeworkNotifyService,
+    private readonly pdf: PdfExportService,
   ) {}
 
   onModuleInit() {
@@ -68,6 +72,18 @@ export class ContractController implements OnModuleInit {
       throw new BadRequestException('合同类型不合法，支持：劳动 / 租赁 / 劳务 / NDA / 非标')
     }
     return scene
+  }
+
+  /**
+   * 上传/改类型入参 → (scene, sceneSource)：
+   * 'AUTO' / 缺省 = 待 AI 自动识别（scene 先占位 LABOR，由解析 worker / 审查轨回填）；
+   * 其余合法值 = 用户手选（sceneSource=USER）。
+   */
+  private parseSceneInput(raw: unknown): { scene: ReviewScene; sceneSource: 'USER' | 'AUTO' } {
+    if (raw === 'AUTO' || raw === undefined || raw === null || raw === '') {
+      return { scene: 'LABOR', sceneSource: 'AUTO' }
+    }
+    return { scene: this.parseScene(raw), sceneSource: 'USER' }
   }
 
   /** FREE 档合同建档即置 7 天保留期；付费档永久（升级后由 TTL job 按当前套餐二次判定） */
@@ -101,7 +117,7 @@ export class ContractController implements OnModuleInit {
       properties: {
         file: { type: 'string', format: 'binary', description: '合同文件（txt/md/docx/pdf/jpg/jpeg/png）' },
         title: { type: 'string', maxLength: 200, description: '合同标题，缺省取文件名（去扩展名）' },
-        scene: { type: 'string', enum: SCENES, description: '合同场景，缺省 LABOR；付费场景 SALE/LOAN/EQUITY/CUSTOM 受套餐拦截', default: 'LABOR' },
+        scene: { type: 'string', enum: [...SCENES, 'AUTO'], description: '合同类型；传 AUTO=AI 自动识别（缺省即 AUTO）。付费场景 SALE/LOAN/EQUITY/CUSTOM 手选时受套餐拦截，AI 识别出的付费场景不拦截（回退为通用规则审查）', default: 'AUTO' },
       },
     },
   })
@@ -112,7 +128,7 @@ export class ContractController implements OnModuleInit {
     const tenantId = (req as any).user.tenantId
     const userId = (req as any).user.userId
     const ext = path.extname(file.originalname).toLowerCase()
-    const scene = this.parseScene(body.scene)
+    const { scene, sceneSource } = this.parseSceneInput(body.scene)
 
     // 按套餐校验文件大小（免费 8MB / 会员 15MB）；超限立即删除临时文件
     const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } })
@@ -142,11 +158,12 @@ export class ContractController implements OnModuleInit {
         storagePath: file.path,
         fileType: ext.slice(1) || 'txt',
         scene,
+        sceneSource,
         status: 'UPLOADED' as const,
       }),
     })
     await this.parseService.enqueue(contract.id, file.path)
-    logger.info('contract: uploaded', { contractId: contract.id, file: file.originalname, scene })
+    logger.info('contract: uploaded', { contractId: contract.id, file: file.originalname, scene, sceneSource })
     return { contract }
   }
 
@@ -163,7 +180,7 @@ export class ContractController implements OnModuleInit {
       properties: {
         title: { type: 'string', maxLength: 200, description: '合同标题，缺省为「合同文本 + 日期」' },
         content: { type: 'string', maxLength: 200000, description: '合同正文纯文本' },
-        scene: { type: 'string', enum: SCENES, description: '合同场景，缺省 LABOR', default: 'LABOR' },
+        scene: { type: 'string', enum: [...SCENES, 'AUTO'], description: '合同类型；传 AUTO=AI 自动识别（缺省即 AUTO）', default: 'AUTO' },
       },
     },
   })
@@ -176,7 +193,7 @@ export class ContractController implements OnModuleInit {
 
     const tenantId = (req as any).user.tenantId
     const userId = (req as any).user.userId
-    const scene = this.parseScene(body.scene)
+    const { scene, sceneSource } = this.parseSceneInput(body.scene)
     await fs.mkdir('./uploads', { recursive: true })
     const tmpPath = `./uploads/contract_${Date.now()}_${Math.random().toString(36).slice(2, 6)}.txt`
     await fs.writeFile(tmpPath, body.content, 'utf-8')
@@ -187,6 +204,7 @@ export class ContractController implements OnModuleInit {
         fileName: '粘贴文本.txt',
         fileType: 'txt',
         scene,
+        sceneSource,
         status: 'UPLOADED' as const,
       }),
     })
@@ -289,6 +307,7 @@ export class ContractController implements OnModuleInit {
       parseError: c.parseError,
       fileType: c.fileType,
       scene: c.scene,
+      sceneSource: c.sceneSource,
       charCount: c.charCount,
       clausesCount: c.clausesCount,
       retainUntil: c.retainUntil,
@@ -353,6 +372,7 @@ export class ContractController implements OnModuleInit {
         parseError: contract.parseError,
         fileType: contract.fileType,
         scene: contract.scene,
+        sceneSource: contract.sceneSource,
         charCount: contract.charCount,
         clausesCount: contract.clausesCount,
         reportMd: contract.reportMd,
@@ -392,6 +412,79 @@ export class ContractController implements OnModuleInit {
     return this.structured.getOrExtract(tenantId, id, force)
   }
 
+  // ── 修改合同类型（手选 / 重新 AI 识别）────────────────────────
+  // 仅改 contracts.scene 与 scene_source；历史审查结果与归档全部保留，前端提示「建议重新审查」。
+  @Patch('contracts/:id')
+  @ApiOperation({
+    summary: '修改合同类型',
+    description: [
+      '手动指定合同类型，或传 `scene=AUTO` 让 AI 重新自动识别（已解析完成时立即识别并回填，尚未解析完则交给解析 worker）。',
+      '类型决定该合同适用哪些公司红线规则；修改不会自动失效旧审查结果，建议重新发起审查。跨租户访问返回 404。',
+    ].join('\n'),
+  })
+  @ApiParam({ name: 'id', description: '合同 ID' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['scene'],
+      properties: {
+        scene: { type: 'string', enum: [...SCENES, 'AUTO'], description: '合同类型；传 AUTO 让 AI 自动识别' },
+      },
+    },
+  })
+  async updateScene(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { scene?: string },
+  ) {
+    const tenantId = (req as any).user.tenantId
+    const contract = await this.db.contract.findFirst({ where: { id, tenantId } })
+    if (!contract) throw new NotFoundException('合同不存在')
+
+    const { scene, sceneSource } = this.parseSceneInput(body.scene)
+
+    // 尚未解析完成：置 AUTO 由解析 worker 回填（人工识别需要全文与条款）
+    if (sceneSource === 'AUTO' && !['READY', 'WAITING_REVIEW', 'COMPLETED'].includes(contract.status)) {
+      const updated = await this.db.contract.update({
+        where: { id },
+        data: { scene: 'LABOR', sceneSource: 'AUTO' },
+      })
+      return { contract: { id: updated.id, scene: updated.scene, sceneSource: updated.sceneSource } }
+    }
+
+    // 已解析 + AUTO：用已入库条款文本立即识别
+    if (sceneSource === 'AUTO') {
+      const clauses = await this.db.clause.findMany({
+        where: { contractId: id },
+        orderBy: { indexNo: 'asc' },
+        select: { title: true, content: true },
+      })
+      const result = await classifyScene(clausesToText(clauses), contract.title)
+      if (result.source === 'DEFAULT') {
+        // 结论不确定：保留用户原有类型，避免把已确认的类型改坏
+        return {
+          contract: { id: contract.id, scene: contract.scene, sceneSource: contract.sceneSource },
+          detected: null,
+        }
+      }
+      const updated = await this.db.contract.update({
+        where: { id },
+        data: { scene: result.scene, sceneSource: 'AI' },
+      })
+      logger.info('contract: scene re-detected', { contractId: id, scene: result.scene, source: result.source })
+      return {
+        contract: { id: updated.id, scene: updated.scene, sceneSource: updated.sceneSource },
+        detected: { scene: result.scene, confidence: result.confidence, reason: result.reason ?? null, source: result.source },
+      }
+    }
+
+    const updated = await this.db.contract.update({
+      where: { id },
+      data: { scene, sceneSource: 'USER' },
+    })
+    return { contract: { id: updated.id, scene: updated.scene, sceneSource: updated.sceneSource } }
+  }
+
   @Delete('contracts/:id')
   @ApiOperation({ summary: '删除合同', description: '删除合同及其关联数据，并同步清理 uploads 中的上传原件。跨租户访问返回 404。' })
   @ApiParam({ name: 'id', description: '合同 ID' })
@@ -403,8 +496,9 @@ export class ContractController implements OnModuleInit {
     })
     const result = await this.db.contract.deleteMany({ where: { id, tenantId } })
     if (!result.count) throw new NotFoundException('合同不存在')
-    // 文件生命周期跟随合同：DB 记录删除后清理上传原件
+    // 文件生命周期跟随合同：DB 记录删除后清理上传原件与归档版本目录
     if (existing?.storagePath) await fs.unlink(existing.storagePath).catch(() => {})
+    await removeContractVersions(id)
     return { success: true }
   }
 
@@ -475,6 +569,8 @@ export class ContractController implements OnModuleInit {
       charCount: Math.max(contract.charCount, 1),
       scene: contract.scene,
       payWithCoupon,
+      // AI 自动识别出的付费场景不阻断：不提供该类专项红线，回退为通用规则审查（见 review.agent universalOnly）
+      skipSceneLimit: contract.sceneSource === 'AI',
     })
     // 拦截点①b：FREE 非演示租户审查试用终身 2 次（用券不计）
     if (!payWithCoupon) {
@@ -780,6 +876,54 @@ export class ContractController implements OnModuleInit {
       resource: 'ReviewTask',
       resourceId: taskId,
       detail: { contractId: task.contractId, format: 'docx' },
+    })
+  }
+
+  // ── 意见书 PDF 导出（与 docx 同校验：归属 / 终审状态 / 套餐权益）──
+  @Get('reviews/:taskId/report/pdf')
+  @ApiOperation({
+    summary: '导出审查意见书（PDF）',
+    description: '终审完成且具备导出权益。服务端 Edge 无头打印生成，内容口径与 Word 版一致。文件名经 Content-Disposition 以 UTF-8 编码返回，并写审计日志。',
+  })
+  @ApiParam({ name: 'taskId', description: '审查任务 ID' })
+  @ApiProduces('application/pdf')
+  async reportPdf(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Param('taskId') taskId: string,
+  ) {
+    const tenantId = (req as any).user.tenantId
+    const userId = (req as any).user.userId
+    const task = await this.db.reviewTask.findFirst({
+      where: { id: taskId, tenantId },
+      include: { contract: true, risks: true },
+    })
+    if (!task) throw new NotFoundException('审查任务不存在')
+    if (!task.contract.reportMd) {
+      throw new ForbiddenException('审查尚未终审完成，意见书未生成')
+    }
+    const tenant = await this.db.tenant.findUniqueOrThrow({ where: { id: tenantId } })
+    if (!this.entitlements.can(tenant.plan, 'wordExport')) {
+      await this.trial.assertTrialAvailable(tenantId, 'EXPORT')
+      await this.trial.consumeTrial(tenantId, 'EXPORT')
+    }
+
+    const html = this.pdf.buildOpinionHtml(task.contract, task, task.risks)
+    const buffer = await this.pdf.htmlToPdf(html, { contractId: task.contractId })
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="opinion.pdf"; filename*=UTF-8''${encodeURIComponent(`审查意见书_${task.contract.title}.pdf`)}`,
+    )
+    res.end(buffer)
+
+    await this.audit.log({
+      tenantId,
+      userId,
+      action: 'CONTRACT_REPORT_EXPORT',
+      resource: 'ReviewTask',
+      resourceId: taskId,
+      detail: { contractId: task.contractId, format: 'pdf' },
     })
   }
 }

@@ -22,6 +22,11 @@ export interface StartReviewInput {
   scene: ReviewScene
   /** 用深度券抵扣：跳过月额度/字数/类型限制，放行 Agent 深度轨（券扣减在审查创建事务中完成） */
   payWithCoupon?: boolean
+  /**
+   * 跳过「场景类型」拦截：仅用于 AI 自动识别出的付费场景合同——
+   * 此时不提供该类专项红线（回退为通用规则审查），故不应按"用户主动选择非标类型"拦付费墙。
+   */
+  skipSceneLimit?: boolean
 }
 
 @Injectable()
@@ -83,8 +88,8 @@ export class EntitlementsService {
       )
     }
 
-    // ③ 场景类型
-    if (!def.allowedScenes.includes(input.scene)) {
+    // ③ 场景类型（AI 识别出的付费场景由调用方置 skipSceneLimit 放行，改走通用规则审查）
+    if (!input.skipSceneLimit && !def.allowedScenes.includes(input.scene)) {
       throw new PlanLimitException(
         'CONTRACT_TYPE',
         '免费版支持劳动 / 实习 / 租赁 / 劳务 / NDA 五类合同，买卖、借款、股权转让及非标合同请升级或用深度券',
@@ -125,7 +130,8 @@ export class EntitlementsService {
     const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
     if (!tenant) throw new PlanLimitException('SEAT_LIMIT', '工作空间不存在', 'tenant')
     const def = getPlanDef(tenant.plan)
-    const members = await this.db.user.count({ where: { tenantId, status: { not: 'DISABLED' } } })
+    // 仅 ACTIVE 成员占席位：待审批（PENDING）申请不提前占用，审批通过时再拦截
+    const members = await this.db.user.count({ where: { tenantId, status: 'ACTIVE' } })
     if (def.seats !== Infinity && members >= def.seats) {
       throw new PlanLimitException(
         'SEAT_LIMIT',
@@ -160,7 +166,7 @@ export class EntitlementsService {
     const def = getPlanDef(tenant.plan)
     const usedReviews = await this.countMonthlyReviews(tenantId)
     const usedSeats = await this.db.user.count({
-      where: { tenantId, status: { not: 'DISABLED' } },
+      where: { tenantId, status: 'ACTIVE' },
     })
     return {
       plan: def.code as PlanCode,

@@ -1,18 +1,17 @@
-// frontend/src/views/admin/RuleAdminView.jsx
-// 审查规则管理后台：review_rules 列表/新建/编辑/启停/删除 + 规则试运行（不落库，展示命中+quote）。
-// 设计原则：面向非工程管理员——表格只留人话列，表单按「这是什么风险→怎么算命中→命中后说什么」分组。
+// frontend/src/views/platform/PlatformRulesTab.jsx
+// 超管控制台 · 全局审查规则：review_rules 列表/新建/编辑/启停/删除 + 规则试运行（不落库）。
+// 这些规则对所有租户的每次审查生效，接口走 /api/platform/*（PLATFORM_ADMIN 鉴权）。
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
   Button, Table, Tag, Switch, Space, Input, Select, Modal, Form, InputNumber,
   Drawer, Alert, Empty, Tooltip, Popconfirm, Typography, App as AntApp, Collapse,
 } from 'antd'
 import {
   PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined,
-  ExperimentOutlined, ArrowLeftOutlined, ThunderboltOutlined,
+  ExperimentOutlined, ThunderboltOutlined, LineChartOutlined,
 } from '@ant-design/icons'
-import http from '@/utils/http.js'
-import styles from './RuleAdminView.module.css'
+import platformApi, { platformErrMessage } from '@/utils/platformApi.js'
+import styles from './PlatformRulesTab.module.css'
 
 const { TextArea } = Input
 const { Text } = Typography
@@ -57,6 +56,7 @@ function TryDrawer({ open, preset, onClose }) {
   const [text, setText] = useState(SAMPLE_CLAUSE)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+  const { message } = AntApp.useApp()
 
   useEffect(() => {
     if (open) {
@@ -72,9 +72,9 @@ function TryDrawer({ open, preset, onClose }) {
       const body = { text, labor: domain === 'LABOR', internship: domain === 'INTERNSHIP' }
       if (preset?.id) body.id = preset.id
       if (preset?.rule) body.rule = preset.rule
-      setResult(await http.post('/admin/rules/try', body))
-    } catch {
-      // 全局拦截器已 toast
+      setResult(await platformApi.post('/rules/try', body))
+    } catch (err) {
+      message.error(platformErrMessage(err, '试跑失败'))
     } finally {
       setLoading(false)
     }
@@ -177,6 +177,7 @@ function RuleFormModal({ open, rule, onClose, onSaved, onTry }) {
   const [form] = Form.useForm()
   const editing = !!rule?.id
   const [saving, setSaving] = useState(false)
+  const { message } = AntApp.useApp()
 
   useEffect(() => {
     if (open) form.setFieldsValue(rule ? { ...EMPTY_RULE, ...rule, pattern: rule.pattern ?? '' } : EMPTY_RULE)
@@ -187,14 +188,15 @@ function RuleFormModal({ open, rule, onClose, onSaved, onTry }) {
     setSaving(true)
     try {
       if (editing) {
-        await http.put(`/admin/rules/${rule.id}`, values)
+        await platformApi.put(`/rules/${rule.id}`, values)
       } else {
-        await http.post('/admin/rules', values)
+        await platformApi.post('/rules', values)
       }
+      message.success(editing ? '规则已更新，全平台下次审查生效' : '规则已创建，全平台生效')
       onSaved()
       onClose()
-    } catch {
-      // 校验失败或接口报错：拦截器已提示
+    } catch (err) {
+      message.error(platformErrMessage(err, '保存失败'))
     } finally {
       setSaving(false)
     }
@@ -304,9 +306,8 @@ function RuleFormModal({ open, rule, onClose, onSaved, onTry }) {
   )
 }
 
-// ── 主页面 ─────────────────────────────────────────────────────
-export default function RuleAdminView() {
-  const navigate = useNavigate()
+// ── Tab 主体 ─────────────────────────────────────────────────────
+export default function PlatformRulesTab({ onGoEval }) {
   const { message } = AntApp.useApp()
   const [data, setData] = useState({ rules: [], total: 0 })
   const [loading, setLoading] = useState(false)
@@ -325,25 +326,36 @@ export default function RuleAdminView() {
       if (q) params.q = q
       if (scope) params.scope = scope
       if (enabled) params.enabled = enabled
-      setData(await http.get('/admin/rules', { params }))
+      setData(await platformApi.get('/rules', { params }))
+    } catch (err) {
+      message.error(platformErrMessage(err, '规则列表加载失败'))
     } finally {
       setLoading(false)
     }
-  }, [page, q, scope, enabled])
+  }, [page, q, scope, enabled, message])
 
   useEffect(() => { load() }, [load])
 
   const toggleEnabled = async (rule, value) => {
-    await http.put(`/admin/rules/${rule.id}`, { enabled: value })
-    setChanged(true)
-    message.success(`规则「${rule.name || rule.code}」已${value ? '启用' : '停用'}`)
-    load()
+    try {
+      await platformApi.put(`/rules/${rule.id}`, { enabled: value })
+      setChanged(true)
+      message.success(`规则「${rule.name || rule.code}」已${value ? '启用' : '停用'}`)
+      load()
+    } catch (err) {
+      message.error(platformErrMessage(err, '操作失败'))
+    }
   }
 
   const removeRule = async (rule) => {
-    await http.delete(`/admin/rules/${rule.id}`)
-    message.success('规则已删除')
-    load()
+    try {
+      await platformApi.delete(`/rules/${rule.id}`)
+      setChanged(true)
+      message.success('规则已删除')
+      load()
+    } catch (err) {
+      message.error(platformErrMessage(err, '删除失败'))
+    }
   }
 
   const columns = [
@@ -418,10 +430,7 @@ export default function RuleAdminView() {
   return (
     <div className={styles.page}>
       <div className={styles.headRow}>
-        <Space>
-          <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => navigate('/admin')}>返回管理后台</Button>
-          <h2 className={styles.title}>审查规则管理</h2>
-        </Space>
+        <h2 className={styles.title}>全局审查规则</h2>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={load}>刷新</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal({ open: true, rule: null })}>新建规则</Button>
@@ -438,7 +447,7 @@ export default function RuleAdminView() {
             <div className={styles.guideStep}><b>① 规则快检：</b>每次审查时，用关键词/正则逐条比对合同，毫秒级出结果、零 AI 成本，保证风险不漏检</div>
             <div className={styles.guideStep}><b>② AI 深查：</b>每条规则的「AI 审查要点」会作为检查重点交给 AI，让 AI 能抓到关键词抓不到的语义问题</div>
             <div className={styles.guideStep}><b>③ 报告呈现：</b>命中的规则按「风险解释 + 修改建议 + 法律依据」生成风险项，进入人工终审</div>
-            <div className={styles.guideNote}>与「Playbook」的区别：这里是平台内置的法定规则（全租户共享）；Playbook 是每家企业自建的公司红线和偏好口径，只约束它自己。</div>
+            <div className={styles.guideNote}>与企业「审查规则（Playbook）」的区别：这里是平台内置的法定规则（全租户共享）；Playbook 是每家企业自建的公司红线和偏好口径，只约束它自己。</div>
           </div>
         )}
         closable
@@ -449,8 +458,8 @@ export default function RuleAdminView() {
           type="warning"
           showIcon
           message="规则已变更，将影响下一次合同审查"
-          description="建议到评测报告页跑一次回归评测，确认新规则没有带来误报或漏报。"
-          action={<Button size="small" onClick={() => navigate('/admin/eval')}>前往评测报告</Button>}
+          description="建议到离线评测页跑一次回归评测，确认新规则没有带来误报或漏报。"
+          action={onGoEval ? <Button size="small" icon={<LineChartOutlined />} onClick={onGoEval}>前往离线评测</Button> : null}
         />
       )}
 

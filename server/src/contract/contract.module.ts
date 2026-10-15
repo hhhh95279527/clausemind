@@ -7,6 +7,7 @@ import { OnboardingService } from './onboarding/onboarding.service.js'
 import { ContractAssistantService } from './assistant/contract-assistant.service.js'
 import { RevisionService } from './review/revision.service.js'
 import { RevisionController } from './review/revision.controller.js'
+import { PdfExportService } from './review/pdf-export.service.js'
 import { RetentionService } from './retention/retention.service.js'
 import { StructuredService } from './review/structured.service.js'
 import { AuditModule } from '../audit/audit.module.js'
@@ -24,6 +25,7 @@ import { WeworkModule } from '../services/wework/wework.module.js'
     RevisionService,
     RetentionService,
     StructuredService,
+    PdfExportService,
   ],
 })
 export class ContractModule {}
