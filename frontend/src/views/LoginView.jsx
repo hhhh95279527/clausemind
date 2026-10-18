@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import {
-  Form, Input, Button, Checkbox, Tabs, message,
+  Form, Input, Button, Checkbox, Tabs,
 } from 'antd'
 import { UserOutlined, LockOutlined, MailOutlined, SafetyOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
+import { useAppStore } from '@/stores/app.js'
 import http from '@/utils/http.js'
 import { trackLoginSuccess } from '@/utils/analytics.js'
 import { homePath } from '@/utils/persona.js'
@@ -16,13 +17,14 @@ import styles from './auth/AuthPages.module.css'
 export default function LoginView() {
   const navigate = useNavigate()
   const setAuth = useAuthStore((s) => s.setAuth)
+  const toast = useAppStore((s) => s.toast)
   const [loading, setLoading] = useState(false)
 
   // 登录后跳转：按 workspaceType 分流（企业→/dashboard，个人→/home）
   const goHome = (user) => navigate(homePath(user), { replace: true })
   // 平台超管登录后跳转
   const goPlatform = (username) => {
-    message.success(`欢迎，平台管理员 ${username}`)
+    toast.success(`欢迎，平台管理员 ${username}`)
     navigate('/platform', { replace: true })
   }
 
@@ -86,10 +88,11 @@ function LoginFormFooter({ loading }) {
 // ── 密码登录 ─────────────────────────────────────────────────────────────────
 function PwdLogin({ loading, setLoading, setAuth, goHome, goPlatform }) {
   const [form] = Form.useForm()
+  const toast = useAppStore((s) => s.toast)
 
   const handleLogin = async (values) => {
     if (!values.agreed) {
-      message.warning('请先阅读并同意用户协议与隐私政策')
+      toast.warning('请先阅读并同意用户协议与隐私政策')
       return
     }
     setLoading(true)
@@ -101,10 +104,11 @@ function PwdLogin({ loading, setLoading, setAuth, goHome, goPlatform }) {
       }, { skipErrorToast: true })
       setAuth(data)
       trackLoginSuccess('password')
-      message.success('登录成功')
+      toast.success('登录成功')
       goHome(data.user)
     } catch (err) {
       // ② 租户中「用户不存在」→ 尝试平台超管登录
+      const status = err.response?.status
       const errMsg = err.response?.data?.error?.message || ''
       if (errMsg === '用户不存在') {
         try {
@@ -119,12 +123,15 @@ function PwdLogin({ loading, setLoading, setAuth, goHome, goPlatform }) {
         } catch {
           // 平台登录也失败 → 统一提示
         }
-        message.error('账号或密码错误')
-      } else if (errMsg) {
-        // 密码错误 / 账号禁用 等：直接显示租户侧具体错误
-        message.error(errMsg)
+        toast.error('账号或密码错误')
+      } else if (errMsg && errMsg !== 'Unauthorized' && status !== 401 && status !== 403) {
+        // 账号禁用等具体业务错误：透传展示
+        toast.error(errMsg)
+      } else if (status) {
+        // 有响应但无明确信息（401/403 等）→ 统一归因为账密错误
+        toast.error('账号或密码错误')
       } else {
-        message.error('登录失败，请稍后重试')
+        toast.error('登录失败，请检查网络后重试')
       }
     } finally {
       setLoading(false)
@@ -136,7 +143,11 @@ function PwdLogin({ loading, setLoading, setAuth, goHome, goPlatform }) {
       <Form.Item name="username" rules={[{ required: true, message: '请输入用户名 / 邮箱' }]}>
         <Input prefix={<UserOutlined />} placeholder="请输入用户名 / 邮箱" />
       </Form.Item>
-      <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
+      <Form.Item name="password" rules={[
+        { required: true, message: '请输入密码' },
+        // 注册约束密码 ≥8 位：不足 8 位必然错误，点击登录即时拦截，不必等后端
+        { min: 8, message: '密码至少 8 位，请检查是否输入有误' },
+      ]}>
         <Input.Password prefix={<LockOutlined />} placeholder="请输入密码" />
       </Form.Item>
       <LoginFormFooter loading={loading} />
@@ -147,6 +158,7 @@ function PwdLogin({ loading, setLoading, setAuth, goHome, goPlatform }) {
 // ── 邮箱验证码登录 ─────────────────────────────────────────────────────────
 function CodeLogin({ loading, setLoading, setAuth, goHome }) {
   const [form] = Form.useForm()
+  const toast = useAppStore((s) => s.toast)
   const [cooldown, setCooldown] = useState(0)
   const timerRef = useRef(null)
 
@@ -161,7 +173,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
     const email = form.getFieldValue('email')
     try {
       await http.post('/auth/email-code', { email })
-      message.success('验证码已发送至邮箱，5 分钟内有效')
+      toast.success('验证码已发送至邮箱，5 分钟内有效')
       setCooldown(60)
       timerRef.current = setInterval(() => {
         setCooldown((c) => {
@@ -179,7 +191,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
 
   const handleLogin = async (values) => {
     if (!values.agreed) {
-      message.warning('请先阅读并同意用户协议与隐私政策')
+      toast.warning('请先阅读并同意用户协议与隐私政策')
       return
     }
     setLoading(true)
@@ -190,7 +202,7 @@ function CodeLogin({ loading, setLoading, setAuth, goHome }) {
       })
       setAuth(data)
       trackLoginSuccess('email_code')
-      message.success('登录成功')
+      toast.success('登录成功')
       goHome(data.user)
     } catch {
       // 拦截器已处理 toast

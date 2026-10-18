@@ -41,6 +41,7 @@ model Tenant {
   feedbackEntries    FeedbackEntry[]
   tenantInvites      TenantInvite[]
   contractVersions   ContractVersion[]
+  refundRequests     RefundRequest[]
 
   @@map("tenants")
 }
@@ -109,6 +110,7 @@ model User {
   integrationLeads IntegrationLead[] @relation("IntegrationLeadUser")
   tenantTemplates  TenantTemplate[]  @relation("TenantTemplateUploader")
   feedbackEntries  FeedbackEntry[]   @relation("FeedbackEntryUser")
+  refundRequests   RefundRequest[]
 
   @@index([tenantId])
   @@map("users")
@@ -769,6 +771,8 @@ model Order {
   payChannel    String?      @map("pay_channel") @db.VarChar(20)
   // 用户提交的转账单号（对账凭据）
   transferNo    String?      @map("transfer_no") @db.VarChar(100)
+  // 用户上传的转账凭证截图 [{ name, size, path }]（≤3 张，文件存 ./uploads/）
+  payProof      Json?        @map("pay_proof")
   // 超管驳回原因（CANCELLED 时填写）
   rejectReason  String?      @map("reject_reason") @db.VarChar(500)
   // 超管确认到账信息
@@ -779,6 +783,8 @@ model Order {
 
   tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  refundRequests RefundRequest[]
 
   @@index([tenantId, createdAt])
   @@index([status])
@@ -801,6 +807,7 @@ enum OrderStatus {
   PENDING
   PAID
   CANCELLED
+  REFUNDED
 }
 
 // 增长埋点事件：只采事件与属性元数据，绝不采合同正文/风险全文
@@ -912,4 +919,74 @@ model TenantInvite {
 
   @@index([tenantId])
   @@map("tenant_invites")
+}
+
+// ════════════════════════ 退款工单（申请 → AI/人工会话 → 处理）════════════════════════
+// 流程：用户提交表单（订单+原因+附件）→ AI 客服接待（可转人工）→ 超管控制台处理
+// 同意=订单标 REFUNDED + 权益立即降级（订阅降 FREE / 券包扣券）；拒绝=工单关闭，订单不变
+
+model RefundRequest {
+  id                String       @id @default(cuid())
+  tenantId          String       @map("tenant_id") @db.VarChar(50)
+  userId            String       @map("user_id") @db.VarChar(50)
+  orderId           String       @map("order_id") @db.VarChar(50)
+  amountFen         Int          @map("amount_fen")
+  // 退款原因：MISBUY 误购 / DUPLICATE 重复扣款 / NOT_AS_EXPECTED 效果不符 / OTHER 其他
+  reason            String       @db.VarChar(20)
+  description       String?      @db.VarChar(1000)
+  // 附件元数据 [{ name, size, path }]（≤5 份，单份 ≤10MB，文件存 ./uploads/）
+  attachments       Json         @default("[]")
+  // ── 真实退款回款信息（转账订单退款必填）────────────────────────────────
+  // 用户收款渠道：WECHAT/ALIPAY/BANK（超管线下转账回款的去向）
+  refundChannel     String?      @map("refund_channel") @db.VarChar(20)
+  // 用户收款账号：微信号 / 手机号 / 银行卡号
+  refundAccount     String?      @map("refund_account") @db.VarChar(100)
+  // 收款人姓名（转账核对用）
+  refundAccountName String?      @map("refund_account_name") @db.VarChar(50)
+  // 超管回款转账单号（真实退款的资金凭据，未填=模拟退款）
+  refundTransferNo  String?      @map("refund_transfer_no") @db.VarChar(100)
+  status            RefundStatus @default(CHAT)
+  // 处理结果：APPROVED 同意退款 / REJECTED 拒绝（RESOLVED 时写入）
+  resolution        String?      @db.VarChar(20)
+  resolvedAt        DateTime?    @map("resolved_at") @db.Timestamptz(6)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order    Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  messages RefundMessage[]
+
+  @@index([tenantId, createdAt])
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@map("refund_requests")
+}
+
+model RefundMessage {
+  id        String       @id @default(cuid())
+  requestId String       @map("request_id") @db.VarChar(50)
+  sender    RefundSender
+  content   String       @db.VarChar(2000)
+  // 扩展信息（如 SYSTEM 消息的转人工原因）
+  meta      Json?
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  request RefundRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("refund_messages")
+}
+
+enum RefundStatus {
+  CHAT // AI 客服接待中
+  AGENT // 人工客服处理中
+  RESOLVED // 已处理（同意/拒绝），终态
+}
+
+enum RefundSender {
+  USER
+  AI
+  AGENT
+  SYSTEM
 }

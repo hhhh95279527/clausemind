@@ -2,7 +2,7 @@
 // 合同范本库（对齐 docs/prototype/templates.html，FR-20）
 // - 12 套高频文书：分类 + 搜索 + 卡片，在线预览全文
 // - FREE 仅可在线预览；采用（生成 READY 文本合同）/ 下载 Word 为 PERSONAL+ 能力
-// - 个人 / 企业共用页面，权限随套餐
+// - 个人 / 企业共用页面：「我的范本」tab 上传自有范本并 AI 提炼规则，权限随套餐
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -70,7 +70,7 @@ export default function TemplatesView() {
   const { entitlement, loadEntitlement } = useMeStore()
   const workspaceType = entitlement?.workspaceType
   const isTeamSpace = workspaceType === 'TEAM'
-  const topTab = isTeamSpace && searchParams.get('tab') === 'mine' ? 'mine' : 'platform'
+  const topTab = searchParams.get('tab') === 'mine' ? 'mine' : 'platform'
   const accessToken = useAuthStore((s) => s.accessToken)
 
   const [loading, setLoading] = useState(true)
@@ -126,7 +126,7 @@ export default function TemplatesView() {
   }
 
   const gotoContracts = () => {
-    navigate(workspaceType === 'TEAM' ? '/contracts' : '/my-contracts')
+    navigate('/contracts')
   }
 
   const adopt = async (item) => {
@@ -196,18 +196,16 @@ export default function TemplatesView() {
 
   return (
     <div className={css.page}>
-      {isTeamSpace && (
-        <div className={css.topTabs}>
-          <Segmented
-            value={topTab}
-            onChange={(v) => setSearchParams(v === 'mine' ? { tab: 'mine' } : {}, { replace: true })}
-            options={[
-              { label: '平台范本', value: 'platform' },
-              { label: '我的范本', value: 'mine' },
-            ]}
-          />
-        </div>
-      )}
+      <div className={css.topTabs}>
+        <Segmented
+          value={topTab}
+          onChange={(v) => setSearchParams(v === 'mine' ? { tab: 'mine' } : {}, { replace: true })}
+          options={[
+            { label: '平台范本', value: 'platform' },
+            { label: '我的范本', value: 'mine' },
+          ]}
+        />
+      </div>
 
       {topTab === 'mine' ? (
         <MyTemplatesPanel />
@@ -346,7 +344,7 @@ export default function TemplatesView() {
             用券 ¥9.9 采用并审查
           </Button>
           <div className={css.pwRow}>
-            <Button block onClick={() => navigate('/me/billing')}>个人版 ¥19/月</Button>
+            <Button block onClick={() => navigate('/billing')}>个人版 ¥19/月</Button>
             <Button block onClick={() => navigate('/pricing')}>团队升级咨询</Button>
           </div>
           <div className={css.pwContinue}>

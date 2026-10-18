@@ -4,7 +4,7 @@
 // 文案以 docs/prototype/checkout.html 为唯一来源；价格以服务端订单返回为准。
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Button, Input } from 'antd'
+import { Button, Input, Upload } from 'antd'
 import {
   CheckCircleFilled,
   LockFilled,
@@ -12,6 +12,7 @@ import {
   SafetyCertificateOutlined,
   WechatOutlined,
   PayCircleOutlined,
+  UploadOutlined,
 } from '@ant-design/icons'
 import { useBillingStore } from '@/stores/billing.js'
 import { useMeStore } from '@/stores/me.js'
@@ -81,12 +82,14 @@ export default function CheckoutView() {
   const [sp] = useSearchParams()
   const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
+  const setUser = useAuthStore((s) => s.setUser)
   const { loadEntitlement, entitlement } = useMeStore()
   const { createOrder, mockPay } = useBillingStore()
 
   const item = useMemo(() => resolveItem(sp), [sp])
   const meta = ITEM_META[item]
-  const [channel, setChannel] = useState('WECHAT')
+  // 非白名单账号只有「转账支付」一种方式，默认选中 TRANSFER
+  const [channel, setChannel] = useState(null)
   const [paying, setPaying] = useState(false)
   const [result, setResult] = useState(null)
   // 转账支付（人工确认模式）：管理员收款码 + 用户提交转账单号 → 超管确认开通
@@ -95,16 +98,28 @@ export default function CheckoutView() {
   const [transferNo, setTransferNo] = useState('')
   const [transferSubmitting, setTransferSubmitting] = useState(false)
   const [transferDone, setTransferDone] = useState(false)
+  // 转账凭证截图（≤3 张，图片/PDF）
+  const [proofFiles, setProofFiles] = useState([])
+  // 当前账号支付模式：白名单可模拟支付，其余仅真实转账
+  const [payOptions, setPayOptions] = useState(null)
 
   useEffect(() => { loadEntitlement() }, [loadEntitlement])
   useEffect(() => {
     http.get('/billing/payment-info').then(setPayInfo).catch(() => {})
+    http.get('/billing/pay-options').then((opts) => {
+      setPayOptions(opts)
+      // 默认渠道：白名单→微信模拟支付；非白名单→转账支付
+      setChannel(opts.simulatePay ? 'WECHAT' : 'TRANSFER')
+    }).catch(() => {
+      setPayOptions({ simulatePay: false })
+      setChannel('TRANSFER')
+    })
   }, [])
 
   const workspaceLabel = entitlement?.workspaceType === 'TEAM' ? '团队空间' : '个人空间'
   const accountName = user?.displayName || user?.username || '当前账号'
-  const homePath = item === 'TEAM_MONTHLY' ? '/dashboard' : '/home'
-  const billingPath = item === 'TEAM_MONTHLY' ? '/billing' : '/me/billing'
+  const homePath = '/dashboard'
+  const billingPath = '/billing'
 
   const doPay = async () => {
     if (!item) return
@@ -115,6 +130,14 @@ export default function CheckoutView() {
       setResult(paid)
       trackCheckoutSuccess(item)
       await loadEntitlement()
+      // 团队版支付会把租户升级为团队空间：同步刷新登录态里的用户资料（含 workspaceType），
+      // 否则 persona 仍按登录时的个人空间渲染，布局/导航不会切换为团队版
+      try {
+        const profile = await http.get('/auth/profile')
+        if (profile?.id) setUser(profile)
+      } catch {
+        // 静默：下次进入应用会自愈刷新
+      }
     } catch (e) {
       // 拦截器已 toast；补充确保按钮恢复
     } finally {
@@ -122,7 +145,7 @@ export default function CheckoutView() {
     }
   }
 
-  // 转账支付：提交转账单号，等待管理员人工确认到账后自动开通
+  // 转账支付：提交转账单号 + 凭证截图，等待管理员人工确认到账后自动开通
   const submitTransfer = async () => {
     if (!item) return
     if (!transferNo.trim()) {
@@ -131,11 +154,12 @@ export default function CheckoutView() {
     }
     setTransferSubmitting(true)
     try {
-      await http.post('/billing/transfer-orders', {
-        item,
-        channel: transferChannel,
-        transferNo: transferNo.trim(),
-      })
+      const fd = new FormData()
+      fd.append('item', item)
+      fd.append('channel', transferChannel)
+      fd.append('transferNo', transferNo.trim())
+      proofFiles.map((f) => f.originFileObj).filter(Boolean).forEach((f) => fd.append('proof', f))
+      await http.post('/billing/transfer-orders', fd, { timeout: 60000 })
       setTransferDone(true)
     } catch {
       // 拦截器已 toast（重复单号 / 校验失败）
@@ -147,7 +171,7 @@ export default function CheckoutView() {
   // ── 转账单已提交（等待人工确认）面板 ──
   if (transferDone) {
     return (
-      <ResultScreen>
+      <ResultScreen simulatePay={payOptions?.simulatePay}>
         <div className={css.coSuccessIc}><CheckCircleFilled /></div>
         <h2>转账信息已提交</h2>
         <p>管理员确认到账后，权益将自动开通，无需重复提交。</p>
@@ -174,7 +198,7 @@ export default function CheckoutView() {
         ? '团队版已开通，Playbook 公司红线、团队共享与飞书通知已生效。'
         : '个人版已开通 / 深度券已到账，现在可以不限份数审查合同并使用 AI 改稿。'
     return (
-      <ResultScreen>
+      <ResultScreen simulatePay={payOptions?.simulatePay}>
         <div className={css.coSuccessIc}><CheckCircleFilled /></div>
         <h2>支付成功，权益已生效</h2>
         <p>{successText}</p>
@@ -192,13 +216,13 @@ export default function CheckoutView() {
   // ── 非法商品参数 ──
   if (!item) {
     return (
-      <ResultScreen>
+      <ResultScreen simulatePay={payOptions?.simulatePay}>
         <div className={css.coSuccessIc}><SafetyCertificateOutlined /></div>
         <h2>商品不存在或已下架</h2>
         <p>链接中的商品参数无效，请从套餐页重新选择。</p>
         <div className={css.coSuccessBtns}>
           <Button type="primary" size="large" onClick={() => navigate('/pricing')}>查看套餐</Button>
-          <Button size="large" onClick={() => navigate('/home')}>进入工作台</Button>
+          <Button size="large" onClick={() => navigate('/dashboard')}>进入工作台</Button>
         </div>
       </ResultScreen>
     )
@@ -206,7 +230,7 @@ export default function CheckoutView() {
 
   return (
     <div className={css.coTopbarShell}>
-      <TopBar />
+      <TopBar simulatePay={payOptions?.simulatePay} />
       <main className={css.coWrap}>
         <div className={css.coCard}>
           <div className={css.coCardHead}>
@@ -241,7 +265,11 @@ export default function CheckoutView() {
 
               <div className={css.coDemonote}>
                 <SafetyCertificateOutlined className={css.coNoteIcon} />
-                <span>支付后权益立即生效。演示环境不产生真实扣款，订单数据为模拟数据。</span>
+                <span>
+                  {payOptions?.simulatePay
+                    ? '支付后权益立即生效。演示环境不产生真实扣款，订单数据为模拟数据。'
+                    : '转账支付为真实交易：管理员核对到账后立即开通权益，到账前不产生任何权益变更。'}
+                </span>
               </div>
             </div>
 
@@ -249,28 +277,33 @@ export default function CheckoutView() {
             <div className={css.coCol}>
               <div className={css.coPayTitle}>选择支付方式</div>
               <div className={css.coPay}>
-                <label className={`${css.coPayItem} ${channel === 'WECHAT' ? css.coPayActive : ''}`}>
-                  <input
-                    type="radio" name="pay" checked={channel === 'WECHAT'}
-                    onChange={() => setChannel('WECHAT')}
-                  />
-                  <span className={css.coRadio} />
-                  <span className={`${css.coChannelIc} ${css.coWechat}`}><WechatOutlined /></span>
-                  <span>微信支付</span>
-                  <span className={css.coChannelSub}>推荐</span>
-                </label>
-                <label className={`${css.coPayItem} ${channel === 'ALIPAY' ? css.coPayActive : ''}`}>
-                  <input
-                    type="radio" name="pay" checked={channel === 'ALIPAY'}
-                    onChange={() => setChannel('ALIPAY')}
-                  />
-                  <span className={css.coRadio} />
-                  <span className={`${css.coChannelIc} ${css.coAlipay}`}>
-                    <MessageFilled />
-                  </span>
-                  <span>支付宝</span>
-                  <span className={css.coChannelSub}>&nbsp;</span>
-                </label>
+                {/* 白名单账号才展示模拟支付；其余账号仅真实转账 */}
+                {payOptions?.simulatePay && (
+                  <>
+                    <label className={`${css.coPayItem} ${channel === 'WECHAT' ? css.coPayActive : ''}`}>
+                      <input
+                        type="radio" name="pay" checked={channel === 'WECHAT'}
+                        onChange={() => setChannel('WECHAT')}
+                      />
+                      <span className={css.coRadio} />
+                      <span className={`${css.coChannelIc} ${css.coWechat}`}><WechatOutlined /></span>
+                      <span>微信支付</span>
+                      <span className={css.coChannelSub}>推荐</span>
+                    </label>
+                    <label className={`${css.coPayItem} ${channel === 'ALIPAY' ? css.coPayActive : ''}`}>
+                      <input
+                        type="radio" name="pay" checked={channel === 'ALIPAY'}
+                        onChange={() => setChannel('ALIPAY')}
+                      />
+                      <span className={css.coRadio} />
+                      <span className={`${css.coChannelIc} ${css.coAlipay}`}>
+                        <MessageFilled />
+                      </span>
+                      <span>支付宝</span>
+                      <span className={css.coChannelSub}>&nbsp;</span>
+                    </label>
+                  </>
+                )}
                 <label className={`${css.coPayItem} ${channel === 'TRANSFER' ? css.coPayActive : ''}`}>
                   <input
                     type="radio" name="pay" checked={channel === 'TRANSFER'}
@@ -321,6 +354,25 @@ export default function CheckoutView() {
                     maxLength={100}
                     onChange={(e) => setTransferNo(e.target.value)}
                   />
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>转账凭证截图（可选，≤3 张）</div>
+                    <Upload
+                      multiple
+                      maxCount={3}
+                      fileList={proofFiles}
+                      accept=".jpg,.jpeg,.png,.webp,.pdf"
+                      beforeUpload={(file) => {
+                        if (file.size > 10 * 1024 * 1024) {
+                          useAppStore.getState().toast.error('单张凭证不能超过 10MB')
+                          return Upload.LIST_IGNORE
+                        }
+                        return false
+                      }}
+                      onChange={({ fileList: fl }) => setProofFiles(fl.slice(-3))}
+                    >
+                      <Button size="small" icon={<UploadOutlined />}>上传截图</Button>
+                    </Upload>
+                  </div>
                 </div>
               )}
 
@@ -339,7 +391,11 @@ export default function CheckoutView() {
                 ? '提交转账单号即表示你已完成转账并同意管理员核对到账后开通权益，核对结果以管理员确认为准。'
                 : <>点击「模拟支付，立即生效」即表示你已阅读并同意<Link to="/terms">《用户协议》</Link>与<Link to="/privacy">《隐私政策》</Link>，并知悉本页为原型演示环境。</>}
             </div>
-            {channel === 'TRANSFER' ? (
+            {channel === null ? (
+              <Button type="primary" size="large" block loading className={css.coPayBtn}>
+                加载支付选项中…
+              </Button>
+            ) : channel === 'TRANSFER' ? (
               <Button
                 type="primary" size="large" block loading={transferSubmitting}
                 className={css.coPayBtn} onClick={submitTransfer}
@@ -361,10 +417,10 @@ export default function CheckoutView() {
   )
 }
 
-function TopBar() {
+function TopBar({ simulatePay }) {
   return (
     <div className={css.coTopbar}>
-      <Link className={css.coBrand} to="/home">
+      <Link className={css.coBrand} to="/dashboard">
         <span className={css.logoMark}>
           <SafetyCertificateOutlined />
         </span>
@@ -372,17 +428,19 @@ function TopBar() {
       </Link>
       <span className={css.coEnv}>
         <LockFilled />
-        模拟支付环境 · 不会产生真实扣款
+        {simulatePay
+          ? '模拟支付环境 · 不会产生真实扣款'
+          : '真实转账环境 · 人工确认到账'}
       </span>
     </div>
   )
 }
 
 // 全屏结果页外壳（转账已提交 / 支付成功 / 商品无效三态共用）
-function ResultScreen({ children }) {
+function ResultScreen({ simulatePay, children }) {
   return (
     <div className={css.coTopbarShell}>
-      <TopBar />
+      <TopBar simulatePay={simulatePay} />
       <main className={css.coWrap}>
         <div className={`${css.coCard} ${css.coSuccessCard}`}>
           <div className={css.coSuccess}>{children}</div>

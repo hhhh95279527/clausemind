@@ -1,12 +1,13 @@
 // frontend/src/views/team/IntegrationsView.jsx
 // 集成中心（对齐 docs/prototype/integrations.html）
-// - 飞书：群机器人 Webhook（AES 加密存储、脱敏展示、真实测试卡片）+ MCP 指引
+// - 飞书：群机器人 Webhook（AES 加密存储、脱敏展示、真实测试卡片）+ 分步图文指引 + MCP 指引
+// - 钉钉 / 企业微信：群机器人 Webhook 自助配置
 // - 其余 8 个集成：联系开通留资
 // - 个人空间：加锁付费墙
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Alert, Button, Form, Input, Modal, Popconfirm, Spin, Tag, message,
+  Alert, Button, Collapse, Form, Input, Modal, Popconfirm, Spin, Tag, message,
 } from 'antd'
 import {
   LockOutlined, SafetyCertificateFilled,
@@ -36,6 +37,7 @@ export default function IntegrationsView() {
   const [feishu, setFeishu] = useState(null)
   const [configOpen, setConfigOpen] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
+  const [guideKind, setGuideKind] = useState('WEBHOOK') // WEBHOOK=飞书群机器人分步指引 | MCP=自建应用指引
   const [webhookUrl, setWebhookUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -419,7 +421,14 @@ export default function IntegrationsView() {
               placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxxxxxxx"
               className={css.webhookInput}
             />
-            <div className={css.hint}>在飞书群「设置 → 群机器人 → 添加自定义机器人」获取；仅支持 open.feishu.cn / feishu.cn / larksuite.com 官方域名，保存后加密存储。</div>
+            <div className={css.hint}>
+              在飞书群「设置 → 群机器人 → 添加自定义机器人」获取；仅支持 open.feishu.cn / feishu.cn / larksuite.com 官方域名，保存后加密存储。
+              <div>
+                <Button type="link" size="small" style={{ padding: 0 }} onClick={() => { setGuideKind('WEBHOOK'); setGuideOpen(true) }}>
+                  不确定怎么拿？查看分步图文指引 →
+                </Button>
+              </div>
+            </div>
             <div className={css.cfgBtns}>
               <Button type="primary" size="small" loading={saving} onClick={saveWebhook}>保存 Webhook</Button>
               <Button size="small" loading={testing} disabled={!feishu.configured} onClick={sendTest}>发送测试通知</Button>
@@ -450,7 +459,7 @@ export default function IntegrationsView() {
           message="需要飞书自建应用的 App ID / App Secret，由管理员在服务端配置（.env）。配置后 Agent 将获得两个工具：发送审查结果卡片、同步多维表记录。"
         />
         <div className={css.cfgBtns}>
-          <Button size="small" onClick={() => { setConfigOpen(false); setGuideOpen(true) }}>查看配置指引</Button>
+          <Button size="small" onClick={() => { setConfigOpen(false); setGuideKind('MCP'); setGuideOpen(true) }}>查看配置指引</Button>
         </div>
       </Modal>
 
@@ -582,28 +591,72 @@ export default function IntegrationsView() {
         )}
       </Modal>
 
-      {/* MCP 配置指引 */}
+      {/* 配置指引弹窗：WEBHOOK=飞书群机器人分步图文 / MCP=自建应用 */}
       <Modal
         open={guideOpen}
-        title="MCP Agent 配置指引（飞书自建应用）"
-        footer={<Button type="primary" onClick={() => { setGuideOpen(false); setConfigOpen(true) }}>返回飞书配置</Button>}
+        title={guideKind === 'WEBHOOK' ? '飞书群机器人配置指引（约 1 分钟）' : 'MCP Agent 配置指引（飞书自建应用）'}
+        footer={<Button type="primary" onClick={() => { setGuideOpen(false); setConfigOpen(true) }}>
+          {guideKind === 'WEBHOOK' ? '我已拿到 Webhook，返回填写' : '返回飞书配置'}
+        </Button>}
         onCancel={() => setGuideOpen(false)}
         destroyOnClose
       >
-        <ol className={css.steps}>
-          <li>
-            <b>创建企业自建应用</b>
-            <div className={css.muted}>在飞书开放平台（open.feishu.cn）的企业管理后台创建一个企业自建应用，获取应用的 App ID 与 App Secret。</div>
-          </li>
-          <li>
-            <b>开通机器人能力与权限</b>
-            <div className={css.muted}>为应用开通机器人能力，并开通发送消息、读写多维表（Bitable）相关权限，发布应用版本并由管理员审批通过。</div>
-          </li>
-          <li>
-            <b>在服务端填入凭证</b>
-            <div className={css.muted}>由管理员将 App ID / App Secret 写入服务端环境变量（.env）并重启服务，Agent 自动获得「发送审查结果卡片」「同步多维表记录」两个工具。</div>
-          </li>
-        </ol>
+        {guideKind === 'WEBHOOK' ? (
+          <>
+            <ol className={css.steps}>
+              <li>
+                <b>打开目标群的设置</b>
+                <div className={css.muted}>打开要接收通知的飞书群 → 右上角「…」→「设置」。仅群主 / 群管理员可以添加机器人。</div>
+              </li>
+              <li>
+                <b>添加「自定义机器人」</b>
+                <div className={css.muted}>找到「群机器人」→「添加机器人」→ 选择「自定义机器人」，名称随意（如 ClauseMind 通知）。</div>
+              </li>
+              <li>
+                <b>安全设置选「自定义关键词」</b>
+                <div className={css.muted}>关键词填 <b>ClauseMind</b> —— 平台所有推送（审查完成、到期 digest、额度预警、测试通知）都带这个词。暂不支持「加签」方式。</div>
+              </li>
+              <li>
+                <b>复制 Webhook 地址</b>
+                <div className={css.muted}>点「添加」后复制以 https://open.feishu.cn/open-apis/bot/v2/hook/ 开头的完整地址。</div>
+              </li>
+              <li>
+                <b>回填并发送测试</b>
+                <div className={css.muted}>把 Webhook 粘贴回上一页 → 保存 → 点「发送测试通知」，群里收到卡片即配置成功。</div>
+              </li>
+            </ol>
+            <Collapse
+              size="small"
+              items={[{
+                key: 'faq',
+                label: '测试失败？常见问题排查',
+                children: (
+                  <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 2 }}>
+                    <li>提示「关键词不匹配」：机器人安全设置的关键词必须是 <b>ClauseMind</b>，与推送内容中的词完全一致。</li>
+                    <li>提示「签名 / sign 校验失败」：机器人开了「加签」，本产品暂不支持；请删除机器人重建，改用「自定义关键词」。</li>
+                    <li>提示「URL 无效」：确认复制完整（hook/ 后的 token 一位不能少），且为 open.feishu.cn 官方域名。</li>
+                    <li>群里收不到：机器人只对添加它的那个群生效；要多个群接收，需在各群分别添加并分别保存。</li>
+                  </ul>
+                ),
+              }]}
+            />
+          </>
+        ) : (
+          <ol className={css.steps}>
+            <li>
+              <b>创建企业自建应用</b>
+              <div className={css.muted}>在飞书开放平台（open.feishu.cn）的企业管理后台创建一个企业自建应用，获取应用的 App ID 与 App Secret。</div>
+            </li>
+            <li>
+              <b>开通机器人能力与权限</b>
+              <div className={css.muted}>为应用开通机器人能力，并开通发送消息、读写多维表（Bitable）相关权限，发布应用版本并由管理员审批通过。</div>
+            </li>
+            <li>
+              <b>在服务端填入凭证</b>
+              <div className={css.muted}>由管理员将 App ID / App Secret 写入服务端环境变量（.env）并重启服务，Agent 自动获得「发送审查结果卡片」「同步多维表记录」两个工具。</div>
+            </li>
+          </ol>
+        )}
       </Modal>
 
       {/* 联系开通留资 */}

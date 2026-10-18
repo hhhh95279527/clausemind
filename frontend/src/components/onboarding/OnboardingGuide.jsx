@@ -10,10 +10,10 @@ import {
 import { useAuthStore } from '@/stores/auth.js'
 import http from '@/utils/http.js'
 
-// 每步：标题、说明、主动作文案、跳转目标（按 persona 区分）
-function buildSteps(persona) {
-  const reviewPath = persona === 'TEAM' ? '/contracts' : '/new'
-  const listPath = persona === 'TEAM' ? '/contracts' : '/my-contracts'
+// 每步：标题、说明、主动作文案、跳转目标（个人/企业同构，统一走合同审查）
+function buildSteps() {
+  const reviewPath = '/contracts'
+  const listPath = '/contracts'
   return [
     {
       icon: <FileAddOutlined />,
@@ -51,7 +51,7 @@ export default function OnboardingGuide() {
 
   if (!user || user.onboardingCompleted || !open) return null
 
-  const steps = buildSteps(user.workspaceType)
+  const steps = buildSteps()
   const step = steps[current]
   const isLast = current === steps.length - 1
 

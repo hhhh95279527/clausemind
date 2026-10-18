@@ -1,8 +1,8 @@
 // server/src/tenant-templates/tenant-template.service.ts
-// 企业自有合同范本库（团队空间能力）：
+// 租户自有合同范本库（个人/团队空间通用，个人页展示为「我的范本」）：
 //   上传范本（同步提取全文）→ 列表/预览/删除 → AI 从范本提炼候选审查规则（不落库，人工确认后由 Playbook 导入）。
 // 关键约束：
-//   - 仅 TEAM/ENTERPRISE 空间可用（assertTeamSpace），与 Playbook 同权益；
+//   - 所有空间可用（上限按租户隔离），与 Playbook 同权益；
 //   - 提炼是 LLM 消耗入口：无 Key 503、配额超限 429、成本进 Trace（feature=playbook_extract）；
 //   - 候选只产出"关键词/正则能可靠识别"的规则，每条必须带范本原句依据 evidence。
 import {
@@ -16,7 +16,6 @@ import fs from 'fs/promises'
 import path from 'path'
 import { z } from 'zod'
 import { DatabaseService } from '../database/database.service.js'
-import { EntitlementsService } from '../billing/entitlements.service.js'
 import { TraceService } from '../observability/trace.service.js'
 import { AuditService } from '../audit/audit.service.js'
 import { config as appConfig, isValidAiKey } from '../config/index.js'
@@ -74,24 +73,22 @@ const ExtractSchema = z.object({
 export class TenantTemplateService {
   constructor(
     private readonly db: DatabaseService,
-    private readonly entitlements: EntitlementsService,
     private readonly tracer: TraceService,
     private readonly audit: AuditService,
   ) {}
 
-  /** 团队空间断言：返回租户（平台超管 token 无租户上下文 403，租户不存在 404，个人空间 403） */
+  /** 范本按租户隔离，个人/团队空间均可上传：只断言租户存在（平台超管 token 无租户上下文 403，租户不存在 404） */
   private async assertAccess(tenantId: string) {
-    if (!tenantId) throw new ForbiddenException('当前账号无权访问企业范本')
+    if (!tenantId) throw new ForbiddenException('当前账号无权访问范本库')
     const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
     if (!tenant) throw new NotFoundException('工作空间不存在')
-    this.entitlements.assertTeamSpace(tenant.plan)
     return tenant
   }
 
   /** 取本租户范本（跨租户/不存在统一 404，不泄露存在性） */
   private async owned(tenantId: string, id: string) {
     const tpl = await this.db.tenantTemplate.findFirst({ where: { id, tenantId } })
-    if (!tpl) throw new NotFoundException('企业范本不存在')
+    if (!tpl) throw new NotFoundException('范本不存在')
     return tpl
   }
 
@@ -294,8 +291,8 @@ export class TenantTemplateService {
   }
 
   private buildPrompt(title: string, content: string, focus: string) {
-    return `你是企业合同审查规则提炼助手。下面是企业自有合同范本《${title}》的正文（可能被截断）。
-请从中提炼出 ${EXTRACT_MAX_RULES} 条以内、企业真正关心的审查规则，供今后审查对方回传合同时比对使用。
+    return `你是合同审查规则提炼助手。下面是用户自有合同范本《${title}》的正文（可能被截断）。
+请从中提炼出 ${EXTRACT_MAX_RULES} 条以内、用户真正关心的审查规则，供今后审查对方回传合同时比对使用。
 
 【规则类型】
 - FORBIDDEN：红线/禁止性约定（如"禁止约定逾期付款无上限违约金"）
@@ -318,7 +315,7 @@ export class TenantTemplateService {
 
 【其他要求】
 1. evidence 必须是从范本正文中原样摘录的一句话（200 字以内），作为该规则的依据与试命中样例，不得改写或编造。
-2. 平台已内置通用法律红线（试用期上限、社保、加班费、竞业补偿等），不要重复提炼；优先提炼该企业个性化口径：付款节点与比例、交付/验收标准、发票与账户、印章与审批流程、保密与数据、违约的专属约定等。
+2. 平台已内置通用法律红线（试用期上限、社保、加班费、竞业补偿等），不要重复提炼；优先提炼用户个性化口径：付款节点与比例、交付/验收标准、发票与账户、印章与审批流程、保密与数据、违约的专属约定等。
 3. contractTypes 从 LABOR/INTERNSHIP/LEASE/SERVICE/NDA/SALE/LOAN/EQUITY/CUSTOM/ALL 中选择，拿不准就给 ["ALL"]。
 4. suggestion 用一句话告诉业务方命中后该怎么改。
 5. 规则之间不得重复；如果范本内容不足以提炼出可靠规则，返回空数组。

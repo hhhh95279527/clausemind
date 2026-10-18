@@ -44,14 +44,14 @@ export class PlaybookController {
   constructor(private readonly playbook: PlaybookService) {}
 
   @Get('rules')
-  @ApiOperation({ summary: '企业规则列表', description: '返回当前租户的 Playbook 规则及近 30 天命中数。' })
+  @ApiOperation({ summary: '规则列表', description: '返回当前租户的 Playbook 规则及近 30 天命中数。' })
   @ApiQuery({ name: 'kind', required: false, enum: ['FORBIDDEN', 'PREFERENCE'], description: '按规则类型过滤' })
   list(@Req() req: any, @Query('kind') kind?: string) {
     return this.playbook.listRules(req.user.tenantId, kind)
   }
 
   @Post('rules')
-  @ApiOperation({ summary: '新建企业规则' })
+  @ApiOperation({ summary: '新建规则' })
   @ApiBody({ schema: ruleBodySchema })
   create(@Req() req: any, @Body() body: RuleUpsertDto) {
     return this.playbook.createRule(req.user.tenantId, req.user.userId, body || {})
@@ -90,7 +90,7 @@ export class PlaybookController {
 
   @Post('rules/import')
   @ApiOperation({
-    summary: '从企业范本批量导入候选规则',
+    summary: '从自有范本批量导入候选规则',
     description: '把 /tenant-templates/:id/extract-rules 返回、经用户人工勾选/编辑后的候选规则批量入库（source=AI，单次 ≤8 条），导入后立即启用。',
   })
   @ApiBody({
@@ -98,7 +98,7 @@ export class PlaybookController {
       type: 'object',
       required: ['templateId', 'rules'],
       properties: {
-        templateId: { type: 'string', description: '来源企业范本 ID' },
+        templateId: { type: 'string', description: '来源自有范本 ID' },
         rules: {
           type: 'array',
           maxItems: 8,
@@ -133,7 +133,7 @@ export class PlaybookController {
   }
 
   @Patch('rules/:id')
-  @ApiOperation({ summary: '编辑企业规则' })
+  @ApiOperation({ summary: '编辑规则' })
   @ApiParam({ name: 'id', description: '规则 ID' })
   @ApiBody({ schema: ruleBodySchema })
   update(@Req() req: any, @Param('id') id: string, @Body() body: RuleUpsertDto) {
@@ -154,7 +154,7 @@ export class PlaybookController {
   }
 
   @Delete('rules/:id')
-  @ApiOperation({ summary: '删除企业规则' })
+  @ApiOperation({ summary: '删除规则' })
   @ApiParam({ name: 'id', description: '规则 ID' })
   remove(@Req() req: any, @Param('id') id: string) {
     return this.playbook.deleteRule(req.user.tenantId, req.user.userId, id)

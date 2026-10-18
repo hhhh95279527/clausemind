@@ -23,6 +23,9 @@ export const config = {
   // 转账收款：管理员收款码图片地址，展示在收银台「银行转账」页签
   billing: {
     paymentQrcodeUrl: process.env.PAYMENT_QRCODE_URL || '',
+    // 模拟支付白名单（按用户名/邮箱匹配）：白名单内账号可一键模拟支付；其余账号必须走真实转账+人工确认
+    simulateWhitelist: (process.env.PAY_SIMULATE_WHITELIST || '2530151343@qq.com,testboss,testboss@workmind.demo')
+      .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   },
   ai: {
     deepseekKey:   process.env.DEEPSEEK_API_KEY,
@@ -81,6 +84,15 @@ export const config = {
 /** Key 是否像真 key（ASCII 可打印字符，DeepSeek/OpenAI 兼容格式均以 sk- 开头） */
 export function isValidAiKey(key?: string): boolean {
   return !!key && /^sk-[\x21-\x7e]{10,}$/.test(key)
+}
+
+/** 账号是否可模拟支付（用户名或邮箱命中白名单，大小写不敏感） */
+export function isSimulateAccount(username?: string | null, email?: string | null): boolean {
+  const wl = config.billing.simulateWhitelist
+  if (!wl.length) return false
+  const un = (username || '').trim().toLowerCase()
+  const em = (email || '').trim().toLowerCase()
+  return (un && wl.includes(un)) || (em && wl.includes(em))
 }
 
 export function validateConfig() {

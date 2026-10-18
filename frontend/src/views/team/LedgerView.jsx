@@ -381,9 +381,10 @@ export default function LedgerView() {
               current: query.page,
               pageSize: query.pageSize,
               total,
-              showSizeChanger: false,
+              showSizeChanger: true,
+              pageSizeOptions: [5, 10, 20, 50, 100, 500],
               showTotal: (t) => `共 ${t} 条`,
-              onChange: (page) => setQuery({ page }),
+              onChange: (page, pageSize) => setQuery({ page, pageSize }),
             }}
             locale={{ emptyText: <Empty description="暂无台账记录，点击右上角「新增台账记录」" /> }}
           />

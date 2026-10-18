@@ -8,7 +8,7 @@ export const useLedgerStore = create((set, get) => ({
   total: 0,
   stats: null,
   loading: false,
-  query: { q: '', filter: 'ALL', page: 1, pageSize: 20 },
+  query: { q: '', filter: 'ALL', page: 1, pageSize: 10 },
 
   setQuery: (patch) => {
     set({ query: { ...get().query, ...patch, page: patch.page ?? 1 } })

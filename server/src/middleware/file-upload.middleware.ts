@@ -92,3 +92,74 @@ export function contractFileUpload(req: Request, res: Response, next: NextFuncti
     next()
   })
 }
+
+// 退款工单附件：多文件（字段名 files，≤5 份），常见截图/PDF/Word 凭证
+const refundMulter = multer({
+  storage,
+  defParamCharset: 'utf8',
+  limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.docx', '.txt', '.md']
+    const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase()
+    if (allowed.includes(ext)) {
+      cb(null, true)
+    } else {
+      cb(new BadRequestException(`不支持的附件格式 ${ext}，只支持 ${allowed.join(', ')}`))
+    }
+  },
+}).array('files', 5)
+
+export function refundFileUpload(req: Request, res: Response, next: NextFunction) {
+  refundMulter(req, res, (err?: any) => {
+    if (err) {
+      if (err?.code === 'LIMIT_FILE_SIZE') {
+        return next(new BadRequestException('附件过大，单文件不能超过 10MB'))
+      }
+      if (err?.code === 'LIMIT_FILE_COUNT') {
+        return next(new BadRequestException('附件最多 5 份'))
+      }
+      return next(err)
+    }
+    // 统一解码中文文件名（多文件字段为 req.files）
+    const files = (req as any).files as any[] | undefined
+    if (files) {
+      for (const f of files) f.originalname = decodeOriginalName(f.originalname)
+    }
+    next()
+  })
+}
+
+// 转账凭证截图：字段 proof，≤3 张，仅图片/截图常见格式
+const transferProofMulter = multer({
+  storage,
+  defParamCharset: 'utf8',
+  limits: { fileSize: 10 * 1024 * 1024, files: 3 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.pdf']
+    const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase()
+    if (allowed.includes(ext)) {
+      cb(null, true)
+    } else {
+      cb(new BadRequestException(`不支持的凭证格式 ${ext}，只支持 ${allowed.join(', ')}`))
+    }
+  },
+}).array('proof', 3)
+
+export function transferProofUpload(req: Request, res: Response, next: NextFunction) {
+  transferProofMulter(req, res, (err?: any) => {
+    if (err) {
+      if (err?.code === 'LIMIT_FILE_SIZE') {
+        return next(new BadRequestException('凭证过大，单文件不能超过 10MB'))
+      }
+      if (err?.code === 'LIMIT_FILE_COUNT') {
+        return next(new BadRequestException('凭证最多 3 张'))
+      }
+      return next(err)
+    }
+    const files = (req as any).files as any[] | undefined
+    if (files) {
+      for (const f of files) f.originalname = decodeOriginalName(f.originalname)
+    }
+    next()
+  })
+}

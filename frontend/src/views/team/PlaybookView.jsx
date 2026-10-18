@@ -1,5 +1,5 @@
 // frontend/src/views/team/PlaybookView.jsx
-// 企业 Playbook 审查规则（FR-17，文案对齐 docs/prototype/playbook.html）：
+// Playbook 审查规则（FR-17，个人/团队空间通用；个人页展示为「我的规则」）：
 // 红线规则 / 偏好口径 / 标准合同库（跳转范本提炼）/ 行业专项包。
 // 规则列表带来源标注：AI 提炼（含来源范本标题，可溯源）/ 行业包 / 手动创建（无标签）。
 // 规则编辑：标题 + 合同类型（下拉）+ 规则内容（完整句子）；
@@ -42,7 +42,6 @@ const TYPE_TAG_CLASS = {
 const TABS = [
   { key: 'FORBIDDEN', label: '红线规则' },
   { key: 'PREFERENCE', label: '偏好口径' },
-  { key: 'STANDARD', label: '标准合同库' },
   { key: 'PACK', label: '行业专项包' },
 ]
 
@@ -85,43 +84,22 @@ export default function PlaybookView() {
   const isTeamSpace = entitlement?.workspaceType === 'TEAM'
 
   useEffect(() => { loadEntitlement() }, [loadEntitlement])
-  useEffect(() => {
-    if (isTeamSpace) loadAll()
-  }, [isTeamSpace, loadAll])
+  useEffect(() => { loadAll() }, [loadAll])
 
   const redlineRules = useMemo(() => rules.filter((r) => r.kind === 'FORBIDDEN'), [rules])
   const prefRules = useMemo(() => rules.filter((r) => r.kind === 'PREFERENCE'), [rules])
 
-  // ── 个人空间：加锁付费墙（原型 #locked 文案）──
-  if (entitlement && !isTeamSpace) {
-    return (
-      <div className={css.lockWrap}>
-        <div className={css.lockCard}>
-          <div className={css.lockIcon}><SafetyCertificateFilled /></div>
-          <h3>Playbook 为团队版 / 企业版权益</h3>
-          <p className={shared.muted}>个人版（PERSONAL）不支持公司级审查规则配置</p>
-          <ul className={css.lockFeats}>
-            <li><span className={shared.tick}>✓</span>红线规则 / 偏好口径 / 标准合同库 / 行业专项包</li>
-            <li><span className={shared.tick}>✓</span>负责人 · 法务 · 成员三角色协作审批</li>
-            <li><span className={shared.tick}>✓</span>规则命中统计与团队统一审查口径</li>
-          </ul>
-          <Button type="primary" size="large" block onClick={() => navigate('/pricing')}>了解团队版 TEAM</Button>
-        </div>
-      </div>
-    )
-  }
-
   /** 规则的完整内容句：早期数据可能只有留痕文案/描述，均缺失时回落到标题 */
   const ruleContentOf = (rule) => {
     const p = (rule.naturalPrompt || '').trim()
-    if (p && !p.startsWith('从企业范本')) return p
+    if (p && !/^(从企业范本|从范本)/.test(p)) return p
     return (rule.description || '').trim() || rule.title
   }
 
   /** 列表副标题：仅在有真实内容句/描述时展示，避免与标题重复 */
   const ruleSubText = (rule) => {
     const p = (rule.naturalPrompt || '').trim()
-    if (p && !p.startsWith('从企业范本')) return p
+    if (p && !/^(从企业范本|从范本)/.test(p)) return p
     return (rule.description || '').trim() || null
   }
 
@@ -274,8 +252,8 @@ export default function PlaybookView() {
                   {ruleSubText(r) && <div className={css.cellSub}>{ruleSubText(r)}</div>}
                   {r.source === 'AI' && (
                     <Tooltip title={r.sourceLabel
-                      ? `由 AI 从企业范本《${r.sourceLabel}》提炼，导入前经人工确认`
-                      : '由 AI 从企业范本提炼，导入前经人工确认'}
+                      ? `由 AI 从范本《${r.sourceLabel}》提炼，导入前经人工确认`
+                      : '由 AI 从范本提炼，导入前经人工确认'}
                     >
                       <span className={`${shared.tag} ${shared.tagBlue}`} style={{ marginTop: 4 }}>
                         AI 提炼{r.sourceLabel ? ` · ${r.sourceLabel.length > 12 ? r.sourceLabel.slice(0, 12) + '…' : r.sourceLabel}` : ''}
@@ -310,29 +288,6 @@ export default function PlaybookView() {
           </tbody>
         </table>
       )}
-    </div>
-  )
-
-  const renderStandard = () => (
-    <div className={css.panel}>
-      <div className={css.panelHead}>
-        <h3>标准合同库</h3>
-        <Button type="primary" icon={<UploadOutlined />} onClick={() => navigate('/templates?tab=mine')}>
-          上传 / 管理标准合同
-        </Button>
-      </div>
-      <div style={{ padding: '40px 0' }}>
-        <Empty
-          description={(
-            <span>
-              标准合同库已与「合同范本」打通：在 <b>合同范本 → 我的范本</b> 上传公司标准合同，
-              <br />即可用 AI 自动抽取规则草稿，勾选后导入红线规则（规则会标注来源范本，方便溯源）。
-            </span>
-          )}
-        >
-          <Button type="primary" ghost onClick={() => navigate('/templates?tab=mine')}>从范本提炼规则</Button>
-        </Empty>
-      </div>
     </div>
   )
 
@@ -378,15 +333,20 @@ export default function PlaybookView() {
   )
 
   return (
-    <Spin spinning={loading && isTeamSpace} tip="加载规则中…">
+    <Spin spinning={loading} tip="加载规则中…">
       {/* 工具栏 */}
       <div className={css.toolbar}>
         <div>
-          <h2 style={{ margin: 0, fontSize: 20 }}>审查规则 Playbook</h2>
-          <p className={shared.muted} style={{ margin: '4px 0 0' }}>把公司内部的合规标准变成 AI 的审查口径</p>
+          <h2 style={{ margin: 0, fontSize: 20 }}>{isTeamSpace ? '审查规则 Playbook' : '我的规则'}</h2>
+          <p className={shared.muted} style={{ margin: '4px 0 0' }}>
+            {isTeamSpace ? '把公司内部的合规标准变成 AI 的审查口径' : '把你自己的审查口径沉淀成规则，AI 审每份合同都按你的标准来'}
+          </p>
         </div>
         <div className={css.toolRight}>
-          <Tooltip title="上传公司标准合同范本，AI 提炼候选规则，人工确认后导入">
+          <Tooltip title={isTeamSpace
+            ? '上传公司标准合同范本，AI 提炼候选规则，人工确认后导入'
+            : '上传你常用的合同范本，AI 提炼候选规则，人工确认后导入'}
+          >
             <Button icon={<UploadOutlined />} onClick={() => navigate('/templates?tab=mine')}>
               从范本提炼
             </Button>
@@ -404,9 +364,12 @@ export default function PlaybookView() {
       <div className={css.banner}>
         <span className={css.bico}><SafetyCertificateFilled /></span>
         <div>
-          <b>把公司的合规红线、禁止条款与标准合同沉淀在这里</b>，每份合同都会优先按公司口径审查；规则越用越准，团队的审查标准就越离不开 ClauseMind。
+          <b>{isTeamSpace ? '把公司的合规红线、禁止条款与标准合同沉淀在这里' : '把你自己的红线、偏好口径沉淀在这里'}</b>
+          ，每份合同都会优先按{isTeamSpace ? '公司' : '你的'}口径审查。
           <div className={`${shared.small} ${shared.muted}`} style={{ marginTop: 3 }}>
-            红线命中直接判高风险；偏好口径用于修改建议；标准合同自动抽取规则草稿；行业包一键启用整组规则。
+            {isTeamSpace
+              ? '红线命中直接判高风险；偏好口径用于修改建议；顶部可从公司范本一键提炼规则草稿；行业包一键启用整组规则。'
+              : '红线命中直接判高风险；偏好口径用于修改建议；可在「合同范本 → 我的范本」从自己的范本一键提炼规则草稿；行业包一键启用整组规则。'}
           </div>
         </div>
       </div>
@@ -426,7 +389,6 @@ export default function PlaybookView() {
 
       {tab === 'FORBIDDEN' && renderRuleTable(redlineRules)}
       {tab === 'PREFERENCE' && renderRuleTable(prefRules)}
-      {tab === 'STANDARD' && renderStandard()}
       {tab === 'PACK' && renderPacks()}
 
       {/* 新建 / 编辑规则抽屉 */}

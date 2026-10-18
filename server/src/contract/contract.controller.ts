@@ -35,6 +35,8 @@ import { AuditService } from '../audit/audit.service.js'
 import { FeishuNotifyService } from '../services/feishu/feishu-notify.service.js'
 import { DingtalkNotifyService } from '../services/dingtalk/dingtalk-notify.service.js'
 import { WeworkNotifyService } from '../services/wework/wework-notify.service.js'
+import { createReadStream } from 'node:fs'
+import * as mammoth from 'mammoth'
 
 const SCENES: ReviewScene[] = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM']
 
@@ -410,6 +412,88 @@ export class ContractController implements OnModuleInit {
     const tenantId = (req as any).user.tenantId
     const force = new URL(req.url, 'http://x').searchParams.get('force') === '1'
     return this.structured.getOrExtract(tenantId, id, force)
+  }
+
+  // ── 合同原件在线预览（审查台左侧面板直接预览，不走下载）───────────
+  // docx → mammoth 转 HTML；pdf/jpg/png → inline stream；txt/md → 纯文本包 <pre>。
+  // 所有格式 Content-Disposition: inline，浏览器在 iframe/img 中直接呈现。
+  @Get('contracts/:id/preview')
+  @ApiOperation({
+    summary: '合同原件在线预览',
+    description: '返回可内嵌的预览内容：docx 转 HTML、pdf/图片 inline stream、txt/md 纯文本。跨租户 404。',
+  })
+  @ApiParam({ name: 'id', description: '合同 ID' })
+  async preview(@Req() req: Request, @Res() res: Response, @Param('id') id: string) {
+    const tenantId = (req as any).user.tenantId
+    const contract = await this.db.contract.findFirst({
+      where: { id, tenantId },
+      select: { id: true, fileName: true, storagePath: true, fileType: true },
+    })
+    if (!contract) throw new NotFoundException('合同不存在')
+    if (!contract.storagePath) throw new NotFoundException('该合同无可预览的上传原件')
+
+    const ext = path.extname(contract.fileName).toLowerCase() || `.${contract.fileType?.toLowerCase() ?? ''}`
+
+    try {
+      await fs.access(contract.storagePath)
+    } catch {
+      throw new NotFoundException('原件文件已丢失')
+    }
+
+    // docx → mammoth 转 HTML
+    if (ext === '.docx') {
+      const buffer = await fs.readFile(contract.storagePath)
+      const result = await mammoth.convertToHtml({ buffer })
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;max-width:800px;margin:0 auto;padding:24px;line-height:1.8;color:#111;font-size:14px}
+  h1,h2,h3{margin-top:24px}table{border-collapse:collapse;margin:12px 0}td,th{border:1px solid #ccc;padding:6px 10px}
+  p{margin:6px 0}
+</style>
+</head><body>${result.value}</body></html>`
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Content-Disposition', `inline; filename="preview.html"`)
+      res.send(html)
+      return
+    }
+
+    // pdf → inline stream（浏览器原生 PDF viewer）
+    if (ext === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(contract.fileName)}"`)
+      createReadStream(contract.storagePath).pipe(res)
+      return
+    }
+
+    // 图片 → inline stream
+    if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) {
+      const mime: Record<string, string> = {
+        '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+        '.gif': 'image/gif', '.webp': 'image/webp',
+      }
+      res.setHeader('Content-Type', mime[ext] || 'application/octet-stream')
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(contract.fileName)}"`)
+      createReadStream(contract.storagePath).pipe(res)
+      return
+    }
+
+    // txt / md / 其他文本 → 纯文本 HTML
+    if (['.txt', '.md'].includes(ext) || ext === '') {
+      const text = await fs.readFile(contract.storagePath, 'utf-8')
+      const escaped = text.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))
+      const html = `<!doctype html><html><head><meta charset="utf-8">
+<style>body{font-family:Consolas,"Courier New",monospace;padding:16px;white-space:pre-wrap;word-break:break-word;font-size:13px;line-height:1.7}</style>
+</head><body>${escaped}</body></html>`
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Content-Disposition', `inline; filename="preview.html"`)
+      res.send(html)
+      return
+    }
+
+    // 兜底：二进制 inline
+    res.setHeader('Content-Type', 'application/octet-stream')
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(contract.fileName)}"`)
+    createReadStream(contract.storagePath).pipe(res)
   }
 
   // ── 修改合同类型（手选 / 重新 AI 识别）────────────────────────

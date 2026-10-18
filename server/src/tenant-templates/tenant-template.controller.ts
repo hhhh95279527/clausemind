@@ -1,5 +1,5 @@
 // server/src/tenant-templates/tenant-template.controller.ts
-// 企业自有合同范本接口（/api/tenant-templates，仅团队空间）：
+// 租户自有合同范本接口（/api/tenant-templates，个人/团队空间通用）：
 //   POST   /upload              上传范本（multipart，multer 中间件在 app.module 按路由挂载）
 //   GET    /                    范本列表（不含全文）
 //   GET    /:id                 范本详情（含全文，预览用）
@@ -18,8 +18,8 @@ export class TenantTemplateController {
 
   @Post('upload')
   @ApiOperation({
-    summary: '上传企业合同范本（multipart）',
-    description: '仅团队空间可用。支持文字版 txt/md/docx/pdf（≤30MB），同步提取全文入库；不支持扫描件/图片。每租户上限 30 份。',
+    summary: '上传自有合同范本（multipart）',
+    description: '个人/团队空间均可。支持文字版 txt/md/docx/pdf（≤30MB），同步提取全文入库；不支持扫描件/图片。每租户上限 30 份。',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -37,13 +37,13 @@ export class TenantTemplateController {
   }
 
   @Get()
-  @ApiOperation({ summary: '企业范本列表', description: '返回当前租户的企业范本（不含正文大字段）与数量上限。' })
+  @ApiOperation({ summary: '自有范本列表', description: '返回当前租户的自有范本（不含正文大字段）与数量上限。' })
   list(@Req() req: any) {
     return this.templates.list(req.user.tenantId)
   }
 
   @Get(':id')
-  @ApiOperation({ summary: '企业范本详情（含全文）', description: '在线预览用；跨租户访问返回 404。' })
+  @ApiOperation({ summary: '自有范本详情（含全文）', description: '在线预览用；跨租户访问返回 404。' })
   @ApiParam({ name: 'id', description: '范本 ID' })
   detail(@Req() req: any, @Param('id') id: string) {
     return this.templates.detail(req.user.tenantId, id)
@@ -51,7 +51,7 @@ export class TenantTemplateController {
 
   @Patch(':id')
   @ApiOperation({
-    summary: '在线编辑企业范本（标题/正文）',
+    summary: '在线编辑自有范本（标题/正文）',
     description: '仅修改库内在线文本（在线预览与 AI 提炼规则以修改后的正文为准），不改动磁盘原始上传文件；如需替换文件请删除后重新上传。跨租户访问返回 404。',
   })
   @ApiParam({ name: 'id', description: '范本 ID' })
@@ -69,7 +69,7 @@ export class TenantTemplateController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: '删除企业范本', description: '删除范本记录与磁盘文件；已从该范本导入的审查规则独立保留，不受影响。' })
+  @ApiOperation({ summary: '删除自有范本', description: '删除范本记录与磁盘文件；已从该范本导入的审查规则独立保留，不受影响。' })
   @ApiParam({ name: 'id', description: '范本 ID' })
   remove(@Req() req: any, @Param('id') id: string) {
     return this.templates.remove(req.user.tenantId, req.user.userId, id)

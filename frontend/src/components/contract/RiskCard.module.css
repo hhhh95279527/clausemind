@@ -91,4 +91,33 @@
 .actionBtns {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 修改后的示例 */
+.rewriteBlock {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--color-primary-bg, rgba(37, 99, 235, 0.06));
+  border: 1px dashed var(--color-primary, #2563eb);
+  border-radius: 6px;
+}
+
+.rewriteHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.rewriteInput :global(.ant-input) {
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: 13px;
+  line-height: 1.7;
+  background: #fff;
+}
+
+.rewriteFoot {
+  margin-top: 4px;
 }

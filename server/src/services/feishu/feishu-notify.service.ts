@@ -32,7 +32,9 @@ interface InteractiveCardSpec {
 
 const FETCH_TIMEOUT_MS = 8000
 
-/** 构造飞书 webhook 交互卡片（v1 格式） */
+/** 构造飞书 webhook 交互卡片（v1 格式）。
+ * 卡片标题统一加「ClauseMind · 」前缀：群机器人若配置「自定义关键词」安全设置（推荐方式），
+ * 所有业务推送（终审通过/额度预警/到期 digest）与测试通知都能命中关键词，避免被飞书拒发。 */
 export function buildInteractiveCard(spec: InteractiveCardSpec) {
   const elements: any[] = [
     {
@@ -60,7 +62,7 @@ export function buildInteractiveCard(spec: InteractiveCardSpec) {
       config: { wide_screen_mode: true },
       header: {
         template: spec.template,
-        title: { tag: 'plain_text', content: spec.title },
+        title: { tag: 'plain_text', content: `ClauseMind · ${spec.title}` },
       },
       elements,
     },

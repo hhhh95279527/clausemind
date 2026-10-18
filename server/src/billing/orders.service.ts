@@ -6,17 +6,19 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
 } from '@nestjs/common'
 import type { Order, Prisma, Tenant } from '@prisma/client'
+import fs from 'fs/promises'
 import { DatabaseService } from '../database/database.service.js'
 import { AuditService } from '../audit/audit.service.js'
 import { MailerService } from '../auth/mailer.service.js'
 import { EntitlementsService } from './entitlements.service.js'
 import { getCheckoutItem, type CheckoutItem, type CheckoutItemDef } from './plans.config.js'
-import { config as appConfig } from '../config/index.js'
+import { config as appConfig, isSimulateAccount } from '../config/index.js'
 
 export type PayChannel = 'WECHAT' | 'ALIPAY'
 
@@ -86,11 +88,18 @@ export class OrdersService {
     }
   }
 
-  /** 提交转账订单：创建 PENDING 订单并记录渠道与转账单号，等待平台超管确认 */
+  /** 收银台支付模式：白名单账号可模拟支付（simulatePay=true），其余账号只显示真实转账 */
+  async getPayOptions(userId: string) {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { username: true, email: true } })
+    return { simulatePay: isSimulateAccount(user?.username, user?.email) }
+  }
+
+  /** 提交转账订单：创建 PENDING 订单并记录渠道与转账单号（+可选转账凭证截图），等待平台超管确认 */
   async createTransferOrder(
     tenantId: string,
     userId: string,
     body: { item?: string; channel?: string; transferNo?: string },
+    files?: Express.Multer.File[],
   ) {
     const item = getCheckoutItem((body.item || '').toUpperCase())
     if (!item) throw new BadRequestException('未知商品')
@@ -112,6 +121,13 @@ export class OrdersService {
     })
     if (dup) throw new ConflictException('该转账单号已提交，正在等待管理员确认')
 
+    // 转账凭证截图（≤3 张，multer 已落盘并校验格式/大小）
+    const payProof = (files || []).slice(0, 3).map((f) => ({
+      name: f.originalname.slice(0, 255),
+      size: f.size,
+      path: f.path,
+    }))
+
     const order = await this.db.order.create({
       data: {
         tenantId,
@@ -124,6 +140,7 @@ export class OrdersService {
         createdById: userId,
         payChannel: channel,
         transferNo,
+        payProof: payProof.length ? (payProof as any) : undefined,
       },
     })
 
@@ -132,7 +149,7 @@ export class OrdersService {
       action: 'TRANSFER_ORDER_SUBMIT',
       resource: 'order',
       resourceId: order.id,
-      detail: { item: item.item, channel, transferNo, amountFen: item.amountFen },
+      detail: { item: item.item, channel, transferNo, amountFen: item.amountFen, proofCount: payProof.length },
     })
     // 服务端埋点：转账单提交（漏斗：paywall → 转账提交 → 确认开通）
     await this.db.analyticsEvent.create({
@@ -228,7 +245,13 @@ export class OrdersService {
   }
 
   // ── 模拟支付：PENDING → PAID，事务内应用权益 ─────────────────────────────
+  // 白名单拦截：仅白名单账号可模拟支付；其余账号必须走真实转账+人工确认
   async mockPay(tenantId: string, userId: string, orderId: string, channel: PayChannel) {
+    const user = await this.db.user.findUnique({ where: { id: userId }, select: { username: true, email: true } })
+    if (!isSimulateAccount(user?.username, user?.email)) {
+      throw new ForbiddenException('当前账号需使用转账支付：请转账后提交转账单号，管理员确认到账后开通权益')
+    }
+
     const order = await this.db.order.findFirst({ where: { id: orderId, tenantId } })
     if (!order) throw new NotFoundException('订单不存在')
     if (order.status === 'PAID') throw new ConflictException('订单已支付，请勿重复支付')
@@ -479,9 +502,30 @@ export class OrdersService {
       paidAt: order.paidAt,
       payChannel: order.payChannel,
       transferNo: order.transferNo,
+      payProof: (Array.isArray(order.payProof) ? (order.payProof as any[]) : []).map((p, i) => ({
+        index: i, name: p.name, size: p.size,
+      })),
       rejectReason: order.rejectReason,
       confirmedAt: order.confirmedAt,
     }
+  }
+
+  /** 平台超管：下载转账凭证截图（按 index 定位文件，越界 404） */
+  async getTransferProof(orderId: string, indexRaw: string) {
+    const order = await this.db.order.findUnique({ where: { id: orderId } })
+    if (!order) throw new NotFoundException('订单不存在')
+    const list = Array.isArray(order.payProof) ? (order.payProof as any[]) : []
+    const idx = Number(indexRaw)
+    if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) {
+      throw new NotFoundException('凭证不存在')
+    }
+    const att = list[idx]
+    try {
+      await fs.access(att.path)
+    } catch {
+      throw new NotFoundException('凭证文件已失效')
+    }
+    return { filePath: att.path, fileName: att.name || `proof-${idx + 1}` }
   }
 
   private toItemCode(kind: string, targetPlan: string | null, period: string | null): CheckoutItem | null {

@@ -216,7 +216,7 @@ export class LedgerService {
     opts: { q?: string; filter?: string; page?: number; pageSize?: number } = {},
   ) {
     const page = Math.max(1, Math.floor(Number(opts.page) || 1))
-    const pageSize = Math.min(100, Math.max(1, Math.floor(Number(opts.pageSize) || 20)))
+    const pageSize = Math.min(500, Math.max(1, Math.floor(Number(opts.pageSize) || 10)))
     const now = startOfToday()
     const filter = opts.filter ?? 'ALL'
 

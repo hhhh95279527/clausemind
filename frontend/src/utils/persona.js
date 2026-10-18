@@ -14,9 +14,9 @@ export function resolvePersona(user) {
   return user.role === 'ADMIN' ? 'TEAM' : 'PERSONAL'
 }
 
-/** persona 对应首页路径 */
-export function homePath(user) {
-  return resolvePersona(user) === 'TEAM' ? '/dashboard' : '/home'
+/** persona 对应首页路径（个人/企业已同构，统一为合规仪表盘） */
+export function homePath() {
+  return '/dashboard'
 }
 
 /** hook 形式：组件中直接取当前 persona */

@@ -19,6 +19,7 @@ import platformApi, { PLATFORM_TOKEN_KEY, PLATFORM_USER_KEY, platformErrMessage 
 import PlatformRulesTab from './PlatformRulesTab.jsx'
 import PlatformEvalTab from './PlatformEvalTab.jsx'
 import PlatformBillingTab from './PlatformBillingTab.jsx'
+import PlatformRefundsTab from './PlatformRefundsTab.jsx'
 
 const PLAN_OPTIONS = ['FREE', 'PERSONAL', 'TEAM', 'ENTERPRISE'].map((p) => ({ value: p, label: p }))
 const ROLE_OPTIONS = [
@@ -281,6 +282,17 @@ export default function PlatformConsole() {
       loadAll()
     } catch (err) { message.error(platformErrMessage(err)) }
   }
+  const downloadProof = async (orderId, index, name) => {
+    try {
+      const blob = await platformApi.get(`/transfer-orders/${orderId}/proof/${index}`, { responseType: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name || `proof-${index + 1}`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err) { message.error(platformErrMessage(err)) }
+  }
   const submitReject = async () => {
     if (!rejectTarget) return
     if (!rejectReason.trim()) { message.warning('请填写驳回原因'); return }
@@ -351,6 +363,19 @@ export default function PlatformConsole() {
     { title: '转账单号', dataIndex: 'transferNo', width: 210, render: (v) => (
       <Typography.Text copyable={{ text: v }} style={{ fontSize: 12 }}>{v}</Typography.Text>
     ) },
+    { title: '转账凭证', dataIndex: 'payProof', width: 150, render: (proofs, o) => {
+      if (!proofs || !proofs.length) return <span style={{ color: '#999', fontSize: 12 }}>无截图</span>
+      return (
+        <Space size={4} wrap>
+          {proofs.map((p) => (
+            <Button key={p.index} size="small" type="link" style={{ padding: 0 }}
+              onClick={() => downloadProof(o.id, p.index, p.name)}>
+              截图{p.index + 1}
+            </Button>
+          ))}
+        </Space>
+      )
+    } },
     { title: '提交人', dataIndex: 'submitter', width: 210, ellipsis: true },
     { title: '提交时间', dataIndex: 'createdAt', width: 150, render: (t) => t ? new Date(t).toLocaleString('zh-CN') : '-' },
     { title: '状态', dataIndex: 'status', width: 110, render: (s, o) => {
@@ -438,6 +463,11 @@ export default function PlatformConsole() {
       key: 'traces',
       label: '调用链路',
       children: <TraceTab />,
+    },
+    {
+      key: 'refunds',
+      label: '退款工单',
+      children: activeTab === 'refunds' ? <PlatformRefundsTab /> : null,
     },
     {
       key: 'funnel',

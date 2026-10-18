@@ -5,8 +5,8 @@
 //   POST   /api/billing/orders/:id/mock-pay       模拟支付，立即生效
 //   POST   /api/billing/subscription/cancel       取消订阅（二次确认）
 //   POST   /api/billing/enterprise-lead           企业版/席位增购留资
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
+import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { OrdersService, type PayChannel } from './orders.service.js'
 
 const CHECKOUT_ITEMS = ['PERSONAL_MONTHLY', 'PERSONAL_YEARLY', 'COUPON_PACK', 'TEAM_MONTHLY']
@@ -109,11 +109,19 @@ export class OrdersController {
     return this.orders.getPaymentInfo()
   }
 
-  // 提交转账订单：{ item, channel: WECHAT/ALIPAY/BANK, transferNo }，等待超管确认到账
+  /** 收银台支付模式：白名单账号可模拟支付，其余账号仅真实转账 */
+  @Get('pay-options')
+  @ApiOperation({ summary: '收银台支付模式', description: '返回当前账号是否可模拟支付（simulatePay）。' })
+  async payOptions(@Req() req: any) {
+    return this.orders.getPayOptions(req.user.userId)
+  }
+
+  // 提交转账订单（multipart：item/channel/transferNo + proof 截图 ≤3 张），等待超管确认到账
   @Post('transfer-orders')
+  @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: '提交转账支付订单',
-    description: '提交转账单号后等待平台超管人工确认到账；确认后开通对应套餐，续费自原到期日顺延。同一转账单号重复提交会被拦截。',
+    description: '提交转账单号 + 可选凭证截图后等待平台超管人工确认到账；确认后开通对应套餐。同一转账单号重复提交会被拦截。',
   })
   @ApiBody({
     schema: {
@@ -123,6 +131,7 @@ export class OrdersController {
         item: { type: 'string', enum: CHECKOUT_ITEMS, description: '商品编码' },
         channel: { type: 'string', enum: ['WECHAT', 'ALIPAY', 'BANK'], description: '转账渠道' },
         transferNo: { type: 'string', description: '转账凭证单号/流水号' },
+        proof: { type: 'array', items: { type: 'string', format: 'binary' }, description: '转账截图（≤3 张，单张 ≤10MB）' },
       },
     },
   })
@@ -130,6 +139,21 @@ export class OrdersController {
     @Req() req: any,
     @Body() body: { item?: string; channel?: string; transferNo?: string },
   ) {
-    return this.orders.createTransferOrder(req.user.tenantId, req.user.userId, body)
+    return this.orders.createTransferOrder(req.user.tenantId, req.user.userId, body, req.files)
+  }
+
+  /** 下载转账凭证截图（按 index） */
+  @Get('transfer-orders/:id/proof/:index')
+  @ApiOperation({ summary: '下载转账凭证截图', description: '按截图下标下载转账凭证图片（0 起）。' })
+  @ApiParam({ name: 'id', description: '订单 ID' })
+  @ApiParam({ name: 'index', description: '凭证下标' })
+  async downloadProof(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('index') index: string,
+    @Res() res: any,
+  ) {
+    const { filePath, fileName } = await this.orders.getTransferProof(id, index)
+    res.download(filePath, fileName)
   }
 }

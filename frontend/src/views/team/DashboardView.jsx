@@ -46,11 +46,12 @@ export default function DashboardView() {
   const navigate = useNavigate()
   const { data, loading, loadSummary } = useDashboardStore()
   const { entitlement, loadEntitlement } = useMeStore()
+  const isTeamSpace = entitlement?.workspaceType === 'TEAM'
 
   useEffect(() => { loadEntitlement() }, [loadEntitlement])
   useEffect(() => {
-    if (entitlement?.workspaceType === 'TEAM') loadSummary()
-  }, [entitlement?.workspaceType, loadSummary])
+    if (entitlement) loadSummary()
+  }, [entitlement, loadSummary])
 
   const greeting = useMemo(() => {
     const h = new Date().getHours()
@@ -59,25 +60,6 @@ export default function DashboardView() {
     if (h < 18) return '下午好'
     return '晚上好'
   }, [])
-
-  // 个人空间：加锁付费墙
-  if (entitlement && entitlement.workspaceType !== 'TEAM') {
-    return (
-      <div className={styles.lockWrap}>
-        <div className={styles.lockCard}>
-          <div className={styles.lockIcon}><SafetyCertificateFilled /></div>
-          <h3>合规仪表盘为团队版 / 企业版权益</h3>
-          <p className={styles.lockMuted}>个人版（PERSONAL）不支持团队级合规数据汇总</p>
-          <ul className={styles.lockFeats}>
-            <li><span className={styles.tick}>✓</span>待审批与公司红线命中待办，团队统一处理</li>
-            <li><span className={styles.tick}>✓</span>近 30 天风险趋势与高频风险类别 Top 5</li>
-            <li><span className={styles.tick}>✓</span>合同到期提醒、套餐用量与 Playbook 命中概览</li>
-          </ul>
-          <Button type="primary" size="large" block onClick={() => navigate('/pricing')}>了解团队版 TEAM</Button>
-        </div>
-      </div>
-    )
-  }
 
   if (loading && !data) {
     return <div className={styles.center}><Spin size="large" tip="加载仪表盘…" /></div>
@@ -104,7 +86,7 @@ export default function DashboardView() {
           </div>
         </div>
         <div className={styles.toolbarRight}>
-          <Tag color="purple">{plan.label || '团队版'}</Tag>
+          <Tag color="purple">{plan.label || (isTeamSpace ? '团队版' : '个人空间')}</Tag>
           <Button icon={<ReloadOutlined />} onClick={loadSummary} loading={loading}>刷新</Button>
         </div>
       </div>
@@ -128,8 +110,8 @@ export default function DashboardView() {
         <a className={styles.quickCard} onClick={() => navigate('/playbook')}>
           <div className={styles.quickIcon}><SafetyCertificateFilled /></div>
           <div>
-            <h3>配置审查规则</h3>
-            <p>红线 / 偏好 / 标准合同</p>
+            <h3>{isTeamSpace ? '配置审查规则' : '配置我的规则'}</h3>
+            <p>红线 / 偏好 / 行业包</p>
           </div>
         </a>
       </div>
@@ -156,17 +138,19 @@ export default function DashboardView() {
           <div className={`${styles.statNum} ${styles.danger}`}>{risk30d.high}</div>
           <div className={styles.statFoot}>中风险 {risk30d.med} · 低风险 {risk30d.low}</div>
         </div>
-        <div className={styles.statCard}>
-          <div className={styles.statTop}><CalendarOutlined /> 台账临期</div>
-          <div className={`${styles.statNum} ${styles.danger}`}>
-            {stats.due30Ledger + stats.expiredLedger}<span className={styles.statUnit}> 份</span>
+        {isTeamSpace && (
+          <div className={styles.statCard}>
+            <div className={styles.statTop}><CalendarOutlined /> 台账临期</div>
+            <div className={`${styles.statNum} ${styles.danger}`}>
+              {stats.due30Ledger + stats.expiredLedger}<span className={styles.statUnit}> 份</span>
+            </div>
+            <div className={styles.statFoot}>
+              {stats.expiredLedger > 0
+                ? <>其中 {stats.expiredLedger} 份已过期，<a onClick={() => navigate('/ledger')}>去处理</a></>
+                : <a onClick={() => navigate('/ledger')}>查看合同台账</a>}
+            </div>
           </div>
-          <div className={styles.statFoot}>
-            {stats.expiredLedger > 0
-              ? <>其中 {stats.expiredLedger} 份已过期，<a onClick={() => navigate('/ledger')}>去处理</a></>
-              : <a onClick={() => navigate('/ledger')}>查看合同台账</a>}
-          </div>
-        </div>
+        )}
       </div>
 
       <div className={styles.dashCols}>
@@ -190,7 +174,7 @@ export default function DashboardView() {
                       <Tag color="orange" className={styles.dotTag}>待法务审</Tag>
                       <div className={styles.todoMain}>
                         <b>{t.title}</b>
-                        <div>{t.riskCount} 条风险待确认{t.playbookCount > 0 ? ` · 命中 ${t.playbookCount} 条公司红线` : ''}</div>
+                        <div>{t.riskCount} 条风险待确认{t.playbookCount > 0 ? ` · 命中 ${t.playbookCount} 条${isTeamSpace ? '公司红线' : '规则'}` : ''}</div>
                       </div>
                       <span className={styles.todoTime}>{formatTime(t.createdAt)}</span>
                     </>
@@ -230,33 +214,35 @@ export default function DashboardView() {
         </div>
 
         <div className={styles.col}>
-          {/* 到期提醒 */}
-          <div className={styles.panel}>
-            <div className={styles.panelHead}>
-              <h3>合同到期提醒</h3>
-              <a className={styles.smallLink} onClick={() => navigate('/ledger')}>合同台账</a>
+          {/* 到期提醒（台账能力，团队空间专属） */}
+          {isTeamSpace && (
+            <div className={styles.panel}>
+              <div className={styles.panelHead}>
+                <h3>合同到期提醒</h3>
+                <a className={styles.smallLink} onClick={() => navigate('/ledger')}>合同台账</a>
+              </div>
+              <div className={styles.panelBody}>
+                {deadlines.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="近 90 天无到期合同" />}
+                {deadlines.map((d) => {
+                  const tg = deadlineTag(d)
+                  const dd = new Date(d.date)
+                  const mdText = `${pad(dd.getMonth() + 1)}月${pad(dd.getDate())}日`
+                  return (
+                    <div key={`${d.ledgerId}-${d.kind}`} className={styles.deadlineRow}
+                      onClick={() => navigate('/ledger')}>
+                      <Tag color={tg.color}>{tg.text}</Tag>
+                      <b>
+                        {d.kind === 'PROBATION'
+                          ? `${d.name} · 试用期 ${mdText}`
+                          : `${d.name} · ${d.contractTypeLabel}`}
+                      </b>
+                      <span className={styles.deadlineDate}>{`${dd.getFullYear()}-${pad(dd.getMonth() + 1)}-${pad(dd.getDate())}`}</span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div className={styles.panelBody}>
-              {deadlines.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="近 90 天无到期合同" />}
-              {deadlines.map((d) => {
-                const tg = deadlineTag(d)
-                const dd = new Date(d.date)
-                const mdText = `${pad(dd.getMonth() + 1)}月${pad(dd.getDate())}日`
-                return (
-                  <div key={`${d.ledgerId}-${d.kind}`} className={styles.deadlineRow}
-                    onClick={() => navigate('/ledger')}>
-                    <Tag color={tg.color}>{tg.text}</Tag>
-                    <b>
-                      {d.kind === 'PROBATION'
-                        ? `${d.name} · 试用期 ${mdText}`
-                        : `${d.name} · ${d.contractTypeLabel}`}
-                    </b>
-                    <span className={styles.deadlineDate}>{`${dd.getFullYear()}-${pad(dd.getMonth() + 1)}-${pad(dd.getDate())}`}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+          )}
 
           {/* 套餐用量 */}
           <div className={styles.panel}>
@@ -270,27 +256,46 @@ export default function DashboardView() {
                 <b>{stats.monthReviews} {stats.reviewQuota ? `/ ${stats.reviewQuota} 份` : '份 · 不限'}</b>
               </div>
               <div className={styles.progress}><i style={{ width: `${reviewPct}%` }} /></div>
-              <div className={styles.usageLine} style={{ marginTop: 14 }}>
-                <span>团队席位</span>
-                <b>{plan.usedSeats} {plan.seats ? `/ ${plan.seats} 席` : '席 · 不限'}</b>
-              </div>
-              <div className={styles.progress}><i style={{ width: `${seatPct}%` }} /></div>
-              <div className={styles.usageLine} style={{ marginTop: 14 }}>
-                <span>台账条目</span>
-                <b>{stats.ledgerTotal} 条 · {stats.ledgerMaxItems ? `最多 ${stats.ledgerMaxItems}` : '不限'}</b>
-              </div>
+              {isTeamSpace && (
+                <>
+                  <div className={styles.usageLine} style={{ marginTop: 14 }}>
+                    <span>团队席位</span>
+                    <b>{plan.usedSeats} {plan.seats ? `/ ${plan.seats} 席` : '席 · 不限'}</b>
+                  </div>
+                  <div className={styles.progress}><i style={{ width: `${seatPct}%` }} /></div>
+                </>
+              )}
+              {isTeamSpace && (
+                <>
+                  <div className={styles.usageLine} style={{ marginTop: 14 }}>
+                    <span>台账条目</span>
+                    <b>{stats.ledgerTotal} 条 · {stats.ledgerMaxItems ? `最多 ${stats.ledgerMaxItems}` : '不限'}</b>
+                  </div>
+                </>
+              )}
+              {!isTeamSpace && (
+                <div className={styles.usageLine} style={{ marginTop: 14 }}>
+                  <span>深度券余额</span>
+                  <b>{entitlement?.couponBalance ?? 0} 张</b>
+                </div>
+              )}
               <Button block style={{ marginTop: 16 }} onClick={() => navigate('/billing')}>管理套餐与用量</Button>
             </div>
           </div>
 
-          {/* Playbook 命中概览 */}
+          {/* Playbook 命中概览（个人/团队空间通用，个人页文案为「我的规则」） */}
           <div className={styles.panel}>
             <div className={styles.panelHead}>
-              <h3>Playbook 命中概览</h3>
-              <Tag color="purple">公司规则</Tag>
+              <h3>{isTeamSpace ? 'Playbook 命中概览' : '我的规则命中'}</h3>
+              <Tag color="purple">{isTeamSpace ? '公司规则' : '我的规则'}</Tag>
             </div>
             <div className={styles.panelBody}>
-              {playbookHits.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="近 30 天暂无公司规则命中" />}
+              {playbookHits.length === 0 && (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={isTeamSpace ? '近 30 天暂无公司规则命中' : '近 30 天暂无规则命中，可到「我的规则」配置'}
+                />
+              )}
               {playbookHits.map((r) => (
                 <div key={r.id} className={styles.todoItem} onClick={() => navigate('/playbook')}>
                   <Tag color={r.kind === 'FORBIDDEN' ? 'error' : 'warning'}>

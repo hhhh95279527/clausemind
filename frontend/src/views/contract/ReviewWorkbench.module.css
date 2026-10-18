@@ -69,9 +69,9 @@
   gap: 12px;
 }
 
-/* 左：条款 */
+/* 左：预览面板 */
 .clausePanel {
-  width: 260px;
+  width: 320px;
   flex-shrink: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -194,7 +194,7 @@
 
 /* 右：审查进程 */
 .sidePanel {
-  width: 280px;
+  width: 240px;
   flex-shrink: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -382,3 +382,40 @@
 }
 
 .obligationItem { line-height: 1.8; }
+
+/* 合同原件预览 */
+.previewToolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-light);
+  flex-shrink: 0;
+}
+
+.previewTitle {
+  font-size: 13px;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.previewFrame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+
+.previewEmpty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-align: center;
+}

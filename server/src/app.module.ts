@@ -2,7 +2,7 @@
 // 根模块：全局守卫（JWT 默认开启 + RBAC）+ 业务模块注册 + 中间件按路由挂载
 import { MiddlewareConsumer, Module, NestModule, OnApplicationShutdown, RequestMethod } from '@nestjs/common'
 import { APP_GUARD } from '@nestjs/core'
-import { requestLogger, RateLimiterMiddleware, fileUpload, contractFileUpload } from './middleware'
+import { requestLogger, RateLimiterMiddleware, fileUpload, contractFileUpload, refundFileUpload, transferProofUpload } from './middleware'
 import { DatabaseModule } from './database/database.module'
 import { RedisModule } from './redis/redis.module'
 import { ObservabilityModule } from './observability/observability.module'
@@ -29,6 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module.js'
 import { FeedbackModule } from './feedback/feedback.module.js'
 import { InviteModule } from './invite/invite.module.js'
 import { PlatformModule } from './platform/platform.module.js'
+import { RefundsModule } from './refunds/refunds.module.js'
 import { FeishuModule } from './services/feishu/feishu.module.js'
 import { DingtalkModule } from './services/dingtalk/dingtalk.module.js'
 import { WeworkModule } from './services/wework/wework.module.js'
@@ -88,6 +89,8 @@ import { logger } from './utils/logger.js'
     WeworkModule,
     // 平台级超级管理员（独立账号体系，跨租户管理）
     PlatformModule,
+    // 退款工单：申请 → AI 客服 → 人工 → 处理（同意=退款降级）
+    RefundsModule,
   ],
   providers: [
     // 全局守卫：先认证后鉴权。默认所有路由需登录，@Public() 放行
@@ -118,6 +121,14 @@ export class AppModule implements NestModule, OnApplicationShutdown {
     // 企业范本上传：复用知识库 multer（30MB，txt/md/pdf/docx）
     consumer.apply(fileUpload)
       .forRoutes({ path: 'api/tenant-templates/upload', method: RequestMethod.POST })
+
+    // 退款工单创建：附件多文件上传（≤5 份 × 10MB）
+    consumer.apply(refundFileUpload)
+      .forRoutes({ path: 'api/refunds', method: RequestMethod.POST })
+
+    // 转账支付提交：凭证截图（proof，≤3 张 × 10MB）
+    consumer.apply(transferProofUpload)
+      .forRoutes({ path: 'api/billing/transfer-orders', method: RequestMethod.POST })
 
     // 发起审查属 AI 消耗入口，纳入入口限流
     consumer.apply(RateLimiterMiddleware).forRoutes(

@@ -1,5 +1,5 @@
 // server/src/playbook/playbook.service.ts
-// Playbook 企业审查规则（FR-17）：
+// Playbook 审查规则（FR-17，个人/团队空间通用，个人页展示为「我的规则」）：
 //   租户红线/偏好规则 CRUD + 启停 + 命中统计；自然语言 AI 转结构化草稿（无 Key 409 手写兜底）；
 //   样例条款本地正则/关键词试命中（不耗模型）；行业专项包一键复制为租户规则。
 import {
@@ -11,7 +11,6 @@ import {
 import type { PlaybookKind, PlaybookRule, Severity } from '@prisma/client'
 import { DatabaseService } from '../database/database.service.js'
 import { AuditService } from '../audit/audit.service.js'
-import { EntitlementsService } from '../billing/entitlements.service.js'
 import { config as appConfig, isValidAiKey } from '../config/index.js'
 import { createChatModel } from '../services/model.js'
 import { tryRuleOnText } from '../contract/rules/rule.engine.js'
@@ -61,7 +60,7 @@ function assertRegex(regex?: string | null) {
 const HIT_WINDOW_DAYS = 30
 /** 单租户规则总数上限（防 AI 批量提炼滥用） */
 const MAX_RULES_PER_TENANT = 200
-/** 单次从企业范本导入的候选上限，与提炼接口产出上限对齐 */
+/** 单次从范本导入的候选上限，与提炼接口产出上限对齐 */
 const MAX_IMPORT_RULES = 8
 
 @Injectable()
@@ -69,14 +68,12 @@ export class PlaybookService {
   constructor(
     private readonly db: DatabaseService,
     private readonly audit: AuditService,
-    private readonly entitlements: EntitlementsService,
   ) {}
 
-  /** Playbook 为团队空间能力：所有读写先过租户空间断言 */
+  /** 规则按租户隔离，个人/团队空间均可配置：只断言租户存在 */
   private async assertAccess(tenantId: string) {
     const tenant = await this.db.tenant.findUnique({ where: { id: tenantId } })
     if (!tenant) throw new NotFoundException('工作空间不存在')
-    this.entitlements.assertTeamSpace(tenant.plan)
     return tenant
   }
 
@@ -196,7 +193,7 @@ export class PlaybookService {
   }
 
   /**
-   * 从企业范本批量导入候选规则（人工勾选/编辑后调用）。
+   * 从自有范本批量导入候选规则（人工勾选/编辑后调用）。
    * 逐条走 cleanDto 同款校验；source=AI，naturalPrompt 留痕来源范本；
    * 范本存在性强制租户隔离，规则数受 MAX_RULES_PER_TENANT 约束。
    */
@@ -221,7 +218,7 @@ export class PlaybookService {
       throw new BadRequestException('缺少范本 ID')
     }
     const template = await this.db.tenantTemplate.findFirst({ where: { id: templateId, tenantId } })
-    if (!template) throw new NotFoundException('企业范本不存在')
+    if (!template) throw new NotFoundException('范本不存在')
     if (!Array.isArray(rules) || !rules.length) throw new BadRequestException('请至少勾选一条规则')
     if (rules.length > MAX_IMPORT_RULES) {
       throw new BadRequestException(`单次最多导入 ${MAX_IMPORT_RULES} 条规则`)
@@ -254,13 +251,13 @@ export class PlaybookService {
         title: cleaned.title,
         description: null as string | null,
         // 优先存完整规则内容句；早期版本无 content 时回落到来源留痕
-        naturalPrompt: content.slice(0, 1000) || `从企业范本《${template.title}》AI 提炼，导入前经人工确认`,
+        naturalPrompt: content.slice(0, 1000) || `从范本《${template.title}》AI 提炼，导入前经人工确认`,
         kind: (cleaned.kind ?? 'FORBIDDEN') as PlaybookKind,
         contractTypes: cleaned.contractTypes ?? [],
         enabled: true,
         pattern: cleaned.pattern as any,
         source: 'AI' as const,
-        // 溯源：记录提炼自哪份企业范本（编辑规则不会覆盖该字段）
+        // 溯源：记录提炼自哪份自有范本（编辑规则不会覆盖该字段）
         sourceLabel: template.title.slice(0, 200),
       }
     })

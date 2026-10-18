@@ -124,6 +124,27 @@ export class RevisionController {
     return this.revisions.rebuttal((req as any).user.tenantId, riskId)
   }
 
+  // ── 用户手写改写句（覆盖 AI 生成的 rewritten，采纳后导出用用户版本）──
+  @Post('risks/:riskId/rewrite')
+  @ApiOperation({ summary: '审查台：保存用户手写的改写句并标记采纳', description: '用户在风险卡片里手写自己的修改示例，保存后覆写 risk.rewritten 并置 revisionStatus=ACCEPTED。Word/PDF 导出将使用该版本。' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['rewritten'],
+      properties: {
+        rewritten: { type: 'string', description: '用户手写的改写后条款文本（最终进入修订稿的版本）' },
+      },
+    },
+  })
+  async saveRewrite(
+    @Req() req: Request,
+    @Param('riskId') riskId: string,
+    @Body() body: { rewritten?: string },
+  ) {
+    if (!body.rewritten?.trim()) return { ok: false, error: '改写内容不能为空' }
+    return this.revisions.saveRewrite((req as any).user.tenantId, riskId, body.rewritten.trim())
+  }
+
   // ── 改稿台：导出修订稿 PDF（redline 红划线 / clean 干净终版）──
   @Get('contracts/:id/revisions/pdf')
   @ApiOperation({

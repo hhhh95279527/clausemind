@@ -8,9 +8,6 @@ import {
   SolutionOutlined,
   AppstoreOutlined,
   SafetyCertificateOutlined,
-  HomeOutlined,
-  FileAddOutlined,
-  FileTextOutlined,
   FolderOutlined,
   BookOutlined,
   CreditCardOutlined,
@@ -18,7 +15,6 @@ import {
   TeamOutlined,
   ApiOutlined,
   PlayCircleOutlined,
-  EditOutlined,
   BulbOutlined,
 } from '@ant-design/icons'
 
@@ -34,15 +30,17 @@ export const publicFooterLinks = [
   { path: '/terms',  label: '用户协议' },
 ]
 
-// ── 个人布局：侧边栏 7 项 ────────────────────────────────────────────────────
+// ── 个人布局：与企业版同构（共享路由），仅少团队席位/集成中心两项团队专属板块 ──
 export const personalNav = [
-  { path: '/home',          icon: HomeOutlined,         label: '工作台' },
-  { path: '/new',           icon: FileAddOutlined,      label: '审合同' },
-  { path: '/my-contracts',  icon: FileTextOutlined,     label: '我的合同' },
-  { path: '/templates',     icon: BookOutlined,         label: '合同范本' },
-  { path: '/knowledge',     icon: ReadOutlined,         label: '法规问答' },
-  { path: '/me/billing',    icon: CreditCardOutlined,   label: '我的订阅' },
-  { path: '/feedback',      icon: BulbOutlined,         label: '建议反馈' },
+  { path: '/dashboard',  icon: DashboardOutlined,         label: '合规仪表盘' },
+  { path: '/contracts',  icon: SafetyCertificateOutlined, label: '合同审查' },
+  { path: '/playbook',   icon: PlayCircleOutlined,        label: '我的规则' },
+  { path: '/templates',  icon: BookOutlined,              label: '合同范本' },
+  { path: '/knowledge',  icon: ReadOutlined,              label: '法规问答' },
+  { path: '/agent',      icon: RobotOutlined,             label: '任务 Agent' },
+  { path: '/ledger',     icon: FolderOutlined,            label: '到期预警' },
+  { path: '/billing',    icon: CreditCardOutlined,        label: '我的套餐' },
+  { path: '/feedback',   icon: BulbOutlined,              label: '建议反馈' },
 ]
 
 // ── 企业布局：侧边栏（仅业务功能；平台运维工具统一在 /platform 超管控制台）────
@@ -70,19 +68,17 @@ export const pageMeta = {
   '/privacy':     { title: '隐私政策',     icon: SafetyCertificateOutlined, desc: '数据收集范围与保留策略' },
   '/terms':       { title: '用户协议',     icon: SafetyCertificateOutlined, desc: '服务条款与 AI 免责声明' },
 
-  // 个人
-  '/home':          { title: '工作台',     icon: HomeOutlined,       desc: '免费额度、场景入口、最近审查' },
-  '/new':           { title: '新建审查',   icon: FileAddOutlined,    desc: '场景选择、粘贴或上传合同' },
-  '/my-contracts':  { title: '我的合同',   icon: FileTextOutlined,   desc: '审查历史 / 个人条款库 / 关注偏好' },
-  '/me/billing':    { title: '我的订阅',   icon: CreditCardOutlined,  desc: '套餐、券包、订单' },
-  '/checkout':      { title: '收银台',     icon: CreditCardOutlined,  desc: '模拟支付，立即生效' },
+  // 个人与企业同构（/dashboard /contracts /ledger /billing 见企业段）
+
+  // 收银台（订阅/券包支付）
+  '/checkout':     { title: '收银台',     icon: CreditCardOutlined,  desc: '模拟支付，立即生效' },
 
   // 企业
   '/dashboard':     { title: '合规仪表盘', icon: DashboardOutlined,  desc: '统计卡、待办、风险趋势、到期分桶' },
   '/contracts':     { title: '合同审查',   icon: SafetyCertificateOutlined, desc: '双轨审查 + 人工终审 + 审批流' },
   '/ledger':        { title: '合同台账',   icon: FolderOutlined,     desc: '全生命周期：新建 / 续签 / 解除 / 到期预警' },
   '/agent':         { title: '任务 Agent', icon: RobotOutlined,      desc: '自然语言任务自动拆解与工具调用可视化' },
-  '/playbook':      { title: '审查规则',   icon: PlayCircleOutlined,  desc: '红线 / 偏好 / 标准库 / 行业包' },
+  '/playbook':      { title: '我的规则',   icon: PlayCircleOutlined,  desc: '红线 / 偏好 / 行业包' },
   '/team':          { title: '团队席位',   icon: TeamOutlined,       desc: '成员、角色、席位用量' },
   '/integrations':  { title: '集成中心',   icon: ApiOutlined,         desc: '飞书 Webhook / MCP，其他联系开通' },
   '/billing':       { title: '我的套餐',   icon: CreditCardOutlined,  desc: '团队席位、增购、企业版留资' },
@@ -100,9 +96,7 @@ export const fallbackMeta = { title: 'ClauseMind', icon: AppstoreOutlined }
 
 // 动态详情路由（按前缀匹配）
 const pageMetaPatterns = [
-  { prefix: '/contracts/', meta: { title: '合同审批详情', icon: SafetyCertificateOutlined, desc: '双轨风险、人工终审、意见书' } },
-  { prefix: '/review/', meta: { title: '审查结果', icon: FileTextOutlined, desc: '评分、大白话摘要、风险点与追问' } },
-  { prefix: '/draft/', meta: { title: 'AI 改稿台', icon: EditOutlined, desc: '红删蓝增、逐条接受、Word 导出' } },
+  { prefix: '/contracts/', meta: { title: '合同审查工作台', icon: SafetyCertificateOutlined, desc: '双轨风险、人工终审、意见书' } },
 ]
 
 /** 按 pathname 解析页面元信息：先精确匹配，再前缀匹配动态路由，最后兜底 */

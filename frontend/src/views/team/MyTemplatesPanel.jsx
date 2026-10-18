@@ -1,5 +1,5 @@
 // frontend/src/views/team/MyTemplatesPanel.jsx
-// 企业自有合同范本库（仅团队空间）：
+// 租户自有合同范本库（个人/团队空间通用）：
 //   上传文字版 Word/PDF/TXT/MD → 列表/预览/删除 → AI 提炼候选审查规则
 //   候选必须人工勾选/编辑/样例测试后才导入 Playbook（source=AI，导入即启用）。
 import { useEffect, useMemo, useState } from 'react'
@@ -13,6 +13,7 @@ import {
   RobotOutlined, UploadOutlined,
 } from '@ant-design/icons'
 import http from '@/utils/http.js'
+import { useMeStore } from '@/stores/me.js'
 import { useTenantTemplateStore } from '@/stores/tenant-template.js'
 import css from './templates.module.css'
 
@@ -38,6 +39,7 @@ const fmtSize = (n) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` 
 
 export default function MyTemplatesPanel() {
   const navigate = useNavigate()
+  const isTeamSpace = useMeStore((s) => s.entitlement?.workspaceType) === 'TEAM'
   const { templates, limit, loading, uploading, load, upload, detail, update, remove, extractRules, importRules } =
     useTenantTemplateStore()
 
@@ -273,7 +275,8 @@ export default function MyTemplatesPanel() {
     <div>
       <div className={css.myHead}>
         <div className={css.myHint}>
-          上传公司标准合同范本（文字版 Word/PDF/TXT，≤{MAX_MB}MB），AI 可从中提炼个性化审查规则；
+          {isTeamSpace ? '上传公司标准合同范本' : '上传你常用的合同范本'}
+          （文字版 Word/PDF/TXT，≤{MAX_MB}MB），AI 可从中提炼个性化审查规则；
           <b> 提炼结果需人工勾选确认后才会生效</b>。已存 {templates.length}/{limit} 份。
         </div>
         <Upload {...uploadProps} disabled={reachLimit || uploading}>
@@ -288,7 +291,9 @@ export default function MyTemplatesPanel() {
         {templates.length === 0 && !loading ? (
           <Empty
             className={css.myEmpty}
-            description="还没有企业范本，上传一份公司标准合同试试（建议使用文字版 .docx）"
+            description={isTeamSpace
+              ? '还没有企业范本，上传一份公司标准合同试试（建议使用文字版 .docx）'
+              : '还没有范本，上传一份你常用的合同试试（建议使用文字版 .docx）'}
           />
         ) : (
           <Table
@@ -324,7 +329,7 @@ export default function MyTemplatesPanel() {
       {/* 编辑范本：标题 + 正文（只改在线文本，不动原始文件） */}
       <Modal
         open={!!editing}
-        title="编辑企业范本"
+        title={isTeamSpace ? '编辑企业范本' : '编辑范本'}
         width={760}
         destroyOnClose
         maskClosable={false}

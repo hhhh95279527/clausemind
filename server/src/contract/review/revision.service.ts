@@ -178,9 +178,28 @@ export class RevisionService {
       throw new BadRequestException('修订状态不合法')
     }
     const { risk } = await this.loadRiskForTenant(tenantId, riskId)
-    if (!risk.rewritten) throw new BadRequestException('该风险尚未生成改写建议')
+    if (!risk.rewritten && status !== 'REJECTED') {
+      throw new BadRequestException('该风险尚未生成改写建议')
+    }
     await this.db.risk.update({ where: { id: riskId }, data: { revisionStatus: status } })
     return { id: riskId, revisionStatus: status }
+  }
+
+  /**
+   * 用户手写改写句 —— 覆写 risk.rewritten 并置 revisionStatus=ACCEPTED。
+   * 不管之前有没有 AI 生成过、不管之前是什么状态，以用户手写为准。
+   */
+  async saveRewrite(tenantId: string, riskId: string, rewritten: string) {
+    const { risk } = await this.loadRiskForTenant(tenantId, riskId)
+    await this.db.risk.update({
+      where: { id: riskId },
+      data: {
+        rewritten: rewritten.slice(0, 2000),
+        revisionStatus: 'ACCEPTED',
+        status: risk.status === 'ACCEPTED' ? 'ACCEPTED' : risk.status, // 保留原审查状态，不影响已有的采纳状态
+      },
+    })
+    return { id: riskId, rewritten, revisionStatus: 'ACCEPTED' as const }
   }
 
   /** 全部接受（仅 PENDING/REJECTED → ACCEPTED） */
