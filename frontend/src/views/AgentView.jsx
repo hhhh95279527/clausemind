@@ -1,94 +1,97 @@
 // frontend/src/views/AgentView.jsx
-// Agent 页面：左侧任务输入 + 示例/工具，右侧执行记录
-import { useState, useEffect, useMemo } from 'react'
+// Agent 页面：左 会话列表（多轮持久化）｜右 聊天区（工具步骤 + Markdown 回答 + 底部输入）
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { renderMarkdown } from '@/utils/markdown.js'
 import { useAgentStore } from '@/stores/agent.js'
 import { useAppStore } from '@/stores/app.js'
+import { useMeStore } from '@/stores/me.js'
+import SessionSidebar from '@/components/rag/SessionSidebar.jsx'
 import ToolCallCard from '@/components/agent/ToolCallCard.jsx'
 import styles from './AgentView.module.css'
 
-function formatTime(iso) {
-  return iso
-    ? new Date(iso).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : ''
-}
-
 export default function AgentView() {
-  const tasks = useAgentStore((s) => s.tasks)
+  const messages = useAgentStore((s) => s.messages)
   const running = useAgentStore((s) => s.running)
   const examples = useAgentStore((s) => s.examples)
   const toolList = useAgentStore((s) => s.toolList)
-  const clearTasks = useAgentStore((s) => s.clearTasks)
+  const sessions = useAgentStore((s) => s.sessions)
+  const currentSessionId = useAgentStore((s) => s.currentSessionId)
+  const newSession = useAgentStore((s) => s.newSession)
+  const selectSession = useAgentStore((s) => s.selectSession)
+  const removeSession = useAgentStore((s) => s.removeSession)
   const runTask = useAgentStore((s) => s.runTask)
 
   const [taskText, setTaskText] = useState('')
+  const [openExample, setOpenExample] = useState(null) // 当前展开的分类示例
+  const textareaEl = useRef(null)
+  const bottomEl = useRef(null)
+
+  // 到期预警示例依赖团队台账（个人空间已下线该模块），仅团队空间展示
+  const isTeamSpace = useMeStore((s) => s.entitlement?.workspaceType) === 'TEAM'
+  const visibleExamples = examples.filter((ex) => !ex.teamOnly || isTeamSpace)
 
   useEffect(() => {
-    useAgentStore.getState().loadMeta()
+    const agent = useAgentStore.getState()
+    agent.loadMeta()
+    agent.loadSessions()
   }, [])
 
-  async function handleRun() {
-    if (!taskText.trim() || running) return
-    const t = taskText.trim()
+  // 新消息/流式输出自动滚底
+  useEffect(() => {
+    bottomEl.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function send() {
+    const text = taskText.trim()
+    if (!text || running) return
     setTaskText('')
-    await runTask(t)
+    resetHeight()
+    await runTask(text)
+  }
+
+  function handleKeydown(e) {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      send()
+    }
+  }
+
+  function autoResize() {
+    const el = textareaEl.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+  }
+
+  function resetHeight() {
+    if (textareaEl.current) textareaEl.current.style.height = 'auto'
   }
 
   return (
     <div className={styles['agent-view']}>
-      <aside className={styles['task-panel']}>
-        <div className={styles['panel-header']}>
-          <span className={styles['panel-title']}>任务 Agent</span>
-          {tasks.length > 0 && (
-            <button className={styles['btn-text-sm']} onClick={clearTasks}>清空</button>
-          )}
-        </div>
+      <SessionSidebar
+        sessions={sessions}
+        currentSessionId={currentSessionId}
+        busy={running}
+        onNew={newSession}
+        onSelect={selectSession}
+        onDelete={removeSession}
+        icon="🛠"
+        newHint="开始一个全新的任务会话"
+        emptyHint="暂无任务会话"
+        emptySub="在右侧描述任务，执行历史自动保存"
+        deleteConfirm={{
+          title: '删除会话',
+          content: '确定删除会话「{title}」？该会话的全部任务记录将一并删除且无法恢复。',
+        }}
+      />
 
-        <div className={styles['task-input-area']}>
-          <textarea
-            className={styles['task-textarea']}
-            value={taskText}
-            onChange={(e) => setTaskText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.ctrlKey) {
-                e.preventDefault()
-                handleRun()
-              }
-            }}
-            placeholder="描述你的任务，Agent 会自动拆解步骤..."
-            disabled={running}
-            rows={4}
-          />
-          <div className={styles['input-actions']}>
-            <span className={styles.hint}>Ctrl+Enter 执行</span>
-            <button
-              className="btn btn-primary"
-              onClick={handleRun}
-              disabled={!taskText.trim() || running}
-            >
-              {running ? '执行中...' : '执行任务'}
-            </button>
+      <main className={styles['chat-panel']}>
+        <div className={styles['chat-header']}>
+          <div>
+            <div className={styles['chat-title']}>任务 Agent</div>
+            <div className={styles['chat-sub']}>自动规划步骤、调用业务工具完成合同管理任务，支持多轮追问</div>
           </div>
-        </div>
-
-        <div className={styles['examples-section']}>
-          <div className={styles['section-label']}>示例任务</div>
-          {examples.map((ex) => (
-            <div
-              key={ex.title}
-              className={`${styles['example-item']} ${running ? styles.disabled : ''}`}
-              onClick={() => { if (!running) setTaskText(ex.task) }}
-            >
-              <div className={styles['ex-content']}>
-                <div className={styles['ex-title']}>{ex.title}</div>
-                <div className={styles['ex-desc']}>{ex.task.slice(0, 40)}...</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className={styles['tools-section']}>
-          <div className={styles['section-label']}>可用工具（{toolList.length}）</div>
           <div className={styles['tool-chips']}>
             {toolList.map((t) => (
               <div key={t.name} className={styles['tool-chip']} title={t.description}>
@@ -97,91 +100,122 @@ export default function AgentView() {
             ))}
           </div>
         </div>
-      </aside>
 
-      <main className={styles['execution-panel']}>
-        {!tasks.length ? (
-          <div className={styles['empty-state']}>
-            <div className={styles['empty-title']}>合同管理任务 Agent</div>
-            <div className={styles['empty-desc']}>
-              在左侧输入任务，Agent 会自动查询本企业合同数据、检索法规与规则，规划步骤完成
+        <div className={styles['chat-messages']}>
+          {!messages.length ? (
+            <div className={styles['empty-state']}>
+              <div className={styles['empty-title']}>合同管理任务 Agent</div>
+              <div className={styles['empty-desc']}>
+                描述你的任务，Agent 会自动查询本企业合同数据、检索法规与规则，规划步骤完成；
+                执行后可继续追问，会话历史自动保存
+              </div>
+              <div className={styles['feature-tags']}>
+                <span className="tag tag-blue">合同与台账查询</span>
+                <span className="tag tag-red">风险统计复盘</span>
+                <span className="tag tag-purple">法规条文检索</span>
+                <span className="tag tag-amber">到期预警与计算</span>
+              </div>
+              <div className={styles['example-chips']}>
+                {visibleExamples.map((ex) => (
+                  <button
+                    key={ex.title}
+                    className={`${styles['example-chip']} ${openExample === ex.title ? styles.active : ''}`}
+                    disabled={running}
+                    onClick={() => setOpenExample(openExample === ex.title ? null : ex.title)}
+                  >
+                    {ex.title}
+                  </button>
+                ))}
+              </div>
+
+              {/* 展开所选分类的高频问题，点击直接执行 */}
+              {openExample && visibleExamples.find((e) => e.title === openExample) && (
+                <div className={styles['example-prompts']}>
+                  {visibleExamples.find((e) => e.title === openExample).prompts.map((p, i) => (
+                    <button
+                      key={i}
+                      className={styles['example-prompt-item']}
+                      disabled={running}
+                      onClick={() => runTask(p)}
+                    >
+                      <span className={styles['prompt-idx']}>{i + 1}</span>
+                      <span>{p}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className={styles['feature-tags']}>
-              <span className="tag tag-blue">合同与台账查询</span>
-              <span className="tag tag-red">风险统计复盘</span>
-              <span className="tag tag-purple">法规条文检索</span>
-              <span className="tag tag-amber">到期预警与计算</span>
-            </div>
+          ) : (
+            messages.map((msg) => <MessageBlock key={msg.id} msg={msg} />)
+          )}
+          <div ref={bottomEl} />
+        </div>
+
+        <div className={styles['chat-input']}>
+          <textarea
+            ref={textareaEl}
+            className={styles['task-textarea']}
+            value={taskText}
+            onChange={(e) => { setTaskText(e.target.value); autoResize() }}
+            onKeyDown={handleKeydown}
+            placeholder="描述你的任务，支持多轮追问；Agent 会自动拆解步骤..."
+            disabled={running}
+            rows={2}
+          />
+          <div className={styles['input-actions']}>
+            <span className={styles.hint}>Ctrl+Enter 执行</span>
+            <button className="btn btn-primary" onClick={send} disabled={!taskText.trim() || running}>
+              {running ? '执行中...' : '执行任务'}
+            </button>
           </div>
-        ) : (
-          <div className={styles['task-list']}>
-            {tasks.map((task) => (
-              <TaskBlock key={task.id} task={task} />
-            ))}
-          </div>
-        )}
+        </div>
       </main>
     </div>
   )
 }
 
-// 单个任务卡片
-function TaskBlock({ task }) {
-  const answerHtml = useMemo(() => renderMarkdown(task.answer), [task.answer])
+// 单条消息：user 右侧气泡；assistant 左侧卡片（工具步骤 + Markdown 回答）
+function MessageBlock({ msg }) {
+  const answerHtml = useMemo(() => renderMarkdown(msg.content), [msg.content])
+
+  if (msg.role === 'user') {
+    return <div className={styles['msg-user']}>{msg.content}</div>
+  }
 
   const copyAnswer = async () => {
-    await navigator.clipboard.writeText(task.answer)
+    await navigator.clipboard.writeText(msg.content)
     useAppStore.getState().toast.success('已复制')
   }
 
   return (
-    <div className={styles['task-block']}>
-      <div className={styles['task-header']}>
-        <div className={styles['task-meta']}>
-          <span className={`task-status-dot dot-${task.status}`} style={{ width: 7, height: 7, borderRadius: '50%', display: 'inline-block', flexShrink: 0 }} />
-          <span className={styles['task-index']}>任务 #{task.id}</span>
-          <span className={styles['task-time']}>{formatTime(task.startTime)}</span>
-          {task.duration > 0 && (
-            <span className={styles['task-duration']}>{(task.duration / 1000).toFixed(1)}s</span>
-          )}
-        </div>
-        <div className={styles['task-desc']}>{task.task}</div>
-      </div>
-
-      {task.steps.length > 0 && (
+    <div className={styles['msg-assistant']}>
+      {msg.steps.length > 0 && (
         <div className={styles['steps-list']}>
-          {task.steps.map((step) => (
+          {msg.steps.map((step) => (
             <ToolCallCard key={step.id} step={step} />
           ))}
         </div>
       )}
 
-      {task.status === 'running' && !task.steps.length && (
+      {msg.streaming && !msg.steps.length && (
         <div className={styles['thinking-hint']}>
           <div className="spinner" />
           <span>Agent 正在思考...</span>
         </div>
       )}
 
-      {task.answer && (
-        <div className={styles['final-answer']}>
-          <div className={styles['answer-header']}>
-            <span>最终回答</span>
-            <button className={styles['btn-copy']} onClick={copyAnswer}>
-              复制
-            </button>
-          </div>
+      {msg.content && (
+        <div className={styles['answer-wrap']}>
           <div
             className={`${styles['answer-content']} markdown-body`}
             dangerouslySetInnerHTML={{ __html: answerHtml }}
           />
-          {task.status === 'running' && <span className="cursor-blink" />}
-        </div>
-      )}
-
-      {task.status === 'error' && (
-        <div className={styles['error-hint']}>
-          {task.answer || '任务执行失败，请重试'}
+          <div className={styles['answer-footer']}>
+            {msg.streaming && <span className="cursor-blink" />}
+            {!msg.streaming && (
+              <button className={styles['btn-copy']} onClick={copyAnswer}>复制</button>
+            )}
+          </div>
         </div>
       )}
     </div>

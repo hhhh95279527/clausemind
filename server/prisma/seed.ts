@@ -378,6 +378,45 @@ async function seedLedger(tenantId: string) {
   if (n) console.log(`  播种合同台账：${n} 条演示记录（testboss，对齐 ledger.html 原型）`)
 }
 
+// ── 平台功能文档（任务 Agent platform_help 工具的数据源，按套餐分层可见）──
+const PLATFORM_DOCS = [
+  // 公共（全套餐可见）
+  { key: 'pd_intro', category: '平台介绍', title: 'ClauseMind 快速上手', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '介绍,上手,开始,使用,是什么', sortOrder: 1, content: 'ClauseMind 是面向中小企业 HR 的 AI 合同风险审查平台。\n\n三步开始：\n1. 进入「合同审查」上传合同（支持 Word/PDF，建议 Word 以获得最佳解析效果）；\n2. 选择场景类型（劳动用工 / 采购 / 销售 / 通用）后开始审查；\n3. 审查完成后逐条处理风险：采纳建议、忽略或使用 AI 深度改写，最后在右侧面板整体「通过」或「驳回」。\n\n遇到不懂的功能，可以直接问本助手（小律）。' },
+  { key: 'pd_review_how', category: '合同审查', title: '如何发起一次合同审查', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '审查,上传,发起,风险,场景,双轨', sortOrder: 2, content: '路径：左侧导航「合同审查」→ 上传合同文件 → 选场景 → 开始审查。\n\n审查采用双轨架构：\n- 规则轨（所有套餐）：基于内置审查规则的本地引擎，秒级定位风险条款；\n- AI 轨（按套餐）：大模型逐条分析 + 交叉验证。\n\n免费版每周期限 3 次 AI 审查、每次最多输出 5 条风险；个人版不限次数、风险全量输出并解锁 AI 轨全能力。审查进行中会展示阶段进度与实时风险直播。' },
+  { key: 'pd_review_riskcard', category: '合同审查', title: '审查结果页：风险卡操作指南', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '风险卡,采纳,忽略,改写,通过,驳回', sortOrder: 3, content: '审查完成后每条风险以卡片展示，可执行：\n- 「采纳」：确认该风险需要处理，计入整改清单；\n- 「忽略」：标记不需要处理（可留备注）；\n- 「AI 深度改写」：由 AI 生成条款修订稿（深度权益，需个人版及以上或消耗深度券）；\n- 顶部搜索框可按风险标题/分析/原文引用过滤，配合严重程度下拉快速收敛范围。\n\n全部处理完后在右侧「整体判定」里审查通过或驳回。' },
+  { key: 'pd_contract_lib', category: '合同档案', title: '合同档案库：上传与检索', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '合同档案,上传,搜索,归档,版本', sortOrder: 4, content: '路径：左侧导航「合同档案」。\n\n- 上传：拖拽或点击上传 Word/PDF 合同，自动解析元数据（签约方、金额、期限等）；\n- 检索：支持按文件名、签约方、状态筛选，风险条数与审查状态一目了然；\n- 详情：打开合同可查看解析出的条款原文与关联的历次审查记录。\n\n团队版及以上空间里，档案在企业内共享。' },
+  { key: 'pd_legal', category: '法规库', title: '法规库与法规问答', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '法规,法条,问答,检索,劳动法', sortOrder: 5, content: '路径：左侧导航「法规问答」。\n\n内置劳动用工领域法规库（劳动合同法、社会保险法、工资支付暂行规定等），支持两种用法：\n- 直接提问：如「试用期最长多久」，回答附带条文原文与出处；\n- 会话式多轮追问，历史会话可在左侧列表找回。\n\n任务 Agent 也复用同一法规库（legal_search 工具），两处回答口径一致。' },
+  { key: 'pd_agent', category: '任务 Agent', title: '任务 Agent 使用说明', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: 'agent,助手,示例任务,会话,小律,多轮', sortOrder: 6, content: '路径：左侧导航「任务 Agent」。\n\n小律不只是问答机器人：它能调用平台工具完成实际任务——查你的合同档案、盘点审查风险、核对员工台账、检索法条、算违约金、推算日期等。\n\n使用方式：\n- 直接输入任务（如「帮我盘点未处理的风险」）；\n- 或点击示例分类展开 3 条典型任务，点一条即可执行；\n- 支持多轮对话与历史会话，右下角 3D 悬浮球与本页能力完全一致。' },
+  { key: 'pd_billing', category: '账单订阅', title: '套餐购买与升级', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '套餐,价格,购买,升级,订阅,收银台,账单', sortOrder: 7, content: '路径：右上角头像 →「套餐与账单」。\n\n- 免费版：注册即用，含基础规则审查与限量 AI 能力；\n- 个人版：解锁 AI 深度改写、不限次审查、Agent 深度权益，按月/按年订阅；\n- 团队版：增加企业空间、席位管理、员工台账与 Playbook，按席位订阅；\n- 企业版：私有化与定制能力，联系商务询价。\n\n购买走站内收银台（支持微信支付），升级立即生效，账单页可下载发票凭证。' },
+  { key: 'pd_assistant_bot', category: '任务 Agent', title: '3D 助手小律（悬浮球）', plans: 'FREE,PERSONAL,TEAM,ENTERPRISE', keywords: '机器人,悬浮球,3d,小律,助手', sortOrder: 8, content: '登录后所有页面右下角都有一个 3D 机器人「小律」：\n- 点击它弹出迷你聊天面板，可以直接提问或执行任务；\n- 按住机器人可拖动到屏幕任意位置；\n- 面板标题栏可拖拽移动，左侧栏是历史会话记录；\n- 它的眼睛会跟随你的鼠标移动；\n- 任务 Agent 页有完整工作台，点面板右上角 ↗ 即可跳转。\n\n它能回答平台功能问题，也能查你的真实业务数据。' },
+
+  // 深度权益（个人版及以上）
+  { key: 'pd_deep', category: '深度权益', title: '个人版及以上：AI 深度改写与 Agent 深度能力', plans: 'PERSONAL,TEAM,ENTERPRISE', keywords: '深度改写,改写,权益,个人版,深度券', sortOrder: 10, content: '个人版及以上解锁：\n- AI 深度改写：审查结果页风险卡上的「AI 改写」直接生成条款修订稿，一键替换原文；\n- 不限次 AI 审查与全量风险输出；\n- 任务 Agent 深度能力：多轮复杂任务、调用全部工具。\n\n深度券：免费版用户可用券包体验深度能力（收银台购买），每次深度改写消耗 1 张。' },
+  { key: 'pd_export', category: '合同审查', title: '审查报告导出（Word 红划线 / PDF）', plans: 'PERSONAL,TEAM,ENTERPRISE', keywords: '导出,下载,word,pdf,报告,红划线', sortOrder: 11, content: '审查完成后可导出：\n- Word 红划线版：修订痕迹直接标在原文上，方便线下与对方律师沟通；\n- PDF 审查报告：含风险清单、严重程度与整改建议。\n\n入口：审查结果页右上角「导出」。个人版及以上可用，团队版支持企业水印。' },
+
+  // 团队版及以上
+  { key: 'pd_team_space', category: '团队协作', title: '企业空间与席位管理', plans: 'TEAM,ENTERPRISE', keywords: '团队,企业空间,席位,成员,邀请,协作', sortOrder: 20, content: '团队版提供企业空间：\n- 邀请成员：空间设置里按邮箱/工号邀请，分配 HR / 法务 / 管理员角色；\n- 席位计费：按激活席位数按周期计费，空间设置可随时加减席位；\n- 数据共享：企业内合同档案、台账、Playbook 全员按角色可见。\n\n路径：左侧导航「空间设置」（管理员可见）。' },
+  { key: 'pd_ledger', category: '合同台账', title: '员工合同台账与到期预警', plans: 'TEAM,ENTERPRISE', keywords: '台账,到期,预警,续签,员工,合同台账', sortOrder: 21, content: '路径：左侧导航「合同台账」（团队版及以上）。\n\n- 录入/导入员工合同：姓名、岗位、合同期限、试用期、到期日；\n- 到期预警：90 天窗口倒排，30 天内标红，支持按部门筛选；\n- 批量操作：标记已续签、导出 Excel。\n\n任务 Agent 可直接查询台账（如「列出 30 天内到期的合同」）。' },
+  { key: 'pd_playbook', category: '企业规则', title: 'Playbook：企业审查规则定制', plans: 'TEAM,ENTERPRISE', keywords: 'playbook,规则,红线,定制,企业规则', sortOrder: 22, content: '路径：左侧导航「审查规则」→ Playbook 标签（团队版及以上）。\n\n企业可以把内部审查口径固化为规则：\n- 预设风险点：如「试用期不得超过 6 个月」「违约金上限」；\n- 严重程度与整改建议模板；\n- 启用后企业内每次审查自动套用，命中即标注为「Playbook 命中」。\n\n管理员可增删改规则并控制启用状态。' },
+  { key: 'pd_feishu', category: '集成', title: '飞书集成：审查通知与消息推送', plans: 'TEAM,ENTERPRISE', keywords: '飞书,通知,推送,集成,消息', sortOrder: 23, content: '团队版支持绑定飞书：\n- 审查完成/驳回自动推送卡片消息到指定群；\n- 台账临期提醒每日定时推送；\n- 配置入口：空间设置 → 集成 → 飞书（需管理员授权）。' },
+
+  // 企业版
+  { key: 'pd_enterprise', category: '企业版', title: '企业版专属能力', plans: 'ENTERPRISE', keywords: '企业版,私有化,定制,专属,sla', sortOrder: 30, content: '企业版在团队版基础上提供：\n- 私有化部署与数据隔离方案；\n- 定制审查规则集与行业模板；\n- 专属客户成功经理与 SLA 保障；\n- SSO 单点登录与审计日志。\n\n购买需商务询价，官网「联系我们」或邮件 business@clausemind.cn。' },
+]
+
+async function seedPlatformDocs() {
+  let n = 0
+  for (const d of PLATFORM_DOCS) {
+    await prisma.platformDoc.upsert({
+      where: { id: d.key },
+      update: { category: d.category, title: d.title, content: d.content, plans: d.plans, keywords: d.keywords, sortOrder: d.sortOrder },
+      create: { id: d.key, category: d.category, title: d.title, content: d.content, plans: d.plans, keywords: d.keywords, sortOrder: d.sortOrder },
+    })
+    n += 1
+  }
+  if (n) console.log(`  播种平台功能文档：${n} 篇（按套餐分层可见，任务 Agent platform_help 使用）`)
+}
+
 async function main() {
   console.log('开始播种...')
   const accountIds = new Map<string, string>()
@@ -391,6 +430,7 @@ async function main() {
   await seedBillingDemo(accountIds.get('demo_personal')!)
   await seedPlaybook(accountIds.get('testboss')!)
   await seedLedger(accountIds.get('testboss')!)
+  await seedPlatformDocs()
   console.log('播种完成 ✓')
 }
 

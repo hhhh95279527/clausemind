@@ -20,7 +20,7 @@ const SOURCE_META = {
 
 export default function RiskCard({
   risk, active, reviewOpen, decision,
-  onSelectClause, onDecision, onSaveRewrite, onGenerateRewrite,
+  onSelectClause, onDecision, onSaveRewrite, onGenerateRewrite, generating,
 }) {
   const sevColor = SEVERITY_COLOR[risk.severity] || SEVERITY_COLOR.MED
   const baseSource = SOURCE_META[risk.detectedBy] || SOURCE_META.RULE
@@ -94,10 +94,11 @@ export default function RiskCard({
       <div className={styles.rewriteBlock} onClick={(e) => e.stopPropagation()}>
         <div className={styles.rewriteHead}>
           <b><EditOutlined /> 修改后的示例：</b>
-          {!risk.rewritten && (
+          {!risk.rewritten && onGenerateRewrite && (
             <Button
               size="small" type="link" icon={<ThunderboltOutlined />}
-              onClick={() => onGenerateRewrite?.(risk.id)}
+              loading={generating}
+              onClick={() => onGenerateRewrite(risk.id)}
             >AI 生成改写</Button>
           )}
         </div>

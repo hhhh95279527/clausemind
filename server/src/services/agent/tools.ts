@@ -8,6 +8,7 @@ import { evaluate } from 'mathjs'
 import type { DatabaseService } from '../../database/database.service.js'
 import { config } from '../../config/index.js'
 import { logger } from '../../utils/logger.js'
+import { getPlanDef } from '../../billing/plans.config.js'
 
 // 函数式模块的 Prisma 句柄（legal_search 用），由 AgentModule 初始化注入
 let db: DatabaseService | null = null
@@ -406,6 +407,44 @@ const templateSearchTool = tool(
   },
 )
 
+// 工具10：平台功能与套餐权益问答（数据源 platform_docs 表，按当前租户套餐过滤可见范围）
+const platformHelpTool = tool(
+  async ({ topic }) => {
+    logger.info('tool:platform_help', { topic })
+    if (!db) return '平台文档库未初始化。'
+    const tenantId = await requireTenantId()
+    if (!tenantId) return '无法识别当前身份，暂时不能查询平台文档。'
+    const tenant = await db.tenant.findUnique({ where: { id: tenantId }, select: { plan: true } })
+    const plan = tenant?.plan ?? 'FREE'
+    const docs = await db.platformDoc.findMany({
+      where: { enabled: true, plans: { contains: plan } },
+      orderBy: { sortOrder: 'asc' },
+    })
+    if (!docs.length) return '平台文档库为空，请联系管理员运行数据播种。'
+    // 关键词匹配：整句包含 或 分词任一命中；无命中时返回目录引导
+    const kw = topic.trim().toLowerCase()
+    const terms = kw.split(/[\s,，、?？!！.。]+/).filter((t) => t.length >= 2)
+    const matched = docs.filter((d) => {
+      const hay = `${d.category} ${d.title} ${d.keywords} ${d.content}`.toLowerCase()
+      return hay.includes(kw) || terms.some((t) => hay.includes(t))
+    })
+    const planLabel = getPlanDef(plan).label
+    if (!matched.length) {
+      return `没有找到与「${topic}」直接相关的文档。以下是${planLabel}可见的全部功能板块目录，可从这些方向继续提问：\n` +
+        docs.map((d) => `- 【${d.category}】${d.title}`).join('\n')
+    }
+    return `以下是${planLabel}下与「${topic}」相关的平台文档（${matched.length} 篇命中，已按相关度展示前 4 篇）：\n\n` +
+      matched.slice(0, 4).map((d, i) => `[${i + 1}] 【${d.category}】${d.title}\n${d.content}`).join('\n\n')
+  },
+  {
+    name: 'platform_help',
+    description: '查询本平台的功能说明与当前套餐权益（数据来自平台文档库，按用户所在租户的套餐过滤：免费/个人/团队/企业版看到的内容不同）。用户问"XX功能怎么用""我的套餐有什么权益""和 XX 版有什么区别""平台有哪些功能"时使用。',
+    schema: z.object({
+      topic: z.string().describe('功能/板块/权益关键词，如：台账、深度改写、导出、席位、套餐、法规库'),
+    }),
+  },
+)
+
 /**
  * 构建当前可用工具列表：按环境能力动态注册。
  * 模型看不到不存在能力的工具，避免幻觉调用。
@@ -420,6 +459,7 @@ export function buildTools(): StructuredToolInterface[] {
     ledgerQueryTool,
     ruleLookupTool,
     templateSearchTool,
+    platformHelpTool,
     calculateTool,
     getDateTool,
   ]
@@ -435,6 +475,7 @@ export const TOOL_LABELS: Record<string, string> = {
   ledger_query: '合同台账查询',
   rule_lookup: '审查规则查询',
   template_search: '合同范本查询',
+  platform_help: '平台功能查询',
   calculate: '数学计算',
   get_date: '日期计算',
 }

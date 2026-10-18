@@ -546,7 +546,8 @@ export default function ReviewWorkbench() {
                     ｜规则 {reviewStats.rule} · AI {reviewStats.agent} · 双轨 {reviewStats.both}
                   </div>
                 )}
-                {liveRisks.map((r) => (
+                {/* 直播卡片仅在审查进行中展示；完成后由下方正式列表（带采纳/忽略/AI改写）接管，避免无操作卡片遮挡 */}
+                {reviewing && liveRisks.map((r) => (
                   <RiskCard key={r.id} risk={r} reviewOpen={false}
                     onSelectClause={() => {}} />
                 ))}
@@ -571,6 +572,7 @@ export default function ReviewWorkbench() {
                   onDecision={decide}
                   onSaveRewrite={handleSaveRewrite}
                   onGenerateRewrite={handleGenerateRewrite}
+                  generating={generating === r.id}
                 />
               </div>
             ))}
@@ -594,6 +596,7 @@ export default function ReviewWorkbench() {
                       onDecision={decide}
                       onSaveRewrite={handleSaveRewrite}
                       onGenerateRewrite={handleGenerateRewrite}
+                      generating={generating === r.id}
                     />
                   </div>
                 ))}
@@ -611,6 +614,7 @@ export default function ReviewWorkbench() {
                       onDecision={decide}
                       onSaveRewrite={handleSaveRewrite}
                       onGenerateRewrite={handleGenerateRewrite}
+                      generating={generating === r.id}
                     />
                   </div>
                 ))}

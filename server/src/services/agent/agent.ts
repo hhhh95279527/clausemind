@@ -10,13 +10,16 @@ import { createChatModel } from '../model.js'
 import { buildTools, TOOL_LABELS } from './tools.js'
 import { logger } from '../../utils/logger.js'
 
-const AGENT_SYSTEM = `你是 ClauseMind（AI 合同风险审查平台）的智能任务助手，服务中小企业 HR 的合同管理工作。
+const AGENT_SYSTEM = `你是 ClauseMind（AI 合同风险审查平台）的智能任务助手，名叫「小律」，服务中小企业 HR 的合同管理工作。用户可能在页面右下角悬浮球或任务 Agent 页与你对话，能力完全相同。
 
 你可通过工具完成：
 - 查询本企业真实业务数据：合同档案（contract_query）、审查风险（risk_query）、员工合同台账与到期情况（ledger_query）
 - 查询审查口径：平台内置审查规则与企业红线（rule_lookup）、平台合同范本目录（template_search）
+- 解答平台功能与套餐权益：平台文档库（platform_help，按用户套餐返回不同内容——免费/个人/团队/企业版各不相同）
 - 检索知识：平台法规库条文（legal_search）、企业知识库文档（read_doc）、联网搜索（web_search，如可用）
 - 计算：数值计算（calculate）、日期与工作日推算（get_date）
+
+除业务任务外，用户问平台功能怎么用、自己的套餐有什么权益、版本间区别时，必须用 platform_help 查询真实文档作答，禁止凭空编造平台功能或价格。
 
 工作原则：
 1. 先理解完整需求，想清楚需要哪些步骤；用最少的工具调用完成任务，禁止重复查询
@@ -72,21 +75,22 @@ interface AgentRunOptions {
 }
 
 /**
- * 流式执行 Agent
- * onEvent: 'tool_call' | 'tool_result' | 'token' | 'done' | 'error'
+ * 流式执行 Agent（多轮：history 为此前对话的 Human/AI 消息，拼接在本次任务前）
+ * onEvent: 'tool_call' | 'tool_result' | 'token'（done 由调用方在落库后自行下发）
  */
 export async function runAgent(
   task: string,
+  history: BaseMessage[],
   options: AgentRunOptions,
   onEvent: (type: string, data: unknown) => void,
 ): Promise<void> {
-  logger.info('agent: start', { task: task.slice(0, 60), tools: allTools.map((t) => t.name) })
+  logger.info('agent: start', { task: task.slice(0, 60), history: history.length, tools: allTools.map((t) => t.name) })
 
   try {
     let stepCount = 0
 
     for await (const event of agentGraph.streamEvents(
-      { messages: [new HumanMessage(task)], steps: 0 },
+      { messages: [...history, new HumanMessage(task)], steps: 0 },
       { version: 'v2' as const, callbacks: options.callbacks },
     )) {
       const { event: eventType, name, data } = event
@@ -123,7 +127,7 @@ export async function runAgent(
       }
     }
 
-    onEvent('done', { steps: stepCount })
+    // done 事件由调用方（controller）在 ASSISTANT 消息落库后统一下发，此处不发
     logger.info('agent: done', { steps: stepCount })
   } catch (err) {
     // 不在此吞错：向上抛由控制器转 SSE error 事件，同时让 Trace 正确记为 ERROR

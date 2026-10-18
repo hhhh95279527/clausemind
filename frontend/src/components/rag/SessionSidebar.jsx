@@ -1,7 +1,7 @@
 // frontend/src/components/rag/SessionSidebar.jsx
-// 法规问答会话列表：新建会话 / 切换 / 删除；每轮会话历史相互隔离、持久化在后端
+// 会话列表（纯展示组件）：新建 / 切换 / 删除；数据与动作由调用方注入
+// 使用方：法规问答 KnowledgeView（knowledge store）、任务 Agent AgentView（agent store）
 import { App as AntdApp } from 'antd'
-import { useKnowledgeStore } from '@/stores/knowledge.js'
 import styles from './SessionSidebar.module.css'
 
 function relTime(isoStr) {
@@ -15,25 +15,32 @@ function relTime(isoStr) {
   return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
-export default function SessionSidebar() {
-  const sessions = useKnowledgeStore((s) => s.sessions)
-  const currentSessionId = useKnowledgeStore((s) => s.currentSessionId)
-  const querying = useKnowledgeStore((s) => s.querying)
-  const newSession = useKnowledgeStore((s) => s.newSession)
-  const selectSession = useKnowledgeStore((s) => s.selectSession)
-  const removeSession = useKnowledgeStore((s) => s.removeSession)
+export default function SessionSidebar({
+  sessions = [],
+  currentSessionId = null,
+  busy = false,            // 执行中禁用新建/切换/删除，防竞态
+  onNew,
+  onSelect,
+  onDelete,
+  icon = '💬',
+  newHint = '开始一轮全新的问答会话',
+  emptyHint = '暂无历史会话',
+  emptySub = '点击上方「新建会话」开始',
+  deleteConfirm = { title: '删除会话', content: '确定删除该会话？记录将一并删除且无法恢复。' },
+}) {
   // React 19 下 antd 静态方法 Modal.confirm 无法弹框，必须用 App 上下文的 modal
   const { modal } = AntdApp.useApp()
 
   function confirmDelete(e, session) {
     e.stopPropagation()
+    if (busy) return // 执行中禁止删除，防当前会话落库 404
     modal.confirm({
-      title: '删除会话',
-      content: `确定删除会话「${session.title}」？该会话的问答记录及其中上传的文档将一并删除且无法恢复。`,
+      title: deleteConfirm.title,
+      content: deleteConfirm.content.replace('{title}', session.title || '新会话'),
       okText: '删除',
       okButtonProps: { danger: true },
       cancelText: '取消',
-      onOk: () => removeSession(session.id).catch(() => {}),
+      onOk: () => onDelete?.(session.id)?.catch?.(() => {}),
     })
   }
 
@@ -41,9 +48,9 @@ export default function SessionSidebar() {
     <div className={styles['session-rail']}>
       <button
         className={styles['btn-new']}
-        onClick={() => newSession().catch(() => {})}
-        disabled={querying}
-        title="开始一轮全新的问答会话"
+        onClick={() => onNew?.()?.catch?.(() => {})}
+        disabled={busy}
+        title={newHint}
       >
         <span className={styles['plus']}>＋</span> 新建会话
       </button>
@@ -52,8 +59,8 @@ export default function SessionSidebar() {
 
       {!sessions.length ? (
         <div className={styles['rail-empty']}>
-          暂无历史会话
-          <div className={styles['rail-sub']}>点击上方「新建会话」开始一轮隔离问答</div>
+          {emptyHint}
+          <div className={styles['rail-sub']}>{emptySub}</div>
         </div>
       ) : (
         <div className={styles['session-items']}>
@@ -61,9 +68,9 @@ export default function SessionSidebar() {
             <div
               key={s.id}
               className={`${styles['session-item']} ${s.id === currentSessionId ? styles.active : ''}`}
-              onClick={() => selectSession(s.id).catch(() => {})}
+              onClick={() => !busy && onSelect?.(s.id)?.catch?.(() => {})}
             >
-              <div className={styles['session-icon']}>💬</div>
+              <div className={styles['session-icon']}>{icon}</div>
               <div className={styles['session-main']}>
                 <div className={styles['session-title']}>{s.title || '新会话'}</div>
                 <div className={styles['session-time']}>{relTime(s.updatedAt)}</div>

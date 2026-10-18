@@ -1,7 +1,7 @@
 // frontend/src/components/layout/AppShell.jsx
 // 个人/企业布局共用壳：侧边栏（nav config 参数化）+ 顶部栏 + 滚动箭头
 // 平台运维入口（规则/评测/账单/链路等）统一在独立的 /platform 超管控制台，不出现在租户侧边栏
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { SunOutlined, MoonOutlined, LogoutOutlined, UserOutlined, MenuOutlined } from '@ant-design/icons'
 import { Dropdown } from 'antd'
@@ -12,6 +12,9 @@ import NotificationBell from './NotificationBell.jsx'
 import ScrollArrows from './ScrollArrows.jsx'
 import OnboardingGuide from '@/components/onboarding/OnboardingGuide.jsx'
 import styles from './LayoutSidebar.module.css'
+
+// 3D 智能助手浮窗：懒加载避免 three 系依赖进首屏关键路径
+const AssistantWidget = lazy(() => import('@/components/assistant/AssistantWidget.jsx'))
 
 export default function AppShell({ items, children }) {
   const location = useLocation()
@@ -142,6 +145,10 @@ export default function AppShell({ items, children }) {
       <OnboardingGuide />
       {/* 桌面端右侧上下滚动箭头（≤768 自动隐藏） */}
       <ScrollArrows />
+      {/* 全局 3D 智能助手浮窗（/agent 页面内部自行隐藏） */}
+      <Suspense fallback={null}>
+        <AssistantWidget />
+      </Suspense>
     </div>
   )
 }

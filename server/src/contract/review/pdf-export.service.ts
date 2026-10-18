@@ -116,6 +116,70 @@ export class PdfExportService {
   }
 
   /**
+   * docx → PDF：调用本机 Microsoft Word（COM 自动化，PowerShell 桥接），
+   * 转换结果与「Word 里另存为 PDF」完全一致——标题/自动序号/字体/表格/页面设置全部保留。
+   * showMarkup=true 时按「所有标记」视图导出，红划线修订痕迹（w:ins/w:del）可见。
+   * 环境无 Office / 转换失败时抛错，由调用方回退 HTML 渲染路径。
+   */
+  async docxToPdf(docx: Buffer, opts: { showMarkup?: boolean; contractId?: string } = {}): Promise<Buffer> {
+    const dir = path.join('./uploads', 'tmp_pdf')
+    await mkdir(dir, { recursive: true })
+    const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const docxPath = path.resolve(path.join(dir, `${stamp}.docx`))
+    const pdfPath = docxPath.replace(/\.docx$/, '.pdf')
+    const ps1Path = docxPath.replace(/\.docx$/, '.ps1')
+    // COM 在独立 PowerShell 进程内执行：try/finally 保证 Word 退出，不留 WINWORD 残留
+    const script = [
+      'param([string]$inPath, [string]$outPath, [string]$showMarkup)',
+      '$ErrorActionPreference = "Stop"',
+      '$markup = $showMarkup -eq "1"',
+      '$word = New-Object -ComObject Word.Application',
+      'try {',
+      '  $word.Visible = $false',
+      '  $word.DisplayAlerts = 0',
+      '  $doc = $word.Documents.Open($inPath, $false, $true)',
+      '  try {',
+      '    $doc.ActiveWindow.View.ShowRevisionsAndComments = $markup',
+      '    $doc.ExportAsFixedFormat($outPath, 17)',
+      '  } finally { $doc.Close($false) }',
+      '} finally { $word.Quit() }',
+    ].join('\r\n')
+    await writeFile(docxPath, docx)
+    await writeFile(ps1Path, script, 'utf8')
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn('powershell.exe', [
+          '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+          '-File', ps1Path, docxPath, pdfPath, opts.showMarkup ? '1' : '0',
+        ], { windowsHide: true, stdio: 'ignore' })
+        const timer = setTimeout(() => {
+          child.kill()
+          reject(new Error('Word 转 PDF 超时（90s）'))
+        }, 90_000)
+        child.on('error', (e) => { clearTimeout(timer); reject(e) })
+        child.on('exit', (code) => {
+          clearTimeout(timer)
+          if (code === 0) resolve()
+          else reject(new Error(`Word 转换进程退出码 ${code}`))
+        })
+      })
+      const pdf = await readFile(pdfPath)
+      if (pdf.subarray(0, 5).toString('latin1') !== '%PDF-') throw new Error('PDF 输出异常（缺少 %PDF 标识）')
+      logger.info('pdf: docx converted via Word COM', { contractId: opts.contractId, bytes: pdf.length })
+      return pdf
+    } catch (e) {
+      logger.warn('pdf: Word COM conversion failed, caller may fallback to HTML', {
+        contractId: opts.contractId, error: (e as Error).message,
+      })
+      throw e
+    } finally {
+      await rm(docxPath, { force: true }).catch(() => {})
+      await rm(pdfPath, { force: true }).catch(() => {})
+      await rm(ps1Path, { force: true }).catch(() => {})
+    }
+  }
+
+  /**
    * 修订稿 HTML：与 docx 导出同源的锚点定位（tokenizeEdits）。
    * redline=红划线（del 红删除线 + ins 蓝下划线）；clean=干净终版（只呈现改写后正文）。
    */

@@ -978,6 +978,24 @@ model RefundMessage {
   @@map("refund_messages")
 }
 
+// 平台功能文档：任务 Agent 的 platform_help 工具按租户套餐过滤后回答
+// 「功能怎么用 / 我的套餐有什么」类问题（plans 为可见套餐 CSV，如 "PERSONAL,TEAM,ENTERPRISE"）
+model PlatformDoc {
+  id        String   @id @default(cuid())
+  category  String   @db.VarChar(30) // 板块：审查 / 台账 / Agent / 法规库 / 账单 / 套餐 ...
+  title     String   @db.VarChar(120)
+  content   String   @db.Text // markdown 说明
+  plans     String   @default("FREE,PERSONAL,TEAM,ENTERPRISE") @db.VarChar(60)
+  keywords  String   @default("") @db.VarChar(200) // 检索关键词 CSV
+  enabled   Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled, sortOrder])
+  @@map("platform_docs")
+}
+
 enum RefundStatus {
   CHAT // AI 客服接待中
   AGENT // 人工客服处理中

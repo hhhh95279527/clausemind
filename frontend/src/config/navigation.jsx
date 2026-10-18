@@ -30,7 +30,7 @@ export const publicFooterLinks = [
   { path: '/terms',  label: '用户协议' },
 ]
 
-// ── 个人布局：与企业版同构（共享路由），仅少团队席位/集成中心两项团队专属板块 ──
+// ── 个人布局：与企业版同构（共享路由），少合同台账/团队席位/集成中心三项团队专属板块 ──
 export const personalNav = [
   { path: '/dashboard',  icon: DashboardOutlined,         label: '合规仪表盘' },
   { path: '/contracts',  icon: SafetyCertificateOutlined, label: '合同审查' },
@@ -38,7 +38,6 @@ export const personalNav = [
   { path: '/templates',  icon: BookOutlined,              label: '合同范本' },
   { path: '/knowledge',  icon: ReadOutlined,              label: '法规问答' },
   { path: '/agent',      icon: RobotOutlined,             label: '任务 Agent' },
-  { path: '/ledger',     icon: FolderOutlined,            label: '到期预警' },
   { path: '/billing',    icon: CreditCardOutlined,        label: '我的套餐' },
   { path: '/feedback',   icon: BulbOutlined,              label: '建议反馈' },
 ]

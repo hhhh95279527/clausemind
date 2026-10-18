@@ -28,7 +28,7 @@ const ITEM_META = {
     title: '个人版 · 月付',
     desc: '不限份数审查 · AI 语义审查与改稿 · Word 红划线 · 永久存档 · 个人条款库',
     goods: '个人版 · 月付',
-    amount: '19.00',
+    amount: '0.01',
     amountPrefix: '¥',
     per: '/ 月',
   },
@@ -37,7 +37,7 @@ const ITEM_META = {
     titleTag: '年付省 ¥129',
     desc: '权益与月付一致，一次开通 12 个月；相当于 ¥8.25/月。',
     goods: '个人版 · 年付',
-    amount: '99.00',
+    amount: '0.01',
     amountPrefix: '¥',
     strike: '¥228',
     per: '/ 年',
@@ -47,15 +47,15 @@ const ITEM_META = {
     title: '深度审查券包 · 10 张',
     desc: '1 券解锁 1 份深度审查（含长文档、非标合同），含 AI 改稿与 Word 红划线导出。',
     goods: '深度审查券包 10 张',
-    amount: '99.00',
+    amount: '0.01',
     amountPrefix: '¥',
-    per: '¥9.9 × 10 张',
+    per: '共 10 张',
   },
   TEAM_MONTHLY: {
     title: '团队版 · 月付',
     desc: '5 席位 · Playbook 公司红线规则 · 团队共享合同与审批 · 飞书通知',
     goods: '团队版 · 月付（5 席位）',
-    amount: '99.00',
+    amount: '0.01',
     amountPrefix: '¥',
     per: '/ 席/月',
   },
@@ -326,7 +326,8 @@ export default function CheckoutView() {
                       <img
                         src={payInfo.qrcodeUrl}
                         alt="管理员收款码"
-                        style={{ width: 120, height: 120, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border, #eee)' }}
+                        style={{ width: 200, height: 200, flexShrink: 0, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border, #eee)', cursor: 'zoom-in' }}
+                        onClick={() => window.open(payInfo.qrcodeUrl, '_blank')}
                       />
                       <div style={{ fontSize: 12.5, color: 'var(--color-text-sub)', lineHeight: 1.7 }}>
                         请扫码支付 <b>¥{meta.amount}</b>，<br />保留好转账记录。

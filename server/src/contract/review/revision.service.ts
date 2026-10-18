@@ -12,7 +12,7 @@ import {
   InsertedTextRun, DeletedTextRun,
 } from 'docx'
 import { HumanMessage, SystemMessage } from '@langchain/core/messages'
-import type { Clause, Risk, ReviewTask } from '@prisma/client'
+import type { Clause, Contract, Risk, ReviewTask } from '@prisma/client'
 import { DatabaseService } from '../../database/database.service.js'
 import { EntitlementsService } from '../../billing/entitlements.service.js'
 import { TrialService, type TrialFeature } from '../../billing/trial.service.js'
@@ -300,7 +300,9 @@ export class RevisionService {
     this.sendDocxResponse(res, downloadName, rebuilt.buffer)
   }
 
-  /** 导出修订稿 PDF（redline=红划线版 / clean=干净终版）：与 docx 导出同门禁，按需生成不重复归档 */
+  /** 导出修订稿 PDF（redline=红划线版 / clean=干净终版）：与 docx 导出同门禁，按需生成不重复归档。
+   *  优先与 Word 导出同源：复用原件/重建 docx 管线生成修订文档，再由本机 Word 转 PDF——
+   *  标题、自动序号、字体表格等版式与 docx 版完全一致；Word 不可用时回退 HTML 渲染保底。 */
   async exportPdf(tenantId: string, contractId: string, plan: string, variant: 'redline' | 'clean', res: Response) {
     const { contract, task, risks, clauses } = await this.load(tenantId, contractId)
     await this.assertDeepWithTrial(tenantId, task, plan, 'EXPORT')
@@ -308,12 +310,48 @@ export class RevisionService {
     if (!accepted.length) {
       throw new NotFoundException('还没有已采纳的修改，请先在审查结果中采纳至少一条修改建议')
     }
-    const html = this.pdf.buildRevisionHtml({ title: contract.title, clauses, accepted, variant })
-    const buffer = await this.pdf.htmlToPdf(html, { contractId: contract.id })
     const base = /^粘贴文本/.test(contract.fileName)
       ? contract.title
       : contract.fileName.replace(/\.[^.]+$/, '') || contract.title
     const downloadName = variant === 'clean' ? `${base}（修订后）.pdf` : `${base}（修订稿·红划线）.pdf`
+
+    // 同源分支：与 Word 导出完全相同的 docx 生成逻辑（原件 OOXML 注入 → 版式零丢失）
+    const docxSource = await this.buildRevisionDocxSource(contract, accepted, clauses, variant)
+    if (docxSource) {
+      try {
+        const buffer = await this.pdf.docxToPdf(docxSource, { showMarkup: variant === 'redline', contractId: contract.id })
+        this.sendPdfResponse(res, downloadName, buffer)
+        return
+      } catch { /* Word COM 不可用/转换失败 → 走下方 HTML 保底 */ }
+    }
+
+    // HTML 保底分支（无 Office 环境 / 非 docx 原件且重建失败）
+    const html = this.pdf.buildRevisionHtml({ title: contract.title, clauses, accepted, variant })
+    const buffer = await this.pdf.htmlToPdf(html, { contractId: contract.id })
+    this.sendPdfResponse(res, downloadName, buffer)
+  }
+
+  /** 与 exportDocx 同优先级的修订 docx 生成：原件注入优先，文本重建兜底；两者都失败返回 null */
+  private async buildRevisionDocxSource(
+    contract: Contract,
+    accepted: Risk[],
+    clauses: Clause[],
+    mode: DocxMode,
+  ): Promise<Buffer | null> {
+    if (contract.fileType.toLowerCase() === 'docx' && contract.storagePath) {
+      const result = await this.buildFromOriginalDocx(contract.storagePath, accepted, mode)
+      if (result) return result.buffer
+    }
+    try {
+      const rebuilt = await this.buildTextRebuildDocx(contract.title, accepted, clauses, mode)
+      return rebuilt.buffer
+    } catch (e) {
+      logger.warn('revision: text rebuild for pdf failed', { error: (e as Error).message })
+      return null
+    }
+  }
+
+  private sendPdfResponse(res: Response, downloadName: string, buffer: Buffer) {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader(
       'Content-Disposition',
