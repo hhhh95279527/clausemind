@@ -209,7 +209,7 @@ export class AgentController implements OnModuleInit {
           // 吞掉 runAgent 内部的 done——ASSISTANT 消息落库后由本端点统一下发，
           // 避免前端收到 done 即刷新列表时最后一轮尚未落库。
           let fullAnswer = ''
-          const toolSteps: Array<Record<string, unknown>> = []
+          const toolSteps: Array<Record<string, string | number | boolean | null>> = []
           const emit = (type: string, data: unknown) => {
             if (type === 'done') return
             send(type, data)
