@@ -148,7 +148,6 @@ export class OrdersController {
   @ApiParam({ name: 'id', description: '订单 ID' })
   @ApiParam({ name: 'index', description: '凭证下标' })
   async downloadProof(
-    @Req() req: any,
     @Param('id') id: string,
     @Param('index') index: string,
     @Res() res: any,

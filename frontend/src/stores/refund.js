@@ -10,9 +10,6 @@ export const REFUND_REASON_OPTIONS = [
   { value: 'NOT_AS_EXPECTED', label: '效果不符预期' },
   { value: 'OTHER', label: '其他' },
 ]
-export const REFUND_REASON_LABELS = Object.fromEntries(
-  REFUND_REASON_OPTIONS.map((r) => [r.value, r.label]),
-)
 
 export const useRefundStore = create((set) => ({
   requests: [],

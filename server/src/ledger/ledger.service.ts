@@ -437,7 +437,7 @@ ${text}`],
     const normDate = (s?: string) => {
       const m = String(s ?? '').trim().match(/^(\d{4}-\d{2}-\d{2})/)
       if (!m) return null
-      const [y, mo, d] = m[1].split('-').map(Number)
+      const [, mo, d] = m[1].split('-').map(Number)
       if (!mo || mo < 1 || mo > 12 || d < 1 || d > 31) return null
       return m[1]
     }

@@ -18,8 +18,8 @@ declare module 'multer' {
 // busboy 按 UTF-8 解析 multipart filename（默认 latin1 会让中文文件名变乱码）；
 // decodeOriginalName 再兜底修复异常客户端
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, './uploads/'),
-  filename: (req, file, cb) => {
+  destination: './uploads/',
+  filename: (_req, file, cb) => {
     // 磁盘文件名只用 ASCII（时间戳+随机），避免 Windows 编码问题；展示名在业务层解码后入库
     const ext = path.extname(decodeOriginalName(file.originalname))
     const name = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}${ext}`
@@ -33,7 +33,7 @@ const upload = multer({
   limits: {
     fileSize: 30 * 1024 * 1024,  // 最大 30MB
   },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     // 知识库允许：纯文本 / Markdown / PDF / Word（docx 走 mammoth 抽取，与合同同一套解析）
     const allowed = ['.txt', '.md', '.pdf', '.docx']
     const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase()
@@ -65,7 +65,7 @@ const contractMulter = multer({
   defParamCharset: 'utf8',
   // 硬上限取付费套餐最大值 15MB；免费档的 8MB 限制在 Controller 按套餐二次校验
   limits: { fileSize: 15 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const allowed = ['.txt', '.md', '.pdf', '.docx', '.jpg', '.jpeg', '.png']
     const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase()
     if (allowed.includes(ext)) {
@@ -98,7 +98,7 @@ const refundMulter = multer({
   storage,
   defParamCharset: 'utf8',
   limits: { fileSize: 10 * 1024 * 1024, files: 5 },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.pdf', '.docx', '.txt', '.md']
     const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase()
     if (allowed.includes(ext)) {
@@ -134,7 +134,7 @@ const transferProofMulter = multer({
   storage,
   defParamCharset: 'utf8',
   limits: { fileSize: 10 * 1024 * 1024, files: 3 },
-  fileFilter: (req, file, cb) => {
+  fileFilter: (_req, file, cb) => {
     const allowed = ['.jpg', '.jpeg', '.png', '.webp', '.pdf']
     const ext = path.extname(decodeOriginalName(file.originalname)).toLowerCase()
     if (allowed.includes(ext)) {

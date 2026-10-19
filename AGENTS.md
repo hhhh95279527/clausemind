@@ -137,7 +137,7 @@ npm run build
 - **Node 脚本测 multipart 上传**：用全局 `FormData` + `new Blob([buf])`（undici 原生，自动算 Content-Length）；第三方 `form-data` 包配全局 fetch 会让 busboy 报 `Unexpected end of form`。
 - **导出文件出问题先看响应头 `X-Revision-Applied/-Unmatched`**：存在即走了原件注入分支（值为定位命中/未命中条数），不存在即文本重建兜底（原件被删/非 docx/readFile 失败，日志有 warn）。
 - **embedding 0 命中**：无 embedding Key 时关键词兜底依赖字面 contains，口语化提问可能召回为空（eval 题面内嵌条文原句锚点），这是已知降级局限非 bug。
-- `server/pnpm-lock.yaml` 是历史遗留，项目实际用 **npm**（CI 也是 `npm ci --legacy-peer-deps`），以 package-lock.json 为准。
+- 项目统一用 **npm**（CI 是 `npm ci --legacy-peer-deps`），以 package-lock.json 为准，勿引入 pnpm/yarn 锁文件。
 
 ## 10. 提交约定
 

@@ -22,32 +22,4 @@ export const FREE_LIMITS = {
   allowedScenes: ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA'],
 }
 
-// 合同文件上传大小上限（MB），与后端 PlanDef.maxUploadBytes 对齐
-// FREE=8MB；PERSONAL / TEAM / ENTERPRISE 等会员档=15MB
-export const UPLOAD_MAX_MB = { FREE: 8, PAID: 15 }
-
-// 特性 key 与后端 Feature 对齐
-export const PLAN_FEATURES = {
-  FREE: {
-    deep: false, playbook: false, wordExport: false, pdfFullExport: false,
-    permanentStorage: false, clauseLibrary: false, ledgerUnlimited: false,
-    teamCollaboration: false, feishu: false, ocr: true, longDocument: false,
-  },
-  PERSONAL: {
-    deep: true, playbook: false, wordExport: true, pdfFullExport: true,
-    permanentStorage: true, clauseLibrary: true, ledgerUnlimited: false,
-    teamCollaboration: false, feishu: false, ocr: true, longDocument: true,
-  },
-  TEAM: {
-    deep: true, playbook: true, wordExport: true, pdfFullExport: true,
-    permanentStorage: true, clauseLibrary: true, ledgerUnlimited: true,
-    teamCollaboration: true, feishu: true, ocr: true, longDocument: true,
-  },
-  ENTERPRISE: {
-    deep: true, playbook: true, wordExport: true, pdfFullExport: true,
-    permanentStorage: true, clauseLibrary: true, ledgerUnlimited: true,
-    teamCollaboration: true, feishu: true, ocr: true, longDocument: true,
-  },
-}
-
 

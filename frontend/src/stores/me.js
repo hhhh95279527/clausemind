@@ -3,8 +3,6 @@
 import { create } from 'zustand'
 import http from '@/utils/http.js'
 
-export const FOLLOW_RISK_OPTIONS = ['押金', '定金 / 订金', '违约金', '试用期', '社保', '竞业限制', '争议管辖']
-
 export const useMeStore = create((set) => ({
   entitlement: null,
   preferences: null,

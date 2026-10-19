@@ -643,16 +643,6 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-model SystemConfig {
-  id        String   @id @default(cuid())
-  key       String   @unique @db.VarChar(100)
-  value     Json
-  desc      String   @default("") @db.VarChar(500)
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("system_configs")
-}
-
 // ════════════════════════ 增长改造 v2：台账 / Playbook / 订单 / 埋点 / 集成 ════════════════════════
 
 // 合同台账：企业全生命周期管理，个人空间轻量复用（额度 ≤10）

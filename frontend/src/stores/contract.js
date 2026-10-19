@@ -40,13 +40,6 @@ export const SCENE_OPTIONS = [
   { label: '非标合同', value: 'CUSTOM' },
 ]
 
-// 合同类型来源（sceneSource）
-export const SCENE_SOURCE_META = {
-  AUTO: { text: '识别中', color: 'processing' },
-  AI: { text: 'AI 识别', color: 'purple' },
-  USER: { text: '手动指定', color: 'default' },
-}
-
 // 解析失败已上报的合同 ID：同一合同多次进入详情/轮询只计一次（质量指标不去重会虚增）
 const parseFailReported = new Set()
 

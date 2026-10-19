@@ -146,9 +146,8 @@ function rewriteParagraph(paraInner: string, ranges: Range[], mode: DocxMode): s
   while ((m = RUN_RE.exec(paraInner))) {
     const outer = m[0]
     let leafCount = 0
-    let tm: RegExpExecArray | null
     T_RE.lastIndex = 0
-    while ((tm = T_RE.exec(outer))) { leafCount++ }
+    while (T_RE.exec(outer)) { leafCount++ }
     if (!leafCount) continue
     runs.push({ outer, start: m.index, end: m.index + outer.length, leafCount })
   }

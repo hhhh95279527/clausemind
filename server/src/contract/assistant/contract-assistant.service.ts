@@ -11,7 +11,6 @@ import { QuotaService } from '../../observability/quota.service.js'
 import { RedisService } from '../../redis/redis.service.js'
 import { createChatModel } from '../../services/model.js'
 import { config as appConfig, isValidAiKey } from '../../config/index.js'
-import { logger } from '../../utils/logger.js'
 
 interface AskInput {
   tenantId: string
