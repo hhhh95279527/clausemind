@@ -59,6 +59,8 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script_stop: true
+          # 首次/大镜像变更时 GHCR 从上海拉取较慢（1.4GB 需 10 分钟以上），给足超时
+          command_timeout: 25m
           script: |
             cd /opt/clausemind
             git fetch --all
