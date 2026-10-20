@@ -42,6 +42,9 @@ services:
 
   # ── 后端服务 ──────────────────────────────────────────────────
   server:
+    # 本地开发用默认名（走 build）；生产在 .env 设 SERVER_IMAGE=ghcr.io/<owner>/<repo>-server:latest
+    # 由 CI 构建镜像后 `docker compose pull server` 拉取，服务器无需本地构建。
+    image: ${SERVER_IMAGE:-clausemind-server:dev}
     build:
       context: ./server
       dockerfile: Dockerfile
@@ -84,6 +87,8 @@ services:
 
   # ── Nginx 前端 + 反向代理 ─────────────────────────────────────
   nginx:
+    # 生产在 .env 设 NGINX_IMAGE=ghcr.io/<owner>/<repo>-nginx:latest，由 CI 构建后 pull。
+    image: ${NGINX_IMAGE:-clausemind-nginx:dev}
     build:
       context: ./frontend
       dockerfile: Dockerfile

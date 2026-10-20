@@ -10,6 +10,9 @@ RUN npm config set registry https://registry.npmmirror.com \
  && (sed -i 's#https://registry\.npmjs\.org#https://registry.npmmirror.com#g' package-lock.json || true) \
  && npm install
 COPY . .
+# 小内存服务器（或低配容器）构建时 Vite 会触发 V8 默认堆上限导致 OOM（Ineffective mark-compacts near heap limit）。
+# 显式抬高 Node 堆上限；配合 swap 可完成构建。
+ENV NODE_OPTIONS=--max-old-space-size=2048
 RUN npm run build
 
 FROM nginx:alpine

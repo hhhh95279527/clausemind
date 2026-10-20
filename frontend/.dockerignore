@@ -1,0 +1,6 @@
+# 构建上下文裁剪：避免把本地依赖/产物/密钥打进镜像（前端 Dockerfile 使用 COPY . .）
+node_modules
+dist
+.env
+.env.*
+*.log
