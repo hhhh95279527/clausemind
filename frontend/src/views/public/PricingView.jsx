@@ -65,7 +65,7 @@ const COMPARE_ROWS = [
 const FAQS = [
   {
     q: '免费版真的能看到风险吗？',
-    a: '能。免费版每月 2 份（3000 字以内，限劳动 / 租赁 / 劳务 / NDA 四类），完整风险清单、大白话摘要与整体评分都免费可见；只有深度修改建议、法条依据、替代措辞、Word 导出与永久存档属于付费权益，也可以用 ¥9.9 深度审查券逐份解锁。',
+    a: '能。免费版每月 2 份（3000 字以内，限劳动 / 租赁 / 劳务 / NDA 四类），完整风险清单、大白话摘要与整体评分都免费可见；只有深度修改建议、法条依据、替代措辞、Word 导出与永久存档属于付费权益，也可以用 ¥0.01 深度审查券逐份解锁。',
   },
   {
     q: '可以随时取消吗？',
@@ -126,7 +126,7 @@ export default function PricingView() {
       <section className={styles.section}>
         <h1 className={styles.title}>个人免费起步，团队按席订阅</h1>
         <p className={styles.sub}>
-          免费版即可看到风险点、大白话摘要与评分；深度建议、导出与存档按需升级，也可以用 ¥9.9 审查券逐份解锁
+          免费版即可看到风险点、大白话摘要与评分；深度建议、导出与存档按需升级，也可以用 ¥0.01 审查券逐份解锁
         </p>
 
         <div className={styles.segWrap}>
@@ -161,9 +161,9 @@ export default function PricingView() {
             <p className={styles.planDesc}>不限份数的深度审查与改稿，个人长期使用</p>
             <div className={styles.planPrice}>
               {period === 'monthly' ? (
-                <span>¥19<small> /月</small></span>
+                <span>¥0.01<small> /月</small></span>
               ) : (
-                <span>¥99<small> /年</small><span className={styles.saveTag}>省 48%</span></span>
+                <span>¥0.01<small> /年</small><span className={styles.saveTag}>测试价</span></span>
               )}
             </div>
             <ul className={styles.planFeats}>
@@ -175,7 +175,7 @@ export default function PricingView() {
           <div className={styles.planCard}>
             <div className={styles.planName}>TEAM 团队版</div>
             <p className={styles.planDesc}>HR / 法务团队多人协作，规则统一、审批留痕</p>
-            <div className={styles.planPrice}>¥99<small> /席/月</small></div>
+            <div className={styles.planPrice}>¥0.01<small> /席/月</small></div>
             <ul className={styles.planFeats}>
               {PLAN_TEAM_FEATS.map((f) => <li key={f}><span className={styles.tick}>✓</span>{f}</li>)}
             </ul>
@@ -200,7 +200,7 @@ export default function PricingView() {
         <div className={styles.coupon}>
           <span className={styles.couponIcon}><TagOutlined /></span>
           <div>
-            <b>深度审查券 ¥9.9/份</b>
+            <b>深度审查券 ¥0.01/份</b>
             <p>1 券解锁 1 份完整深度审查（含法条依据、修改建议、替代措辞，支持长文档）；免费用户也可购买，不用订阅。</p>
           </div>
           <Link className={`${styles.btn} ${styles.btnPrimary}`} to={freeHref}>购买券包</Link>

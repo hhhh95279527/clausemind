@@ -106,8 +106,8 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     code: 'PERSONAL',
     workspace: 'PERSONAL',
     label: '个人版',
-    priceMonthlyFen: 1,      // ¥0.01/月（测试价，正式价 ¥19/月）
-    priceYearlyFen: 1,       // ¥0.01/年（测试价，正式价 ¥99/年）
+    priceMonthlyFen: 1,      // ¥0.01/月（当前定价）
+    priceYearlyFen: 1,       // ¥0.01/年（当前定价）
     seats: 1,
     monthlyReviewQuota: Infinity,
     maxChars: Infinity,
@@ -135,7 +135,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
     code: 'TEAM',
     workspace: 'TEAM',
     label: '团队版',
-    priceMonthlyFen: 1,      // ¥0.01/席/月（测试价，正式价 ¥99/席/月）
+    priceMonthlyFen: 1,      // ¥0.01/席/月（当前定价）
     priceYearlyFen: null,
     seats: 5,
     monthlyReviewQuota: Infinity,
@@ -193,7 +193,7 @@ export const PLAN_DEFS: Record<PlanCode, PlanDef> = {
 
 // ── 深度券（跨档，1 券解锁 1 份完整深度审查，不计入月额度）────────
 export const COUPON_PACK_QTY = 10                 // 10 张/包
-export const COUPON_PACK_PRICE_FEN = 1            // ¥0.01/包（10 张，测试价，正式价 ¥99/包）
+export const COUPON_PACK_PRICE_FEN = 1            // ¥0.01/包（10 张，当前定价）
 
 // ── 收银台商品目录（FR-13：价格为配置常量，禁止客户端传价）─────────
 export type CheckoutItem =

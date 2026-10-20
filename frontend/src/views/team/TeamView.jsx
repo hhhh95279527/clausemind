@@ -409,7 +409,7 @@ export default function TeamView() {
           <div className={css.statFoot}>
             {seats === null
               ? <><Tag color="purple">{data.planLabel}</Tag>席位不限量</>
-              : <>剩余 {remain} 席 · <a onClick={() => navigate('/billing')}>增购席位 ¥99/席/月</a></>}
+              : <>剩余 {remain} 席 · <a onClick={() => navigate('/billing')}>增购席位 ¥0.01/席/月</a></>}
           </div>
         </div>
 
@@ -601,7 +601,7 @@ export default function TeamView() {
         <p className={css.muted}>增购席位后该成员才能通过审批；也可升级至企业版获得不限席位。</p>
         <div className={css.modalActions}>
           <Button onClick={() => setSeatBlock(null)}>稍后再说</Button>
-          <Button type="primary" onClick={() => navigate('/billing')}>增购席位 ¥99/席/月</Button>
+          <Button type="primary" onClick={() => navigate('/billing')}>增购席位 ¥0.01/席/月</Button>
         </div>
       </Modal>
     </div>

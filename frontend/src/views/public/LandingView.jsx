@@ -82,8 +82,8 @@ const REPORT_ROWS = [
 
 const PRICE_CARDS = [
   { name: 'FREE', price: '¥0', priceSmall: '', desc: '每月 2 份 · 3000 字以内 · 五类合同 · 风险点 + 摘要 + 评分 · 记录保留 7 天', cta: '免费开始' },
-  { name: 'PERSONAL', price: '¥19', priceSmall: '/月', desc: '或 ¥99/年（省 48%）· 不限份数与长度 · 深度报告 · 多轮改稿 · 永久存档', cta: '查看个人版' },
-  { name: 'TEAM', price: '¥99', priceSmall: '/席/月', desc: '5 席位 · 企业 Playbook · 审批流转 · 不限台账 · 飞书通知', cta: '查看团队版' },
+  { name: 'PERSONAL', price: '¥0.01', priceSmall: '/月', desc: '年付同样 ¥0.01（测试价）· 不限份数与长度 · 深度报告 · 多轮改稿 · 永久存档', cta: '查看个人版' },
+  { name: 'TEAM', price: '¥0.01', priceSmall: '/席/月', desc: '5 席位 · 企业 Playbook · 审批流转 · 不限台账 · 飞书通知', cta: '查看团队版' },
   { name: 'ENTERPRISE', price: '定制', priceSmall: '', desc: '不限席位 · 行业专项包 · SSO / 私有化 / API · 审计存证 · 专属客户成功', cta: '联系我们' },
 ]
 
@@ -197,9 +197,9 @@ export default function LandingView() {
                 <li><span className={styles.tick}>✓</span>低频合同，按月开通，不用长期订阅</li>
                 <li><span className={styles.tick}>✓</span>大白话解读风险，不需要法律背景</li>
                 <li><span className={styles.tick}>✓</span>免费版每月 2 份，风险点与评分直接看</li>
-                <li><span className={styles.tick}>✓</span>不订阅也能买 ¥9.9 深度审查券，逐份解锁</li>
+                <li><span className={styles.tick}>✓</span>不订阅也能买深度审查券，逐份解锁</li>
               </ul>
-              <div className={styles.trackPrice}>¥19<span>/月起 · 年付 ¥99</span></div>
+              <div className={styles.trackPrice}>¥0.01<span>/月 · 年付同样 ¥0.01</span></div>
               <div className={styles.trackActions}>
                 <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/register#form-personal">我是个人，免费开始</Link>
                 <Link className={`${styles.btn} ${styles.btnGhost}`} to="/pricing">查看个人版</Link>
@@ -218,7 +218,7 @@ export default function LandingView() {
                 <li><span className={styles.tick}>✓</span>合同台账不限条数，到期合规提醒</li>
                 <li><span className={styles.tick}>✓</span>飞书通知、系统集成与私有化（企业版）</li>
               </ul>
-              <div className={styles.trackPrice}>¥99<span>/席/月起 · 企业版定制</span></div>
+              <div className={styles.trackPrice}>¥0.01<span>/席/月 · 企业版定制</span></div>
               <div className={styles.trackActions}>
                 <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/register#form-team">创建团队空间</Link>
                 <Link className={`${styles.btn} ${styles.btnGhost}`} to="/pricing">查看团队 / 企业方案</Link>
@@ -246,7 +246,7 @@ export default function LandingView() {
         <div className={styles.coupon}>
           <span className={styles.couponIcon}><TagOutlined /></span>
           <div>
-            <b>深度审查券 ¥9.9/份</b>
+            <b>深度审查券 ¥0.01/份</b>
             <p>不订阅也能逐份解锁：1 券解锁 1 份完整深度审查（含长文档），免费用户也可购买。</p>
           </div>
           <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/pricing">了解券包</Link>

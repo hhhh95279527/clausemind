@@ -8,7 +8,6 @@ import { Button, Input, Upload } from 'antd'
 import {
   CheckCircleFilled,
   LockFilled,
-  MessageFilled,
   SafetyCertificateOutlined,
   WechatOutlined,
   PayCircleOutlined,
@@ -34,14 +33,14 @@ const ITEM_META = {
   },
   PERSONAL_YEARLY: {
     title: '个人版 · 年付',
-    titleTag: '年付省 ¥129',
-    desc: '权益与月付一致，一次开通 12 个月；相当于 ¥8.25/月。',
+    titleTag: '年付测试价 ¥0.01',
+    desc: '权益与月付一致，一次开通 12 个月。',
     goods: '个人版 · 年付',
     amount: '0.01',
     amountPrefix: '¥',
-    strike: '¥228',
+    strike: undefined,
     per: '/ 年',
-    save: '较月付连续订阅节省 ¥129（省 48%）',
+    save: '测试期统一定价 ¥0.01（所有套餐）',
   },
   COUPON_PACK: {
     title: '深度审查券包 · 10 张',
@@ -277,32 +276,18 @@ export default function CheckoutView() {
             <div className={css.coCol}>
               <div className={css.coPayTitle}>选择支付方式</div>
               <div className={css.coPay}>
-                {/* 白名单账号才展示模拟支付；其余账号仅真实转账 */}
+                {/* 白名单账号才展示模拟支付；当前仅支持微信支付（支付宝选项已下线） */}
                 {payOptions?.simulatePay && (
-                  <>
-                    <label className={`${css.coPayItem} ${channel === 'WECHAT' ? css.coPayActive : ''}`}>
-                      <input
-                        type="radio" name="pay" checked={channel === 'WECHAT'}
-                        onChange={() => setChannel('WECHAT')}
-                      />
-                      <span className={css.coRadio} />
-                      <span className={`${css.coChannelIc} ${css.coWechat}`}><WechatOutlined /></span>
-                      <span>微信支付</span>
-                      <span className={css.coChannelSub}>推荐</span>
-                    </label>
-                    <label className={`${css.coPayItem} ${channel === 'ALIPAY' ? css.coPayActive : ''}`}>
-                      <input
-                        type="radio" name="pay" checked={channel === 'ALIPAY'}
-                        onChange={() => setChannel('ALIPAY')}
-                      />
-                      <span className={css.coRadio} />
-                      <span className={`${css.coChannelIc} ${css.coAlipay}`}>
-                        <MessageFilled />
-                      </span>
-                      <span>支付宝</span>
-                      <span className={css.coChannelSub}>&nbsp;</span>
-                    </label>
-                  </>
+                  <label className={`${css.coPayItem} ${channel === 'WECHAT' ? css.coPayActive : ''}`}>
+                    <input
+                      type="radio" name="pay" checked={channel === 'WECHAT'}
+                      onChange={() => setChannel('WECHAT')}
+                    />
+                    <span className={css.coRadio} />
+                    <span className={`${css.coChannelIc} ${css.coWechat}`}><WechatOutlined /></span>
+                    <span>微信支付</span>
+                    <span className={css.coChannelSub}>推荐</span>
+                  </label>
                 )}
                 <label className={`${css.coPayItem} ${channel === 'TRANSFER' ? css.coPayActive : ''}`}>
                   <input

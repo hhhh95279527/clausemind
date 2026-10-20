@@ -141,7 +141,7 @@ export default function TeamBillingView() {
       key: 'PERSONAL',
       icon: <SafetyOutlined style={{ color: 'var(--color-primary)' }} />,
       name: '个人版 PERSONAL',
-      price: '¥19 / 月 · 年付 ¥99',
+      price: '¥0.01 / 月 · 年付同样 ¥0.01',
       priceCls: css.tagGreen,
       desc: '适合个人与自由职业者：不限份数深度审查、AI 改稿与模拟反驳、Word 红划线导出、永久存档。',
       cta: '升级个人版',
@@ -151,7 +151,7 @@ export default function TeamBillingView() {
       key: 'TEAM',
       icon: <TeamOutlined style={{ color: 'var(--color-primary)' }} />,
       name: '团队版 TEAM',
-      price: '¥99 / 席 / 月（5 席位起）',
+      price: '¥0.01 / 席 / 月（5 席位起）',
       priceCls: css.tagGreen,
       desc: '适合 3 人以上小团队：共享合同库与审批流、公司红线规则（Playbook）、不限条数台账、飞书群通知。',
       cta: '升级团队版',
@@ -192,7 +192,7 @@ export default function TeamBillingView() {
               {isEnterprise
                 ? '定制套餐 · 不限席位 · SSO / 私有化 / 定制规则'
                 : isTeamSpace
-                  ? `月付套餐 · ¥99/席/月 · ${entitlement?.planExpiresAt ? `有效期至 ${fmtDate(entitlement.planExpiresAt)}` : ''}`
+                  ? `月付套餐 · ¥0.01/席/月 · ${entitlement?.planExpiresAt ? `有效期至 ${fmtDate(entitlement.planExpiresAt)}` : ''}`
                   : isPaidPersonal
                     ? `已解锁全部深度权益 · 不限份数${entitlement?.planExpiresAt ? ` · 有效期至 ${fmtDate(entitlement.planExpiresAt)}` : ''}`
                     : '每月免费额度 · 单份 ≤ 3000 字 · 审查记录保留 7 天'}
@@ -251,8 +251,8 @@ export default function TeamBillingView() {
               </>
             ) : (
               <>
-                <Button type="primary" block onClick={() => navigate('/checkout?plan=PERSONAL&period=monthly')}>升级个人版 ¥19/月</Button>
-                <Button block onClick={() => navigate('/checkout?plan=PERSONAL&period=yearly')}>年付 ¥99 · 省 48%</Button>
+                <Button type="primary" block onClick={() => navigate('/checkout?plan=PERSONAL&period=monthly')}>升级个人版 ¥0.01/月</Button>
+                <Button block onClick={() => navigate('/checkout?plan=PERSONAL&period=yearly')}>年付 ¥0.01</Button>
               </>
             )}
           </div>

@@ -336,15 +336,15 @@ export default function TemplatesView() {
           <h3>免费仅可在线预览</h3>
           <p className={css.pwMuted}>采用范本生成可编辑合同、下载 Word 需要付费能力</p>
           <ul className={css.pwFeats}>
-            <li><Tag color="purple" className={css.pwTag}>券</Tag><span><b>深度审查券 ¥9.9 / 份</b>，采用范本并立即审查这份合同</span></li>
-            <li><Tag color="blue" className={css.pwTag}>个人版</Tag><span><b>¥19 / 月 · ¥99 / 年</b>，范本采用、Word 导出不限次</span></li>
+            <li><Tag color="purple" className={css.pwTag}>券</Tag><span><b>深度审查券 ¥0.01 / 份</b>，采用范本并立即审查这份合同</span></li>
+            <li><Tag color="blue" className={css.pwTag}>个人版</Tag><span><b>¥0.01 / 月 · ¥0.01 / 年</b>，范本采用、Word 导出不限次</span></li>
             <li><Tag color="green" className={css.pwTag}>团队版</Tag><span>公司标准合同库 + Playbook 规则联动，<b>团队升级请联系顾问</b></span></li>
           </ul>
           <Button type="primary" size="large" block onClick={() => navigate('/checkout?item=COUPON_PACK')}>
-            用券 ¥9.9 采用并审查
+            用券 ¥0.01 采用并审查
           </Button>
           <div className={css.pwRow}>
-            <Button block onClick={() => navigate('/billing')}>个人版 ¥19/月</Button>
+            <Button block onClick={() => navigate('/billing')}>个人版 ¥0.01/月</Button>
             <Button block onClick={() => navigate('/pricing')}>团队升级咨询</Button>
           </div>
           <div className={css.pwContinue}>
