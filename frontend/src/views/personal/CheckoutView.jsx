@@ -10,7 +10,6 @@ import {
   LockFilled,
   SafetyCertificateOutlined,
   WechatOutlined,
-  PayCircleOutlined,
   UploadOutlined,
 } from '@ant-design/icons'
 import { useBillingStore } from '@/stores/billing.js'
@@ -93,7 +92,6 @@ export default function CheckoutView() {
   const [result, setResult] = useState(null)
   // 转账支付（人工确认模式）：管理员收款码 + 用户提交转账单号 → 超管确认开通
   const [payInfo, setPayInfo] = useState(null)
-  const [transferChannel, setTransferChannel] = useState('WECHAT')
   const [transferNo, setTransferNo] = useState('')
   const [transferSubmitting, setTransferSubmitting] = useState(false)
   const [transferDone, setTransferDone] = useState(false)
@@ -107,11 +105,11 @@ export default function CheckoutView() {
     http.get('/billing/payment-info').then(setPayInfo).catch(() => {})
     http.get('/billing/pay-options').then((opts) => {
       setPayOptions(opts)
-      // 默认渠道：白名单→微信模拟支付；非白名单→转账支付
-      setChannel(opts.simulatePay ? 'WECHAT' : 'TRANSFER')
+      // 默认渠道：白名单→微信模拟支付；非白名单→微信支付（真实扫码）
+      setChannel('WECHAT')
     }).catch(() => {
       setPayOptions({ simulatePay: false })
-      setChannel('TRANSFER')
+      setChannel('WECHAT')
     })
   }, [])
 
@@ -155,7 +153,7 @@ export default function CheckoutView() {
     try {
       const fd = new FormData()
       fd.append('item', item)
-      fd.append('channel', transferChannel)
+      fd.append('channel', 'WECHAT')
       fd.append('transferNo', transferNo.trim())
       proofFiles.map((f) => f.originFileObj).filter(Boolean).forEach((f) => fd.append('proof', f))
       await http.post('/billing/transfer-orders', fd, { timeout: 60000 })
@@ -276,72 +274,50 @@ export default function CheckoutView() {
             <div className={css.coCol}>
               <div className={css.coPayTitle}>选择支付方式</div>
               <div className={css.coPay}>
-                {/* 白名单账号才展示模拟支付；当前仅支持微信支付（支付宝选项已下线） */}
-                {payOptions?.simulatePay && (
-                  <label className={`${css.coPayItem} ${channel === 'WECHAT' ? css.coPayActive : ''}`}>
-                    <input
-                      type="radio" name="pay" checked={channel === 'WECHAT'}
-                      onChange={() => setChannel('WECHAT')}
-                    />
-                    <span className={css.coRadio} />
-                    <span className={`${css.coChannelIc} ${css.coWechat}`}><WechatOutlined /></span>
-                    <span>微信支付</span>
-                    <span className={css.coChannelSub}>推荐</span>
-                  </label>
-                )}
-                <label className={`${css.coPayItem} ${channel === 'TRANSFER' ? css.coPayActive : ''}`}>
+                {/* 白名单：微信模拟支付（一键过）；非白名单：微信真实扫码支付（二维码+单号+截图） */}
+                <label className={`${css.coPayItem} ${channel === 'WECHAT' ? css.coPayActive : ''}`}>
                   <input
-                    type="radio" name="pay" checked={channel === 'TRANSFER'}
-                    onChange={() => setChannel('TRANSFER')}
+                    type="radio" name="pay" checked={channel === 'WECHAT'}
+                    onChange={() => setChannel('WECHAT')}
                   />
                   <span className={css.coRadio} />
-                  <span className={`${css.coChannelIc} ${css.coAlipay}`}>
-                    <PayCircleOutlined />
+                  <span className={`${css.coChannelIc} ${css.coWechat}`}><WechatOutlined /></span>
+                  <span>微信支付</span>
+                  <span className={css.coChannelSub}>
+                    {payOptions?.simulatePay ? '推荐' : '扫码支付'}
                   </span>
-                  <span>转账支付</span>
-                  <span className={css.coChannelSub}>人工确认</span>
                 </label>
               </div>
 
-              {channel === 'TRANSFER' && (
+              {/* 非白名单：微信支付真实扫码流程（二维码 + 单号 + 截图） */}
+              {channel === 'WECHAT' && !payOptions?.simulatePay && (
                 <div style={{ marginTop: 16, padding: 14, border: '1px dashed var(--color-border, #d9d9d9)', borderRadius: 10 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>转账后提交单号</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 8 }}>微信扫码支付</div>
                   {payInfo?.qrcodeUrl ? (
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
                       <img
                         src={payInfo.qrcodeUrl}
-                        alt="管理员收款码"
+                        alt="微信收款码"
                         style={{ width: 200, height: 200, flexShrink: 0, objectFit: 'contain', borderRadius: 8, border: '1px solid var(--color-border, #eee)', cursor: 'zoom-in' }}
                         onClick={() => window.open(payInfo.qrcodeUrl, '_blank')}
                       />
                       <div style={{ fontSize: 12.5, color: 'var(--color-text-sub)', lineHeight: 1.7 }}>
-                        请扫码支付 <b>¥{meta.amount}</b>，<br />保留好转账记录。
+                        请用微信扫码支付 <b>¥{meta.amount}</b>，<br />支付成功后保留转账记录单号。
                       </div>
                     </div>
                   ) : (
                     <div style={{ fontSize: 12.5, color: 'var(--color-text-sub)', marginBottom: 12, lineHeight: 1.7 }}>
-                      管理员尚未配置收款码，请线下联系管理员转账后提交单号。
+                      收款码加载中，请稍后刷新重试。
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                    {['WECHAT', 'ALIPAY', 'BANK'].map((c) => (
-                      <Button
-                        key={c} size="small"
-                        type={transferChannel === c ? 'primary' : 'default'}
-                        onClick={() => setTransferChannel(c)}
-                      >
-                        {c === 'WECHAT' ? '微信' : c === 'ALIPAY' ? '支付宝' : '银行'}
-                      </Button>
-                    ))}
-                  </div>
                   <Input
-                    placeholder="粘贴转账单号（账单中的转账记录单号）"
+                    placeholder="粘贴微信转账单号（账单中的转账记录单号）"
                     value={transferNo}
                     maxLength={100}
                     onChange={(e) => setTransferNo(e.target.value)}
                   />
                   <div style={{ marginTop: 10 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>转账凭证截图（可选，≤3 张）</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>支付凭证截图（可选，≤3 张）</div>
                     <Upload
                       multiple
                       maxCount={3}
@@ -373,27 +349,27 @@ export default function CheckoutView() {
 
           <div className={css.coFoot}>
             <div className={css.coAgree}>
-              {channel === 'TRANSFER'
-                ? '提交转账单号即表示你已完成转账并同意管理员核对到账后开通权益，核对结果以管理员确认为准。'
-                : <>点击「模拟支付，立即生效」即表示你已阅读并同意<Link to="/terms">《用户协议》</Link>与<Link to="/privacy">《隐私政策》</Link>，并知悉本页为原型演示环境。</>}
+              {payOptions?.simulatePay
+                ? <>点击「模拟支付，立即生效」即表示你已阅读并同意<Link to="/terms">《用户协议》</Link>与<Link to="/privacy">《隐私政策》</Link>，并知悉本页为原型演示环境。</>
+                : '提交微信支付单号即表示你已完成微信支付并同意管理员核对到账后开通权益，核对结果以管理员确认为准。'}
             </div>
             {channel === null ? (
               <Button type="primary" size="large" block loading className={css.coPayBtn}>
                 加载支付选项中…
               </Button>
-            ) : channel === 'TRANSFER' ? (
-              <Button
-                type="primary" size="large" block loading={transferSubmitting}
-                className={css.coPayBtn} onClick={submitTransfer}
-              >
-                我已转账，提交单号
-              </Button>
-            ) : (
+            ) : payOptions?.simulatePay ? (
               <Button
                 type="primary" size="large" block loading={paying}
                 className={css.coPayBtn} onClick={doPay}
               >
                 模拟支付，立即生效
+              </Button>
+            ) : (
+              <Button
+                type="primary" size="large" block loading={transferSubmitting}
+                className={css.coPayBtn} onClick={submitTransfer}
+              >
+                我已微信支付，提交单号
               </Button>
             )}
           </div>
