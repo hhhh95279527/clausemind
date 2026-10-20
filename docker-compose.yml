@@ -75,6 +75,10 @@ services:
       - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-ClauseMind <no-reply@clausemind.example>}
       - INTEGRATION_SECRET=${INTEGRATION_SECRET:-}
+      # 转账收款码（收银台「转账支付」面板展示）
+      - PAYMENT_QRCODE_URL=${PAYMENT_QRCODE_URL:-}
+      # 模拟支付白名单（白名单内账号可一键模拟支付）
+      - PAY_SIMULATE_WHITELIST=${PAY_SIMULATE_WHITELIST:-}
     depends_on:
       postgres:
         condition: service_healthy
