@@ -83,6 +83,7 @@ export default function CheckoutView() {
   const setUser = useAuthStore((s) => s.setUser)
   const { loadEntitlement, entitlement } = useMeStore()
   const { createOrder, mockPay } = useBillingStore()
+  const paymentEnabled = useAppStore((s) => s.paymentEnabled)
 
   const item = useMemo(() => resolveItem(sp), [sp])
   const meta = ITEM_META[item]
@@ -163,6 +164,20 @@ export default function CheckoutView() {
     } finally {
       setTransferSubmitting(false)
     }
+  }
+
+  // ── 购买入口关闭（如 ICP 备案审核期）：不展示任何价格与支付方式 ──
+  if (!paymentEnabled) {
+    return (
+      <ResultScreen simulatePay={false}>
+        <div className={css.coSuccessIc}><SafetyCertificateOutlined /></div>
+        <h2>内测阶段，暂未开放购买</h2>
+        <p>产品正在完善中，当前可免费使用基础审查能力，付费方案开放后会另行通知。</p>
+        <div className={css.coSuccessBtns}>
+          <Button type="primary" size="large" onClick={() => navigate(homePath)}>返回工作台</Button>
+        </div>
+      </ResultScreen>
+    )
   }
 
   // ── 转账单已提交（等待人工确认）面板 ──

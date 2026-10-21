@@ -22,6 +22,8 @@ export const config = {
   },
   // 转账收款：管理员收款码图片地址，展示在收银台「银行转账」页签
   billing: {
+    // 购买入口总开关：false 时前端隐藏定价/收银台/升级入口（ICP 备案审核期间可关闭）
+    paymentEnabled: process.env.PAYMENT_ENABLED !== 'false',
     paymentQrcodeUrl: process.env.PAYMENT_QRCODE_URL || '',
     // 模拟支付白名单（按用户名/邮箱匹配）：白名单内账号可一键模拟支付；其余账号必须走真实转账+人工确认
     simulateWhitelist: (process.env.PAY_SIMULATE_WHITELIST || '2530151343@qq.com,testboss,testboss@workmind.demo')

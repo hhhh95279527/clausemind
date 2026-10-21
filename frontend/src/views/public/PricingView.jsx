@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Modal, Form, Input, message } from 'antd'
 import { TagOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
+import { useAppStore } from '@/stores/app.js'
 import { homePath } from '@/utils/persona.js'
 import http from '@/utils/http.js'
 import PublicChrome from './PublicChrome.jsx'
@@ -90,6 +91,24 @@ export default function PricingView() {
   const [contactSubmitting, setContactSubmitting] = useState(false)
   const [contactForm] = Form.useForm()
   const user = useAuthStore((s) => s.user)
+  const paymentEnabled = useAppStore((s) => s.paymentEnabled)
+
+  // 购买入口关闭（如 ICP 备案审核期）：不展示任何价格与付费方案
+  if (!paymentEnabled) {
+    return (
+      <PublicChrome>
+        <section className={styles.section}>
+          <h1 className={styles.title}>内测阶段，暂未开放购买</h1>
+          <p className={styles.sub}>
+            产品正在完善中，注册后即可免费使用基础审查能力。付费方案开放后会在此公布。
+          </p>
+          <Link className={`${styles.btn} ${styles.btnGhost}`} to={user ? homePath(user) : '/register'}>
+            免费开始使用
+          </Link>
+        </section>
+      </PublicChrome>
+    )
+  }
 
   // 已登录：CTA 先进控制台（Phase 5 收银台上线后改为对应套餐页）；未登录去注册
   const personalHref = user ? homePath(user) : '/register#form-personal'

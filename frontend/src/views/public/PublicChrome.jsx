@@ -3,11 +3,13 @@
 import { Link } from 'react-router-dom'
 import { SafetyCertificateOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
+import { useAppStore } from '@/stores/app.js'
 import { homePath } from '@/utils/persona.js'
 import styles from './PublicChrome.module.css'
 
 export default function PublicChrome({ children }) {
   const user = useAuthStore((s) => s.user)
+  const paymentEnabled = useAppStore((s) => s.paymentEnabled)
 
   return (
     <div className={styles.wrap}>
@@ -18,7 +20,7 @@ export default function PublicChrome({ children }) {
         </Link>
         <div className={styles.navLinks}>
           <a href="/#abilities">产品能力</a>
-          <Link to="/pricing">定价</Link>
+          {paymentEnabled && <Link to="/pricing">定价</Link>}
         </div>
         <div className={styles.navActions}>
           {user ? (
@@ -36,7 +38,7 @@ export default function PublicChrome({ children }) {
 
       <footer className={styles.footer}>
         <p>
-          <Link to="/">产品</Link> / <Link to="/pricing">定价</Link> /
+          <Link to="/">产品</Link> / {paymentEnabled && <><Link to="/pricing">定价</Link> / </>}
           <Link to="/privacy">隐私政策</Link> / <Link to="/terms">用户协议</Link>
         </p>
         <p>AI 仅做风险提示，不构成法律意见，重大合同建议咨询执业律师</p>

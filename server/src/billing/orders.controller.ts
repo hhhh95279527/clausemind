@@ -5,9 +5,11 @@
 //   POST   /api/billing/orders/:id/mock-pay       模拟支付，立即生效
 //   POST   /api/billing/subscription/cancel       取消订阅（二次确认）
 //   POST   /api/billing/enterprise-lead           企业版/席位增购留资
-import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common'
+import { Body, Controller, ForbiddenException, Get, Param, Post, Req, Res } from '@nestjs/common'
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
 import { OrdersService, type PayChannel } from './orders.service.js'
+import { Public } from '../auth/decorators/public.decorator.js'
+import { config } from '../config/index.js'
 
 const CHECKOUT_ITEMS = ['PERSONAL_MONTHLY', 'PERSONAL_YEARLY', 'COUPON_PACK', 'TEAM_MONTHLY']
 
@@ -16,6 +18,14 @@ const CHECKOUT_ITEMS = ['PERSONAL_MONTHLY', 'PERSONAL_YEARLY', 'COUPON_PACK', 'T
 @Controller('api/billing')
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
+
+  /** 公开配置：前端据此隐藏/展示购买入口（ICP 备案审核期间可整体关闭） */
+  @Public()
+  @Get('public-config')
+  @ApiOperation({ summary: '公开计费配置（无需登录）', description: '返回购买入口总开关 paymentEnabled；false 时前端隐藏定价页、收银台与升级入口。' })
+  publicConfig() {
+    return { paymentEnabled: config.billing.paymentEnabled }
+  }
 
   @Post('orders')
   @ApiOperation({
@@ -30,6 +40,9 @@ export class OrdersController {
     },
   })
   async create(@Req() req: any, @Body() body: { item?: string }) {
+    if (!config.billing.paymentEnabled) {
+      throw new ForbiddenException('购买功能暂未开放')
+    }
     const order = await this.orders.createOrder(
       req.user.tenantId,
       req.user.userId,

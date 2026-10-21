@@ -14,6 +14,10 @@ export const useAppStore = create((set) => ({
   // ── 主题 ────────────────────────────────────────────────────
   theme: localStorage.getItem('theme') || 'light',
 
+  // ── 购买入口总开关（后端 /billing/public-config 下发）────────
+  paymentEnabled: true,
+  setPaymentEnabled: (v) => set({ paymentEnabled: !!v }),
+
   toggleTheme: () => set((s) => {
     const theme = s.theme === 'light' ? 'dark' : 'light'
     localStorage.setItem('theme', theme)

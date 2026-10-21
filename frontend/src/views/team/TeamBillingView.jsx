@@ -60,6 +60,9 @@ const FREE_FEATS = [
 export default function TeamBillingView() {
   const navigate = useNavigate()
   const toast = useAppStore((s) => s.toast)
+  // 购买入口关闭（ICP 备案审核期）：升级/续费按钮不进入收银台
+  const paymentEnabled = useAppStore((s) => s.paymentEnabled)
+  const blockedCta = () => toast('内测阶段，暂未开放购买')
   const { modal } = App.useApp()
   const { entitlement, loadEntitlement } = useMeStore()
   const { orders, loadOrders, submitEnterpriseLead, cancelSubscription } = useBillingStore()
@@ -145,7 +148,7 @@ export default function TeamBillingView() {
       priceCls: css.tagGreen,
       desc: '适合个人与自由职业者：不限份数深度审查、AI 改稿与模拟反驳、Word 红划线导出、永久存档。',
       cta: '升级个人版',
-      onCta: () => navigate('/checkout?plan=PERSONAL&period=monthly'),
+      onCta: paymentEnabled ? () => navigate('/checkout?plan=PERSONAL&period=monthly') : blockedCta,
     }]),
     {
       key: 'TEAM',
@@ -155,7 +158,7 @@ export default function TeamBillingView() {
       priceCls: css.tagGreen,
       desc: '适合 3 人以上小团队：共享合同库与审批流、公司红线规则（Playbook）、不限条数台账、飞书群通知。',
       cta: '升级团队版',
-      onCta: () => navigate('/checkout?plan=TEAM&period=monthly'),
+      onCta: paymentEnabled ? () => navigate('/checkout?plan=TEAM&period=monthly') : blockedCta,
     },
     {
       key: 'ENTERPRISE',
@@ -246,13 +249,15 @@ export default function TeamBillingView() {
               </>
             ) : isPaidPersonal ? (
               <>
-                <Button type="primary" block onClick={() => navigate('/checkout?plan=PERSONAL&period=yearly')}>续费个人版</Button>
+                <Button type="primary" block onClick={paymentEnabled ? () => navigate('/checkout?plan=PERSONAL&period=yearly') : blockedCta}>续费个人版</Button>
                 <Button block danger onClick={confirmCancel}>取消订阅</Button>
               </>
             ) : (
               <>
-                <Button type="primary" block onClick={() => navigate('/checkout?plan=PERSONAL&period=monthly')}>升级个人版 ¥0.01/月</Button>
-                <Button block onClick={() => navigate('/checkout?plan=PERSONAL&period=yearly')}>年付 ¥0.01</Button>
+                <Button type="primary" block onClick={paymentEnabled ? () => navigate('/checkout?plan=PERSONAL&period=monthly') : blockedCta}>
+                  {paymentEnabled ? '升级个人版 ¥0.01/月' : '升级个人版'}
+                </Button>
+                {paymentEnabled && <Button block onClick={() => navigate('/checkout?plan=PERSONAL&period=yearly')}>年付 ¥0.01</Button>}
               </>
             )}
           </div>

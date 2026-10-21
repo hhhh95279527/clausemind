@@ -82,6 +82,16 @@ export default function App() {
   const persona = usePersona()
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const setUser = useAuthStore((s) => s.setUser)
+  const setPaymentEnabled = useAppStore((s) => s.setPaymentEnabled)
+
+  // 公开配置：购买入口总开关（备案审核期间后端置 false，前端隐藏定价/收银台）
+  useEffect(() => {
+    let alive = true
+    http.get('/billing/public-config')
+      .then((cfg) => { if (alive && typeof cfg?.paymentEnabled === 'boolean') setPaymentEnabled(cfg.paymentEnabled) })
+      .catch(() => { /* 静默：拉取失败保持默认开启，不阻断页面 */ })
+    return () => { alive = false }
+  }, [setPaymentEnabled])
 
   // 自愈：进入应用时刷新一次用户资料（含 workspaceType），修复登录后空间类型变化
   // （个人版购买团队版升级 / 转账人工确认到账 / 受邀加入团队）造成的 persona 漂移

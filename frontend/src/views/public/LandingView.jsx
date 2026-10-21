@@ -9,6 +9,7 @@ import {
   UserOutlined, BankOutlined, TagOutlined, ReadOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '@/stores/auth.js'
+import { useAppStore } from '@/stores/app.js'
 import { homePath } from '@/utils/persona.js'
 import PublicChrome from './PublicChrome.jsx'
 import styles from './LandingView.module.css'
@@ -89,6 +90,8 @@ const PRICE_CARDS = [
 
 export default function LandingView() {
   const user = useAuthStore((s) => s.user)
+  // 购买入口关闭（ICP 备案审核期）：隐藏所有价格与付费方案
+  const paymentEnabled = useAppStore((s) => s.paymentEnabled)
   // AC-1：已登录访问 / 按 persona 跳转，落地页只对未登录访客渲染
   if (user) return <Navigate to={homePath(user)} replace />
 
@@ -197,12 +200,12 @@ export default function LandingView() {
                 <li><span className={styles.tick}>✓</span>低频合同，按月开通，不用长期订阅</li>
                 <li><span className={styles.tick}>✓</span>大白话解读风险，不需要法律背景</li>
                 <li><span className={styles.tick}>✓</span>免费版每月 2 份，风险点与评分直接看</li>
-                <li><span className={styles.tick}>✓</span>不订阅也能买深度审查券，逐份解锁</li>
+                {paymentEnabled && <li><span className={styles.tick}>✓</span>不订阅也能买深度审查券，逐份解锁</li>}
               </ul>
-              <div className={styles.trackPrice}>¥0.01<span>/月 · 年付同样 ¥0.01</span></div>
+              {paymentEnabled && <div className={styles.trackPrice}>¥0.01<span>/月 · 年付同样 ¥0.01</span></div>}
               <div className={styles.trackActions}>
                 <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/register#form-personal">我是个人，免费开始</Link>
-                <Link className={`${styles.btn} ${styles.btnGhost}`} to="/pricing">查看个人版</Link>
+                {paymentEnabled && <Link className={`${styles.btn} ${styles.btnGhost}`} to="/pricing">查看个人版</Link>}
               </div>
             </div>
 
@@ -218,16 +221,17 @@ export default function LandingView() {
                 <li><span className={styles.tick}>✓</span>合同台账不限条数，到期合规提醒</li>
                 <li><span className={styles.tick}>✓</span>飞书通知、系统集成与私有化（企业版）</li>
               </ul>
-              <div className={styles.trackPrice}>¥0.01<span>/席/月 · 企业版定制</span></div>
+              {paymentEnabled && <div className={styles.trackPrice}>¥0.01<span>/席/月 · 企业版定制</span></div>}
               <div className={styles.trackActions}>
                 <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/register#form-team">创建团队空间</Link>
-                <Link className={`${styles.btn} ${styles.btnGhost}`} to="/pricing">查看团队 / 企业方案</Link>
+                {paymentEnabled && <Link className={`${styles.btn} ${styles.btnGhost}`} to="/pricing">查看团队 / 企业方案</Link>}
               </div>
             </div>
           </div>
         </div>
       </section>
 
+      {paymentEnabled && (
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>四档套餐，免费就能起步</h2>
         <p className={styles.sectionSub}>从 ¥0 到企业定制，按身份和用量选择，随时升级</p>
@@ -252,6 +256,7 @@ export default function LandingView() {
           <Link className={`${styles.btn} ${styles.btnPrimary}`} to="/pricing">了解券包</Link>
         </div>
       </section>
+      )}
 
       <section className={`${styles.section} ${styles.sectionTight}`}>
         <div className={styles.ctaBand}>
