@@ -63,8 +63,15 @@ jobs:
           command_timeout: 25m
           script: |
             cd /opt/clausemind
-            git fetch --all
-            git reset --hard origin/main
+            # 拉取目标提交（GitHub 偶发延迟/抖动时重试，避免静默部署旧版本）
+            for i in 1 2 3 4 5; do
+              git fetch --all --prune
+              if [ "$(git rev-parse origin/main 2>/dev/null)" = "${{ github.sha }}" ]; then break; fi
+              echo "origin/main 尚未更新到 ${{ github.sha }}（第 $i 次），10s 后重试"
+              sleep 10
+            done
+            git reset --hard "${{ github.sha }}"
+            git log -1 --oneline
             docker compose pull server nginx
             docker compose up -d
             docker image prune -f
