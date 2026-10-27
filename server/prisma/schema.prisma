@@ -12,989 +12,1208 @@ datasource db {
 
 // ════════════════════════ 平台层：租户与用户 ════════════════════════
 
+/// 租户：一个团队或个人空间对应一条记录，是套餐、配额、账单的归属主体
+/// 业务角色：所有业务数据（合同/审查/知识库/台账/订单）都按 tenant_id 行级隔离；共享法规库除外
+/// 关键关系：1:N User/Contract/ReviewTask/Trace/QuotaUsage/Order/Ledger 等；与 IntegrationConfig 业务上 1:1
+/// 示例行：{ "id": "cm1x2y3z40001abcd5678ijkl", "name": "艾克米科技有限公司", "plan": "TEAM",
+///           "workspaceType": "TEAM", "status": "ACTIVE", "couponBalance": 0, "monthlyTokenQuota": 500000 }
 model Tenant {
-  id                String        @id @default(cuid())
-  name              String        @db.VarChar(100)
-  plan              TenantPlan    @default(FREE)
-  workspaceType     WorkspaceType @default(PERSONAL) @map("workspace_type")
-  status            TenantStatus  @default(ACTIVE)
-  couponBalance     Int           @default(0) @map("coupon_balance")
-  planUpdatedAt     DateTime?     @map("plan_updated_at")
-  planExpiresAt     DateTime?     @map("plan_expires_at") @db.Timestamptz(6)
+  id                String        @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40001abcd5678ijkl"
+  name              String        @db.VarChar(100) // 空间/企业名称，最长 100 字符。示例："艾克米科技有限公司"
+  plan              TenantPlan    @default(FREE) // 套餐档位，默认免费版。示例：FREE / PERSONAL / TEAM / ENTERPRISE
+  workspaceType     WorkspaceType @default(PERSONAL) @map("workspace_type") // 空间类型，默认个人空间。示例：PERSONAL（个人）/ TEAM（企业团队）
+  status            TenantStatus  @default(ACTIVE) // 租户状态，默认启用。示例：ACTIVE（正常）/ DISABLED（封禁停用）
+  couponBalance     Int           @default(0) @map("coupon_balance") // 深度券余额（张），解锁 Agent 深度轨/改稿。示例：0（无券）/ 3（3 张）
+  planUpdatedAt     DateTime?     @map("plan_updated_at") // 套餐最近变更时间，可空；null=从未变更套餐。示例："2026-10-01T02:00:00.000Z"
+  planExpiresAt     DateTime?     @map("plan_expires_at") @db.Timestamptz(6) // 套餐到期时间（带时区），可空；null=免费版或永久有效。示例："2026-11-21T16:30:00.000Z"
   // 取消订阅（模拟）：权益保留至 planExpiresAt，到期后由定时任务降级 FREE
-  cancelAtPeriodEnd Boolean       @default(false) @map("cancel_at_period_end")
-  monthlyTokenQuota Int           @default(500000) @map("monthly_token_quota")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  cancelAtPeriodEnd Boolean       @default(false) @map("cancel_at_period_end") // 是否到期取消续订，默认 false；权益保留到 planExpiresAt。示例：true（已取消）/ false
+  monthlyTokenQuota Int           @default(500000) @map("monthly_token_quota") // 每月 token 配额上限，默认 50 万。示例：500000（FREE）/ 5000000（TEAM）
+  createdAt         DateTime      @default(now()) @map("created_at") // 创建时间，默认当前时间。示例："2026-10-21T16:30:00.000Z"
+  updatedAt         DateTime      @updatedAt @map("updated_at") // 最后更新时间，写库时自动刷新。示例："2026-10-21T16:30:00.000Z"
 
-  users              User[]
-  contracts          Contract[]
-  reviewTasks        ReviewTask[]
-  traces             Trace[]
-  quotaUsage         QuotaUsage[]
-  ledgers            ContractLedger[]
-  playbookRules      PlaybookRule[]
-  orders             Order[]
-  integrationConfigs IntegrationConfig[]
-  integrationLeads   IntegrationLead[]
-  tenantTemplates    TenantTemplate[]
-  feedbackEntries    FeedbackEntry[]
-  tenantInvites      TenantInvite[]
-  contractVersions   ContractVersion[]
-  refundRequests     RefundRequest[]
+  users              User[] // 1:N → users 表，本租户全部成员；删租户时经 User.tenant 的 Cascade 级联删除
+  contracts          Contract[] // 1:N → contracts 表，本租户上传的合同
+  reviewTasks        ReviewTask[] // 1:N → review_tasks 表，本租户的审查任务
+  traces             Trace[] // 1:N → traces 表，本租户可观测链路（删租户置空）
+  quotaUsage         QuotaUsage[] // 1:N → quota_usage 表，按月一条用量记录
+  ledgers            ContractLedger[] // 1:N → contract_ledgers 表，合同台账
+  playbookRules      PlaybookRule[] // 1:N → playbook_rules 表，企业自定义审查规则
+  orders             Order[] // 1:N → orders 表，模拟订单
+  integrationConfigs IntegrationConfig[] // 1:N → integration_configs 表（tenant_id 唯一，业务上每租户一条）
+  integrationLeads   IntegrationLead[] // 1:N → integration_leads 表，集成开通留资
+  tenantTemplates    TenantTemplate[] // 1:N → tenant_templates 表，企业自有合同范本
+  feedbackEntries    FeedbackEntry[] // 1:N → feedback_entries 表，意见建议反馈
+  tenantInvites      TenantInvite[] // 1:N → tenant_invites 表，团队邀请链接
+  contractVersions   ContractVersion[] // 1:N → contract_versions 表，合同版本归档
+  refundRequests     RefundRequest[] // 1:N → refund_requests 表，退款工单
 
-  @@map("tenants")
+  @@map("tenants") // 物理表名 tenants（snake_case 复数）
 }
 
-// 四档套餐：FREE / PERSONAL 个人版 / TEAM 团队版 / ENTERPRISE 企业版
-// 历史值 PRO/ENT 已在迁移中映射为 TEAM/ENTERPRISE，物理枚举仍保留但业务不再使用。
+/// 套餐档位枚举：决定可用审查场景、Agent 深度轨、改稿/导出等权益
+/// 四档：FREE / PERSONAL 个人版 / TEAM 团队版 / ENTERPRISE 企业版
+/// 历史值 PRO/ENT 已在迁移中映射为 TEAM/ENTERPRISE，物理枚举仍保留但业务不再使用
+/// 示例：租户购买团队版后 Tenant.plan=TEAM，到期由定时任务降级 FREE
 enum TenantPlan {
-  FREE
-  PERSONAL
-  TEAM
-  ENTERPRISE
+  FREE // 免费版：仅 5 个基础审查场景，无深度轨。示例：张三个人空间默认 FREE
+  PERSONAL // 个人版：解锁深度权益，适合单人使用。示例：张三付费订阅 PERSONAL
+  TEAM // 团队版：多成员协作 + 企业台账/Playbook。示例：艾克米科技 5 人团队
+  ENTERPRISE // 企业版：最高配额，支持私有化/SSO 定制。示例：大型企业采购 ENTERPRISE
 }
 
-// 工作空间类型：个人单成员空间 / 企业团队空间
+/// 工作空间类型：区分个人单成员空间与企业团队空间，影响成员管理与套餐购买入口
+/// 示例：注册时选「个人」→ PERSONAL；创建团队并邀请成员 → TEAM
 enum WorkspaceType {
-  PERSONAL
-  TEAM
+  PERSONAL // 个人空间：单成员，台账额度 ≤10。示例：张三的个人空间
+  TEAM // 企业团队空间：多成员、邀请审批、租户级套餐。示例：艾克米科技有限公司
 }
 
+/// 租户状态：平台侧启用/停用开关，停用后该租户成员无法登录使用
+/// 示例：超管在控制台封禁违规租户 → DISABLED
 enum TenantStatus {
-  ACTIVE
-  DISABLED
+  ACTIVE // 正常启用。示例：艾克米科技有限公司正常使用中
+  DISABLED // 已停用（封禁/欠费等）。示例：超管手动禁用某演示租户
 }
 
-// 平台级超级管理员：跨租户管理所有企业，独立于 users 表（不属于任何租户）
+/// 平台级超级管理员：跨租户管理所有企业，独立于 users 表（不属于任何租户）
+/// 用于超管控制台：租户管理、订单确认到账、退款处理、规则/Eval 后台
+/// 示例行：{ "id": "cm1x2y3z40002abcd5678ijkl", "username": "superadmin",
+///           "lastLoginAt": "2026-10-21T16:30:00.000Z", "createdAt": "2026-01-05T08:00:00.000Z" }
 model PlatformAdmin {
-  id           String    @id @default(cuid())
-  username     String    @unique @db.VarChar(50)
-  passwordHash String    @map("password_hash") @db.VarChar(255)
-  lastLoginAt  DateTime? @map("last_login_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id           String    @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40002abcd5678ijkl"
+  username     String    @unique @db.VarChar(50) // 登录用户名，全局唯一。示例："superadmin"
+  passwordHash String    @map("password_hash") @db.VarChar(255) // bcrypt 密码哈希（不存明文）。示例："$2b$10$Q9x..."
+  lastLoginAt  DateTime? @map("last_login_at") // 最后登录时间，可空；null=从未登录。示例："2026-10-21T16:30:00.000Z"
+  createdAt    DateTime  @default(now()) @map("created_at") // 创建时间。示例："2026-01-05T08:00:00.000Z"
 
-  @@map("platform_admins")
+  @@map("platform_admins") // 物理表名 platform_admins
 }
 
+/// 用户：租户内的登录账号，所有业务操作（上传合同、发起审查、问答）的行为主体
+/// 鉴权：JWT access + refresh 轮转；tenantId 决定数据隔离边界，角色决定审查终审权限
+/// 关键关系：N:1 Tenant；1:N ChatSession/Message/Contract/ReviewTask/AuditLog/RefreshToken 等
+/// 示例行：{ "id": "cm1x2y3z40003abcd5678ijkl", "username": "zhangsan", "displayName": "张三",
+///           "role": "MANAGER", "status": "ACTIVE", "tenantId": "cm1x2y3z40001abcd5678ijkl", "emailVerified": true }
 model User {
-  id                  String     @id @default(cuid())
-  username            String     @unique @db.VarChar(50)
-  email               String?    @unique @db.VarChar(100)
-  passwordHash        String     @map("password_hash") @db.VarChar(255)
-  displayName         String?    @map("display_name") @db.VarChar(100)
-  avatar              String?    @db.VarChar(500)
-  role                UserRole   @default(USER)
-  status              UserStatus @default(ACTIVE)
-  tenantId            String     @map("tenant_id") @db.VarChar(50)
-  onboardingCompleted Boolean    @default(false) @map("onboarding_completed")
-  emailVerified       Boolean    @default(false) @map("email_verified")
-  metadata            Json?
-  lastLoginAt         DateTime?  @map("last_login_at")
-  lastLoginIp         String?    @map("last_login_ip") @db.VarChar(45)
-  createdAt           DateTime   @default(now()) @map("created_at")
-  updatedAt           DateTime   @updatedAt @map("updated_at")
+  id                  String     @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40003abcd5678ijkl"
+  username            String     @unique @db.VarChar(50) // 登录用户名，全局唯一。示例："zhangsan"
+  email               String?    @unique @db.VarChar(100) // 邮箱，全局唯一，可空；null=未绑定邮箱。示例："zhangsan@acme.com"
+  passwordHash        String     @map("password_hash") @db.VarChar(255) // bcrypt 密码哈希（不存明文）。示例："$2b$10$R7f..."
+  displayName         String?    @map("display_name") @db.VarChar(100) // 展示昵称，可空；null=回退显示 username。示例："张三"
+  avatar              String?    @db.VarChar(500) // 头像 URL，可空；null=使用默认头像。示例："https://cdn.example.com/avatar/zhangsan.png"
+  role                UserRole   @default(USER) // 租户内角色，默认普通成员。示例：ADMIN / MANAGER / USER / READONLY
+  status              UserStatus @default(ACTIVE) // 账号状态，默认启用。示例：ACTIVE（正常）/ DISABLED（禁用）/ PENDING（待审批）
+  tenantId            String     @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  onboardingCompleted Boolean    @default(false) @map("onboarding_completed") // 是否完成新手引导，默认 false。示例：true（已看到引导页）
+  emailVerified       Boolean    @default(false) @map("email_verified") // 邮箱是否已验证，默认 false。示例：true
+  metadata            Json? // 扩展元数据（偏好设置等），可空；null=无自定义配置。示例：{"theme":"dark"}
+  lastLoginAt         DateTime?  @map("last_login_at") // 最后登录时间，可空；null=从未登录。示例："2026-10-21T16:30:00.000Z"
+  lastLoginIp         String?    @map("last_login_ip") @db.VarChar(45) // 最后登录 IP，可空（IPv6 最长 45 字符）；null=未知。示例："203.0.113.8"
+  createdAt           DateTime   @default(now()) @map("created_at") // 创建时间。示例："2026-03-02T09:15:00.000Z"
+  updatedAt           DateTime   @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions         ChatSession[]
-  messages         Message[]
-  uploadedDocs     Document[]        @relation("DocumentUploader")
-  contracts        Contract[]        @relation("ContractUploader")
-  reviewTasks      ReviewTask[]      @relation("Reviewer")
-  auditLogs        AuditLog[]
-  traces           Trace[]
-  refreshTokens    RefreshToken[]
-  ledgers          ContractLedger[]
-  playbookRules    PlaybookRule[]
-  orders           Order[]
-  integrationLeads IntegrationLead[] @relation("IntegrationLeadUser")
-  tenantTemplates  TenantTemplate[]  @relation("TenantTemplateUploader")
-  feedbackEntries  FeedbackEntry[]   @relation("FeedbackEntryUser")
-  refundRequests   RefundRequest[]
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户时级联删除该成员
+  sessions         ChatSession[] // 1:N → chat_sessions，本人的问答会话
+  messages         Message[] // 1:N → messages，本人在会话中的消息
+  uploadedDocs     Document[]        @relation("DocumentUploader") // 1:N → documents（上传者），删用户置空
+  contracts        Contract[]        @relation("ContractUploader") // 1:N → contracts（上传者），删用户级联删除合同
+  reviewTasks      ReviewTask[]      @relation("Reviewer") // 1:N → review_tasks（终审人），删用户置空
+  auditLogs        AuditLog[] // 1:N → audit_logs，本人操作审计
+  traces           Trace[] // 1:N → traces，本人触发的可观测链路
+  refreshTokens    RefreshToken[] // 1:N → refresh_tokens，刷新令牌（轮转撤销）
+  ledgers          ContractLedger[] // 1:N → contract_ledgers，本人创建的台账记录
+  playbookRules    PlaybookRule[] // 1:N → playbook_rules，本人创建的 Playbook 规则
+  orders           Order[] // 1:N → orders，本人创建的订单
+  integrationLeads IntegrationLead[] @relation("IntegrationLeadUser") // 1:N → integration_leads（留资人），删用户置空
+  tenantTemplates  TenantTemplate[]  @relation("TenantTemplateUploader") // 1:N → tenant_templates（上传人），删用户置空
+  feedbackEntries  FeedbackEntry[]   @relation("FeedbackEntryUser") // 1:N → feedback_entries（反馈人），删用户置空
+  refundRequests   RefundRequest[] // 1:N → refund_requests，本人提交的退款工单
 
-  @@index([tenantId])
-  @@map("users")
+  @@index([tenantId]) // 加速按租户列出成员/登录校验
+  @@map("users") // 物理表名 users
 }
 
+/// 租户内用户角色：控制审查分配、终审、规则管理等权限
+/// 示例：张三为 HR 负责人 → MANAGER，可终审；普通同事 → USER，只能发起审查
 enum UserRole {
-  ADMIN // 平台管理员
-  MANAGER // 审查负责人：分配/终审
-  USER // 普通成员：发起审查
-  READONLY
+  ADMIN // 平台管理员：租户内最高权限。示例：艾克米科技的信息管理员
+  MANAGER // 审查负责人：分配审查任务/终审拍板。示例：张三（HR 主管）
+  USER // 普通成员：发起审查、查看本人合同。示例：李四（HR 专员）
+  READONLY // 只读账号：仅查看，不可发起/修改。示例：外部法务顾问临时查阅
 }
 
+/// 用户状态：控制账号能否登录；PENDING 用于接受团队邀请后待管理员审批的新成员
+/// 示例：受邀注册的成员初始 PENDING，管理员审批后置 ACTIVE
 enum UserStatus {
-  ACTIVE
-  DISABLED
-  PENDING
+  ACTIVE // 正常启用，可登录。示例：张三日常使用
+  DISABLED // 已禁用，登录被拒。示例：离职员工账号
+  PENDING // 待审批，邀请注册后等待管理员通过。示例：新同事接受邀请后
 }
 
-// 租户按月配额用量（计费/账单架构口，唯一键 = 租户 + 月份）
+/// 租户按月配额用量（计费/账单架构口，唯一键 = 租户 + 月份）
+/// 每个租户每个自然月一条，累加 LLM 输入/输出 token 与人民币成本，用于账单页与峰谷计价
+/// 关键关系：N:1 Tenant（删租户级联删除）
+/// 示例行：{ "id": "cm1x2y3z40004abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "period": "2026-10", "inputTokens": 128000, "outputTokens": 32000, "costCny": 1.8600 }
 model QuotaUsage {
-  id           String   @id @default(cuid())
-  tenantId     String   @map("tenant_id")
-  period       String   @db.VarChar(7) // YYYY-MM
-  inputTokens  Int      @default(0) @map("input_tokens")
-  outputTokens Int      @default(0) @map("output_tokens")
-  costCny      Decimal  @default(0) @map("cost_cny") @db.Decimal(10, 4)
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40004abcd5678ijkl"
+  tenantId     String   @map("tenant_id") // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  period       String   @db.VarChar(7) // 账期，格式 YYYY-MM（固定 7 字符）。示例："2026-10"
+  inputTokens  Int      @default(0) @map("input_tokens") // 本月累计输入 token，默认 0。示例：128000
+  outputTokens Int      @default(0) @map("output_tokens") // 本月累计输出 token，默认 0。示例：32000
+  costCny      Decimal  @default(0) @map("cost_cny") @db.Decimal(10, 4) // 本月累计成本（人民币元，4 位小数），默认 0。示例：1.8600
+  updatedAt    DateTime @updatedAt @map("updated_at") // 最后累加时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除用量
 
-  @@unique([tenantId, period])
-  @@map("quota_usage")
+  @@unique([tenantId, period]) // 唯一约束：每租户每月仅一条，支撑 upsert 累加
+  @@map("quota_usage") // 物理表名 quota_usage
 }
 
 // ════════════════════════ 平台层：对话 ════════════════════════
 
+/// 问答会话：一次「法规问答 / 合同追问」对话的容器，承载多轮消息与临时上传文档
+/// 业务角色：普通聊天与法规 RAG 共用；会话内文档隔离（GENERAL 文档挂在会话下）
+/// 关键关系：N:1 User（删用户级联删除）；1:N Message；1:N Document（SessionDocuments，级联删除）
+/// 示例行：{ "id": "cm1x2y3z40005abcd5678ijkl", "userId": "cm1x2y3z40003abcd5678ijkl",
+///           "title": "劳动合同试用期多久合法？", "role": "default", "createdAt": "2026-10-21T16:30:00.000Z" }
 model ChatSession {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  title     String   @default("新对话") @db.VarChar(200)
-  role      String   @default("default") @db.VarChar(50)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40005abcd5678ijkl"
+  userId    String   @map("user_id") // 所属用户 ID（N:1 User）。示例："cm1x2y3z40003abcd5678ijkl"
+  title     String   @default("新对话") @db.VarChar(200) // 会话标题，默认「新对话」，首轮问答后可由 AI 概括。示例："劳动合同试用期多久合法？"
+  role      String   @default("default") @db.VarChar(50) // 会话角色/模式标识，默认 default。示例："default"（普通）/ "legal_qa"（法规问答）
+  createdAt DateTime @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:30:00.000Z"
+  updatedAt DateTime @updatedAt @map("updated_at") // 最后更新时间（新消息写入时刷新）。示例："2026-10-21T16:35:00.000Z"
 
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages      Message[]
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade) // N:1 → users，删用户级联删除会话
+  messages      Message[] // 1:N → messages，会话内多轮消息（级联删除）
   // 法规问答：本会话上传的文档（会话删除时级联删除，保证会话间文档隔离）
-  knowledgeDocs Document[] @relation("SessionDocuments")
+  knowledgeDocs Document[] @relation("SessionDocuments") // 1:N → documents.session_id，删会话级联删除临时文档
 
-  @@index([userId])
-  @@map("chat_sessions")
+  @@index([userId]) // 加速按用户列出会话列表
+  @@map("chat_sessions") // 物理表名 chat_sessions
 }
 
+/// 会话消息：一问一答的持久化记录，同时记录 token/延迟/是否命中缓存用于计费与观测
+/// 业务角色：SSE 流式问答落库；contractId 存在时表示「针对该合同的追问」上下文
+/// 关键关系：N:1 ChatSession（级联删除）；N:1 User（置空，保留消息审计）
+/// 示例行：{ "id": "cm1x2y3z40006abcd5678ijkl", "sessionId": "cm1x2y3z40005abcd5678ijkl",
+///           "role": "ASSISTANT", "content": "根据《劳动合同法》第十九条……", "latencyMs": 2350, "feature": "chat" }
 model Message {
-  id           String      @id @default(cuid())
-  sessionId    String      @map("session_id")
-  userId       String?     @map("user_id")
-  contractId   String?     @map("contract_id") // 合同追问上下文（可选）
-  role         MessageRole
-  content      String      @db.Text
-  inputTokens  Int         @default(0) @map("input_tokens")
-  outputTokens Int         @default(0) @map("output_tokens")
-  latencyMs    Int         @default(0) @map("latency_ms")
-  fromCache    Boolean     @default(false) @map("from_cache")
-  feature      String      @default("chat") @db.VarChar(50)
-  metadata     Json?
-  createdAt    DateTime    @default(now()) @map("created_at")
+  id           String      @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40006abcd5678ijkl"
+  sessionId    String      @map("session_id") // 所属会话 ID（N:1 ChatSession）。示例："cm1x2y3z40005abcd5678ijkl"
+  userId       String?     @map("user_id") // 发送用户 ID，可空；null=AI/系统消息或用户已删除。示例："cm1x2y3z40003abcd5678ijkl"
+  contractId   String?     @map("contract_id") // 合同追问上下文（可选），可空；null=普通问答。示例："cm1x2y3z40014abcd5678ijkl"
+  role         MessageRole // 消息角色：SYSTEM/USER/ASSISTANT。示例：ASSISTANT
+  content      String      @db.Text // 消息正文（长文本，不截断）。示例："根据《劳动合同法》第十九条，试用期最长不得超过六个月……"
+  inputTokens  Int         @default(0) @map("input_tokens") // 本次调用输入 token 数，默认 0。示例：2150
+  outputTokens Int         @default(0) @map("output_tokens") // 本次调用输出 token 数，默认 0。示例：430
+  latencyMs    Int         @default(0) @map("latency_ms") // 端到端延迟（毫秒），默认 0。示例：2350
+  fromCache    Boolean     @default(false) @map("from_cache") // 是否命中缓存，默认 false。示例：true（重复问题直接回缓存）
+  feature      String      @default("chat") @db.VarChar(50) // 功能标识，用于分账/统计。示例："chat" / "rag" / "review"
+  metadata     Json? // 扩展元数据（引用来源、模型名等），可空。示例：{"model":"deepseek-chat","refs":[...]}
+  createdAt    DateTime    @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:35:02.000Z"
 
-  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  user    User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  session ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade) // N:1 → chat_sessions，删会话级联删除消息
+  user    User?       @relation(fields: [userId], references: [id], onDelete: SetNull) // N:1 → users，删用户置空（保留消息）
 
-  @@index([sessionId])
-  @@index([userId])
-  @@index([createdAt])
-  @@map("messages")
+  @@index([sessionId]) // 加速加载会话消息时间线
+  @@index([userId]) // 加速按用户统计用量
+  @@index([createdAt]) // 加速按时间范围做用量/观测查询
+  @@map("messages") // 物理表名 messages
 }
 
+/// 消息角色：区分系统提示词、用户提问与模型回答
+/// 示例：一次问答写入两条 —— USER「试用期多久？」+ ASSISTANT「不超过六个月……」
 enum MessageRole {
-  SYSTEM
-  USER
-  ASSISTANT
+  SYSTEM // 系统提示词/上下文指令。示例：注入「你是法律助手」的提示
+  USER // 用户提问。示例：张三输入「试用期最长多久？」
+  ASSISTANT // 模型回答。示例：引用《劳动合同法》第十九条作答
 }
 
 // ════════════════════════ 平台层：可观测 Trace/Span ════════════════════════
 // 设计对标 Langfuse：Trace = 一次业务请求，Span = 其中的 LLM/工具/检索子调用
 
+/// 链路追踪：一次业务请求（问答/审查/评测）为一条 Trace，汇总 token、成本与延迟
+/// 业务角色：监控页 Trace 瀑布图的顶层节点；配额扣减与账单成本亦以此为准
+/// 关键关系：N:1 Tenant / User（均 SetNull，删主体保留历史链路）；1:N Span（级联删除）
+/// 示例行：{ "id": "cm1x2y3z40007abcd5678ijkl", "feature": "review", "name": "合同审查-劳动",
+///           "status": "OK", "model": "deepseek-chat", "inputTokens": 5200, "outputTokens": 900, "costCny": 0.0420 }
 model Trace {
-  id           String      @id @default(cuid())
-  tenantId     String?     @map("tenant_id")
-  userId       String?     @map("user_id")
-  feature      String      @db.VarChar(50) // chat / rag / review / eval
-  name         String      @db.VarChar(200)
-  status       TraceStatus @default(RUNNING)
-  model        String?     @db.VarChar(50)
-  inputTokens  Int         @default(0) @map("input_tokens")
-  outputTokens Int         @default(0) @map("output_tokens")
-  costCny      Decimal     @default(0) @map("cost_cny") @db.Decimal(10, 4)
-  latencyMs    Int         @default(0) @map("latency_ms")
-  error        String?     @db.Text
-  createdAt    DateTime    @default(now()) @map("created_at")
-  updatedAt    DateTime    @updatedAt @map("updated_at")
+  id           String      @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40007abcd5678ijkl"
+  tenantId     String?     @map("tenant_id") // 所属租户 ID，可空；null=平台级任务。示例："cm1x2y3z40001abcd5678ijkl"
+  userId       String?     @map("user_id") // 触发用户 ID，可空；null=系统/定时任务。示例："cm1x2y3z40003abcd5678ijkl"
+  feature      String      @db.VarChar(50) // 功能域：chat / rag / review / eval。示例："review"
+  name         String      @db.VarChar(200) // 链路名称，最长 200 字符。示例："合同审查-劳动-艾克米科技"
+  status       TraceStatus @default(RUNNING) // 执行状态，默认 RUNNING。示例：RUNNING / OK / ERROR
+  model        String?     @db.VarChar(50) // 主模型名，可空；null=纯规则轨/未调用模型。示例："deepseek-chat"
+  inputTokens  Int         @default(0) @map("input_tokens") // 汇总输入 token，默认 0。示例：5200
+  outputTokens Int         @default(0) @map("output_tokens") // 汇总输出 token，默认 0。示例：900
+  costCny      Decimal     @default(0) @map("cost_cny") @db.Decimal(10, 4) // 汇总成本（人民币元，4 位小数）。示例：0.0420
+  latencyMs    Int         @default(0) @map("latency_ms") // 总耗时（毫秒）。示例：18420
+  error        String?     @db.Text // 失败时的错误摘要，可空；null=无错误。示例："Agent 轨超时（60s）"
+  createdAt    DateTime    @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:30:00.000Z"
+  updatedAt    DateTime    @updatedAt @map("updated_at") // 最后更新时间（状态落定）。示例："2026-10-21T16:30:19.000Z"
 
-  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  spans  Span[]
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull) // N:1 → tenants，删租户置空保留链路
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull) // N:1 → users，删用户置空保留链路
+  spans  Span[] // 1:N → spans，子调用瀑布（级联删除）
 
-  @@index([tenantId])
-  @@index([userId])
-  @@index([feature])
-  @@index([createdAt])
-  @@map("traces")
+  @@index([tenantId]) // 加速按租户查看链路
+  @@index([userId]) // 加速按用户查看链路
+  @@index([feature]) // 加速按功能维度聚合耗时/成本
+  @@index([createdAt]) // 加速按时间范围筛选监控数据
+  @@map("traces") // 物理表名 traces
 }
 
+/// 链路状态：标记一次请求是执行中、成功还是失败
+/// 示例：合同审查正常结束 → OK；模型超时 → ERROR
 enum TraceStatus {
-  RUNNING
-  OK
-  ERROR
+  RUNNING // 执行中，尚未结束。示例：SSE 审查进行中的实时链路
+  OK // 正常完成。示例：审查成功产出 6 条风险
+  ERROR // 执行失败（异常/超时）。示例：DeepSeek 超时导致审查失败
 }
 
+/// 子调用跨度：Trace 内部的单次 LLM / 工具 / 检索调用，记录入参出参与耗时
+/// 业务角色：Trace 瀑布图逐层展开，用于定位慢调用与 token 消耗大户
+/// 关键关系：N:1 Trace（删链路级联删除全部 span）
+/// 示例行：{ "id": "cm1x2y3z40008abcd5678ijkl", "traceId": "cm1x2y3z40007abcd5678ijkl",
+///           "type": "RETRIEVER", "name": "法规召回 top3", "durationMs": 320, "inputTokens": 0 }
 model Span {
-  id           String   @id @default(cuid())
-  traceId      String   @map("trace_id")
-  type         SpanType
-  name         String   @db.VarChar(200)
-  startedAt    DateTime @default(now()) @map("started_at")
-  durationMs   Int      @default(0) @map("duration_ms")
-  input        Json?
-  output       Json?
-  inputTokens  Int      @default(0) @map("input_tokens")
-  outputTokens Int      @default(0) @map("output_tokens")
-  costCny      Decimal  @default(0) @map("cost_cny") @db.Decimal(10, 4)
-  metadata     Json?
+  id           String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40008abcd5678ijkl"
+  traceId      String   @map("trace_id") // 所属链路 ID（N:1 Trace）。示例："cm1x2y3z40007abcd5678ijkl"
+  type         SpanType // 子调用类型：LLM/TOOL/RETRIEVER。示例：RETRIEVER
+  name         String   @db.VarChar(200) // 子调用名称。示例："法规召回 top3"
+  startedAt    DateTime @default(now()) @map("started_at") // 开始时间。示例："2026-10-21T16:30:01.000Z"
+  durationMs   Int      @default(0) @map("duration_ms") // 耗时（毫秒）。示例：320
+  input        Json? // 调用入参快照，可空；null=未记录。示例：{"query":"试用期上限","topK":3}
+  output       Json? // 调用出参快照，可空；null=未记录。示例：{"chunkIds":["c1","c7","c9"]}
+  inputTokens  Int      @default(0) @map("input_tokens") // 输入 token，默认 0（检索类通常为 0）。示例：0
+  outputTokens Int      @default(0) @map("output_tokens") // 输出 token，默认 0。示例：0
+  costCny      Decimal  @default(0) @map("cost_cny") @db.Decimal(10, 4) // 成本（人民币元，4 位小数）。示例：0.0000
+  metadata     Json? // 扩展元数据（模型参数、命中数等），可空。示例：{"hit":3,"mode":"hybrid"}
 
-  trace Trace @relation(fields: [traceId], references: [id], onDelete: Cascade)
+  trace Trace @relation(fields: [traceId], references: [id], onDelete: Cascade) // N:1 → traces，删链路级联删除 span
 
-  @@index([traceId])
-  @@index([type])
-  @@map("spans")
+  @@index([traceId]) // 加速按链路加载瀑布图
+  @@index([type]) // 加速按类型统计耗时
+  @@map("spans") // 物理表名 spans
 }
 
+/// 子调用类型：LLM=模型调用，TOOL=Agent 工具调用，RETRIEVER=RAG 检索
+/// 示例：一次 Agent 审查包含 RETRIEVER → LLM → TOOL 多个 span
 enum SpanType {
-  LLM
-  TOOL
-  RETRIEVER
+  LLM // 模型推理调用。示例：DeepSeek 判定「试用期超 6 个月」风险
+  TOOL // Agent 工具调用。示例：调用平台帮助检索工具
+  RETRIEVER // 向量/关键词检索。示例：法规库 top3 召回
 }
 
 // ════════════════════════ 平台层：离线评测 Eval ════════════════════════
 
+/// 评测用例：离线评测的最小单元（题面 + 期望），覆盖风险检出/检索召回/忠实度三类
+/// 业务角色：CI 门禁数据源；人工反馈经 sync:feedback 飞轮回流为 FEEDBACK 来源用例
+/// 关键关系：1:N EvalResult；tenantId 为空表示平台基线集（所有租户共用）
+/// 示例行：{ "id": "cm1x2y3z40009abcd5678ijkl", "type": "RISK_DETECT",
+///           "title": "劳动合同约定试用期 8 个月", "source": "MANUAL", "active": true, "tenantId": null }
 model EvalCase {
-  id        String     @id @default(cuid())
-  type      EvalType
-  title     String     @db.VarChar(200)
-  input     Json
-  expected  Json
-  tags      String[]   @default([])
-  source    EvalSource @default(MANUAL)
-  active    Boolean    @default(true)
-  tenantId  String?    @map("tenant_id") // null = 平台基线集
-  createdAt DateTime   @default(now()) @map("created_at")
+  id        String     @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40009abcd5678ijkl"
+  type      EvalType // 评测类型：RISK_DETECT/RAG_RECALL/FAITHFULNESS。示例：RISK_DETECT
+  title     String     @db.VarChar(200) // 用例标题。示例："劳动合同约定试用期 8 个月"
+  input     Json // 题面输入（合同文本/检索问题/回答上下文）。示例：{"text":"试用期为八个月……"}
+  expected  Json // 期望结果（应命中的风险码/应召回条文/判定要点）。示例：{"codes":["LABOR_PROBATION_EXCEED"]}
+  tags      String[]   @default([]) // 标签数组，默认空数组，用于分组筛选。示例：["labor","probation"]
+  source    EvalSource @default(MANUAL) // 用例来源，默认手工。示例：MANUAL（手写）/ FEEDBACK（人工反馈回流）
+  active    Boolean    @default(true) // 是否启用参与评测，默认 true。示例：false（暂时下线）
+  tenantId  String?    @map("tenant_id") // 所属租户，可空；null = 平台基线集（全租户共用）。示例：null
+  createdAt DateTime   @default(now()) @map("created_at") // 创建时间。示例："2026-08-12T03:20:00.000Z"
 
-  results EvalResult[]
+  results EvalResult[] // 1:N → eval_results，该用例历次运行结果
 
-  @@index([type, active])
-  @@map("eval_cases")
+  @@index([type, active]) // 加速按类型筛选启用中的用例
+  @@map("eval_cases") // 物理表名 eval_cases
 }
 
+/// 评测类型：决定评分算法与统计口径
+/// 示例：CI 离线模式跑 RISK_DETECT + RAG_RECALL，有 Key 时再跑 FAITHFULNESS
 enum EvalType {
-  RISK_DETECT // 风险检出：precision/recall/F1
-  RAG_RECALL // 法规检索：recall@k
-  FAITHFULNESS // 回答忠实度：LLM-as-Judge
+  RISK_DETECT // 风险检出：precision/recall/F1。示例：试用期超限用例是否被检出
+  RAG_RECALL // 法规检索：recall@k。示例：召回 top3 是否含正确法条
+  FAITHFULNESS // 回答忠实度：LLM-as-Judge。示例：回答是否忠于召回条文
 }
 
+/// 用例来源：手工编写 vs 线上人工反馈同步进评测集（反馈飞轮）
+/// 示例：用户点「风险不准」→ sync:feedback 生成 FEEDBACK 用例
 enum EvalSource {
-  MANUAL
-  FEEDBACK
+  MANUAL // 人工编写/固化基线。示例：开发手写的 28 条风险用例
+  FEEDBACK // 由人工反馈同步而来。示例：误报样本回流成回归用例
 }
 
+/// 单次评测运行：一次 `npm run eval` 对应一条，汇总通过数与提交 SHA
+/// 业务角色：评测页按 run 对比历史基线，CI 记录 commitSha 便于追溯
+/// 关键关系：1:N EvalResult（级联删除）
+/// 示例行：{ "id": "cm1x2y3z40010abcd5678ijkl", "status": "DONE", "caseCount": 43,
+///           "passCount": 42, "commitSha": "6f1c272a...", "startedAt": "2026-10-21T16:30:00.000Z" }
 model EvalRun {
-  id         String        @id @default(cuid())
-  status     EvalRunStatus @default(RUNNING)
-  summary    Json?
-  caseCount  Int           @default(0) @map("case_count")
-  passCount  Int           @default(0) @map("pass_count")
-  commitSha  String?       @map("commit_sha") @db.VarChar(64)
-  startedAt  DateTime      @default(now()) @map("started_at")
-  finishedAt DateTime?     @map("finished_at")
+  id         String        @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40010abcd5678ijkl"
+  status     EvalRunStatus @default(RUNNING) // 运行状态，默认 RUNNING。示例：RUNNING / DONE / FAILED
+  summary    Json? // 汇总指标（precision/recall/F1 等），可空；null=尚未产出。示例：{"precision":0.98,"recall":1.0}
+  caseCount  Int           @default(0) @map("case_count") // 本次用例总数，默认 0。示例：43
+  passCount  Int           @default(0) @map("pass_count") // 本次通过数，默认 0。示例：42
+  commitSha  String?       @map("commit_sha") @db.VarChar(64) // 代码提交 SHA，可空；null=本地未提交运行。示例："6f1c272a9c3e..."
+  startedAt  DateTime      @default(now()) @map("started_at") // 开始时间。示例："2026-10-21T16:30:00.000Z"
+  finishedAt DateTime?     @map("finished_at") // 结束时间，可空；null=仍在运行。示例："2026-10-21T16:31:40.000Z"
 
-  results EvalResult[]
+  results EvalResult[] // 1:N → eval_results，逐用例结果（级联删除）
 
-  @@map("eval_runs")
+  @@map("eval_runs") // 物理表名 eval_runs
 }
 
+/// 评测运行状态：RUNNING 执行中 / DONE 完成 / FAILED 异常终止
+/// 示例：全部用例跑完 → DONE
 enum EvalRunStatus {
-  RUNNING
-  DONE
-  FAILED
+  RUNNING // 执行中。示例：eval 脚本刚启动
+  DONE // 正常完成。示例：43 个 case 全部产出分数
+  FAILED // 异常终止。示例：数据库连接失败中断评测
 }
 
+/// 评测结果：某次 run 中某个 case 的单条得分与判定理由
+/// 业务角色：评测详情页逐条展示 actual 与期望的差异，定位回归
+/// 关键关系：N:1 EvalRun（级联删除）；N:1 EvalCase（级联删除）；同一 run+case 唯一
+/// 示例行：{ "id": "cm1x2y3z40011abcd5678ijkl", "runId": "cm1x2y3z40010abcd5678ijkl",
+///           "caseId": "cm1x2y3z40009abcd5678ijkl", "passed": true, "score": 1.0, "latencyMs": 1830 }
 model EvalResult {
-  id          String   @id @default(cuid())
-  runId       String   @map("run_id")
-  caseId      String   @map("case_id")
-  passed      Boolean  @default(false)
-  score       Float    @default(0)
-  actual      Json?
-  judgeReason String?  @map("judge_reason") @db.Text
-  latencyMs   Int      @default(0) @map("latency_ms")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40011abcd5678ijkl"
+  runId       String   @map("run_id") // 所属运行 ID（N:1 EvalRun）。示例："cm1x2y3z40010abcd5678ijkl"
+  caseId      String   @map("case_id") // 对应用例 ID（N:1 EvalCase）。示例："cm1x2y3z40009abcd5678ijkl"
+  passed      Boolean  @default(false) // 是否通过，默认 false。示例：true
+  score       Float    @default(0) // 得分（0~1，Float），默认 0。示例：1.0 / 0.5
+  actual      Json? // 实际输出（检出风险/召回片段/模型回答），可空。示例：{"codes":["LABOR_PROBATION_EXCEED"]}
+  judgeReason String?  @map("judge_reason") @db.Text // LLM-as-Judge 判定理由，可空。示例："回答引用了正确法条且结论一致"
+  latencyMs   Int      @default(0) @map("latency_ms") // 该用例耗时（毫秒）。示例：1830
+  createdAt   DateTime @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:31:02.000Z"
 
-  run  EvalRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
-  case EvalCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  run  EvalRun  @relation(fields: [runId], references: [id], onDelete: Cascade) // N:1 → eval_runs，删运行级联删除结果
+  case EvalCase @relation(fields: [caseId], references: [id], onDelete: Cascade) // N:1 → eval_cases，删用例级联删除结果
 
-  @@unique([runId, caseId])
-  @@index([runId])
-  @@map("eval_results")
+  @@unique([runId, caseId]) // 唯一约束：同一次运行每个用例只有一条结果
+  @@index([runId]) // 加速按运行加载结果列表
+  @@map("eval_results") // 物理表名 eval_results
 }
 
 // ════════════════════════ 知识层：法规/模板库（PG 向量存储）════════════════════════
 // demo 规模 embedding 以 JSON 存 PG、应用层余弦；生产平滑替换为 pgvector
 
+/// 知识库文档：法规、公司模板或用户临时上传文档的元信息，是 RAG 召回的数据源容器
+/// 业务角色：LEGAL/TEMPLATE 为平台共享库（tenantId/sessionId 为空）；GENERAL 按租户/会话隔离
+/// 关键关系：N:1 User（上传者，置空）；N:1 ChatSession（会话文档，级联删除）；1:N DocChunk
+/// 示例行：{ "id": "cm1x2y3z40012abcd5678ijkl", "title": "中华人民共和国劳动合同法", "fileName": "劳动合同法.pdf",
+///           "docType": "LEGAL", "category": "劳动法", "chunkCount": 128, "charCount": 48600, "tenantId": null }
 model Document {
-  id         String   @id @default(cuid())
-  title      String   @db.VarChar(200)
-  fileName   String   @map("file_name") @db.VarChar(300)
-  docType    DocType  @default(GENERAL) @map("doc_type")
-  category   String   @default("通用") @db.VarChar(50)
-  chunkCount Int      @default(0) @map("chunk_count")
-  charCount  Int      @default(0) @map("char_count")
-  preview    String   @db.VarChar(500)
-  tenantId   String?  @map("tenant_id")
-  uploadedBy String?  @map("uploaded_by")
+  id         String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40012abcd5678ijkl"
+  title      String   @db.VarChar(200) // 文档标题（展示用）。示例："中华人民共和国劳动合同法"
+  fileName   String   @map("file_name") @db.VarChar(300) // 原始文件名。示例："劳动合同法.pdf"
+  docType    DocType  @default(GENERAL) @map("doc_type") // 文档类型，默认 GENERAL。示例：LEGAL（法规）/ TEMPLATE（模板）/ GENERAL（会话临时）
+  category   String   @default("通用") @db.VarChar(50) // 分类标签，默认「通用」。示例："劳动法" / "通用"
+  chunkCount Int      @default(0) @map("chunk_count") // 切片数量，默认 0。示例：128
+  charCount  Int      @default(0) @map("char_count") // 原始字符数，默认 0。示例：48600
+  preview    String   @db.VarChar(500) // 正文预览（前 500 字符）。示例："第一章 总则 第一条 为了完善劳动合同制度……"
+  tenantId   String?  @map("tenant_id") // 所属租户，可空；null=平台共享库。示例："cm1x2y3z40001abcd5678ijkl"
+  uploadedBy String?  @map("uploaded_by") // 上传用户 ID，可空；null=seed 内置或已删除用户。示例："cm1x2y3z40003abcd5678ijkl"
   // 法规问答会话隔离：GENERAL 文档归属到具体会话；LEGAL/TEMPLATE 平台库为 null
-  sessionId  String?  @map("session_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  sessionId  String?  @map("session_id") // 所属会话 ID，可空；null=非会话临时文档。示例："cm1x2y3z40005abcd5678ijkl"
+  createdAt  DateTime @default(now()) @map("created_at") // 入库时间。示例："2026-09-01T02:10:00.000Z"
 
-  uploader User?        @relation("DocumentUploader", fields: [uploadedBy], references: [id], onDelete: SetNull)
-  session  ChatSession? @relation("SessionDocuments", fields: [sessionId], references: [id], onDelete: Cascade)
-  chunks   DocChunk[]
+  uploader User?        @relation("DocumentUploader", fields: [uploadedBy], references: [id], onDelete: SetNull) // N:1 → users（上传者），删用户置空
+  session  ChatSession? @relation("SessionDocuments", fields: [sessionId], references: [id], onDelete: Cascade) // N:1 → chat_sessions，删会话级联删除临时文档
+  chunks   DocChunk[] // 1:N → doc_chunks，向量切片（级联删除）
 
-  @@index([tenantId])
-  @@index([docType])
-  @@index([sessionId])
-  @@map("documents")
+  @@index([tenantId]) // 加速按租户筛知识库
+  @@index([docType]) // 加速按类型（法规/模板）区分检索范围
+  @@index([sessionId]) // 加速加载会话内文档
+  @@map("documents") // 物理表名 documents
 }
 
+/// 文档类型：LEGAL 法规库 / TEMPLATE 公司合同模板库 / GENERAL 会话临时文档
+/// 示例：seed 内置 8 部法规 → LEGAL；用户问答时上传的 PDF → GENERAL
 enum DocType {
-  LEGAL // 法规库
-  TEMPLATE // 公司合同模板库
-  GENERAL
+  LEGAL // 法规库。示例：seed 内置的《劳动合同法》
+  TEMPLATE // 公司合同模板库。示例：企业上传的标准劳动合同范本
+  GENERAL // 通用/会话临时文档：仅本人会话可见，随会话删除。示例：问答时上传的 PDF
 }
 
+/// 文档切片：按 token 窗口切分的正文块 + embedding 向量，是向量/关键词混合召回的最小单位
+/// 业务角色：demo 规模向量以 JSON 数组存 PG，应用层算余弦；生产可平滑替换 pgvector
+/// 关键关系：N:1 Document（删文档级联删除全部切片）
+/// 示例行：{ "id": "cm1x2y3z40013abcd5678ijkl", "documentId": "cm1x2y3z40012abcd5678ijkl",
+///           "chunkIndex": 17, "content": "第十九条 劳动合同期限三个月以上不满一年的……", "embedding": [0.0132,-0.0451,...] }
 model DocChunk {
-  id         String   @id @default(cuid())
-  documentId String   @map("document_id")
-  chunkIndex Int      @map("chunk_index")
-  content    String   @db.Text
-  embedding  Json // number[] 向量
-  metadata   Json?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40013abcd5678ijkl"
+  documentId String   @map("document_id") // 所属文档 ID（N:1 Document）。示例："cm1x2y3z40012abcd5678ijkl"
+  chunkIndex Int      @map("chunk_index") // 切片序号（从 0 开始，按原文顺序）。示例：17
+  content    String   @db.Text // 切片正文（长文本）。示例："第十九条 劳动合同期限三个月以上不满一年的，试用期不得超过一个月……"
+  embedding  Json // number[] 向量（demo 规模存 JSON 数组，应用层算余弦）。示例：[0.0132,-0.0451,0.0817,...]
+  metadata   Json? // 切片元数据（起止偏移、条款号等），可空。示例：{"start":1024,"end":1536}
+  createdAt  DateTime @default(now()) @map("created_at") // 入库时间。示例："2026-09-01T02:11:00.000Z"
 
-  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade) // N:1 → documents，删文档级联删除切片
 
-  @@index([documentId])
-  @@map("doc_chunks")
+  @@index([documentId]) // 加速按文档加载/删除全部切片
+  @@map("doc_chunks") // 物理表名 doc_chunks
 }
 
 // ════════════════════════ 业务层：合同风险审查 ════════════════════════
 
+/// 合同：一次上传（或粘贴）的待审合同主体，是审查任务、条款、风险、版本归档的根对象
+/// 业务角色：上传 → 异步解析（progress）→ 双轨审查 → 人工终审 → 意见书/修订稿导出
+/// 关键关系：N:1 Tenant/User（级联删除）；1:N Clause/ReviewTask/Risk/ContractVersion
+/// 示例行：{ "id": "cm1x2y3z40014abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "uploadedBy": "cm1x2y3z40003abcd5678ijkl", "title": "张三-劳动合同", "status": "COMPLETED",
+///           "scene": "LABOR", "progress": 100, "charCount": 8200, "clausesCount": 14 }
 model Contract {
-  id             String         @id @default(cuid())
-  tenantId       String         @map("tenant_id")
-  uploadedBy     String         @map("uploaded_by")
-  title          String         @db.VarChar(200)
-  fileName       String         @map("file_name") @db.VarChar(300)
+  id             String         @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40014abcd5678ijkl"
+  tenantId       String         @map("tenant_id") // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  uploadedBy     String         @map("uploaded_by") // 上传用户 ID（N:1 User）。示例："cm1x2y3z40003abcd5678ijkl"
+  title          String         @db.VarChar(200) // 合同标题（默认取文件名）。示例："张三-劳动合同"
+  fileName       String         @map("file_name") @db.VarChar(300) // 原始文件名（中文名已解码修复）。示例："张三-劳动合同.docx"
   // 上传原件在磁盘上的相对路径（uploads/xxx）；粘贴文本为 null。导出红划线稿时用于保留原版式
-  storagePath    String?        @map("storage_path") @db.VarChar(300)
-  status         ContractStatus @default(UPLOADED)
-  progress       Int            @default(0)
-  parseError     String?        @map("parse_error") @db.Text
-  fileType       String         @default("txt") @db.VarChar(20)
-  scene          ReviewScene    @default(LABOR)
+  storagePath    String?        @map("storage_path") @db.VarChar(300) // 原件磁盘相对路径，可空；null=粘贴文本或无原件。示例："uploads/1730000000000-a1b2c3.docx"
+  status         ContractStatus @default(UPLOADED) // 合同处理状态，默认已上传。示例：UPLOADED/PARSING/READY/REVIEWING/WAITING_REVIEW/COMPLETED/FAILED
+  progress       Int            @default(0) // 解析进度百分比 0~100，默认 0。示例：100（解析完成）
+  parseError     String?        @map("parse_error") @db.Text // 解析失败原因，可空；null=无错误。示例："PDF 文本层为空，需 OCR"
+  fileType       String         @default("txt") @db.VarChar(20) // 文件类型，默认 txt。示例："docx" / "pdf" / "jpg" / "txt"
+  scene          ReviewScene    @default(LABOR) // 审查场景，默认劳动合同。示例：LABOR（劳动）/ NDA（保密）/ SALE（买卖）
   // 合同类型来源：USER=用户手选 / AUTO=待 AI 识别 / AI=AI 自动识别（存量 NULL 视为 USER）
-  sceneSource    String?        @map("scene_source") @db.VarChar(10)
-  charCount      Int            @default(0) @map("char_count")
-  clausesCount   Int            @default(0) @map("clauses_count")
-  reportMd       String?        @map("report_md") @db.Text
+  sceneSource    String?        @map("scene_source") @db.VarChar(10) // 场景来源，可空；null 视为 USER。示例："USER" / "AUTO" / "AI"
+  charCount      Int            @default(0) @map("char_count") // 正文字符数，默认 0。示例：8200
+  clausesCount   Int            @default(0) @map("clauses_count") // 切分条款数，默认 0。示例：14
+  reportMd       String?        @map("report_md") @db.Text // 审查报告 Markdown，可空；null=尚未生成。示例："# 审查报告\n发现 3 项高风险……"
   // 企业审查台「结构化信息」卡（FR：金额/期限/付款节点/关键义务，AI 抽取并缓存；无 Key 不生成）
-  structuredInfo Json?          @map("structured_info")
-  retainUntil    DateTime?      @map("retain_until")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  structuredInfo Json?          @map("structured_info") // AI 抽取的结构化信息，可空。示例：{"amount":"8000 元/月","term":"2026-01-01 ~ 2028-12-31"}
+  retainUntil    DateTime?      @map("retain_until") // 保留截止时间（FREE 到期清理），可空；null=长期保留。示例："2026-11-20T16:30:00.000Z"
+  createdAt      DateTime       @default(now()) @map("created_at") // 上传时间。示例："2026-10-21T16:30:00.000Z"
+  updatedAt      DateTime       @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:42:10.000Z"
 
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  uploader    User              @relation("ContractUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
-  clauses     Clause[]
-  reviewTasks ReviewTask[]
-  risks       Risk[]
-  ledgerLinks ContractLedger[]  @relation("LedgerLinkedContract")
-  versions    ContractVersion[]
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除合同
+  uploader    User              @relation("ContractUploader", fields: [uploadedBy], references: [id], onDelete: Cascade) // N:1 → users（上传者），删用户级联删除合同
+  clauses     Clause[] // 1:N → clauses，切分后的条款
+  reviewTasks ReviewTask[] // 1:N → review_tasks，历次审查任务
+  risks       Risk[] // 1:N → risks，命中的风险（冗余 contractId 便于直查）
+  ledgerLinks ContractLedger[]  @relation("LedgerLinkedContract") // 1:N → contract_ledgers，台账关联（删合同置空）
+  versions    ContractVersion[] // 1:N → contract_versions，原件/修订稿/意见书归档
 
-  @@index([tenantId, status])
-  @@index([retainUntil])
-  @@map("contracts")
+  @@index([tenantId, status]) // 加速合同列表按租户+状态筛选
+  @@index([retainUntil]) // 加速 retention 定时任务扫描待清理合同
+  @@map("contracts") // 物理表名 contracts
 }
 
+/// 合同处理状态：覆盖上传→解析→审查→终审全流程，供列表筛选与前端进度展示
+/// 示例：docx 解析完成 → READY；进入审查 → REVIEWING；人工通过 → COMPLETED
 enum ContractStatus {
-  UPLOADED
-  PARSING
-  READY
-  REVIEWING
-  WAITING_REVIEW
-  COMPLETED
-  FAILED
+  UPLOADED // 已上传，等待入队解析。示例：刚 upload 完的合同
+  PARSING // 解析中（Worker 抽取文本/切条款）。示例：PDF 正在 OCR
+  READY // 解析完成，可发起审查。示例：切出 14 条条款
+  REVIEWING // 双轨审查进行中。示例：SSE 推流阶段
+  WAITING_REVIEW // 审查完成，等待人工终审（HITL）。示例：Agent 轨产出风险后
+  COMPLETED // 已完成（终审通过、意见书生成）。示例：导出修订稿后
+  FAILED // 处理失败（解析/审查异常）。示例：加密 PDF 无法抽取
 }
 
-// 审查场景：FREE 支持 LABOR/INTERNSHIP/LEASE/SERVICE/NDA；SALE/LOAN/EQUITY/CUSTOM 仅深度套餐/深度券
+/// 审查场景：决定规则域、提示词与可用套餐权益
+/// FREE 支持 LABOR/INTERNSHIP/LEASE/SERVICE/NDA；SALE/LOAN/EQUITY/CUSTOM 仅深度套餐/深度券
+/// 示例：HR 上传劳动合同 → LABOR；销售上传保密协议 → NDA
 enum ReviewScene {
-  LABOR // 劳动合同
-  INTERNSHIP // 实习协议（在校生，不构成劳动关系）
-  LEASE // 房屋租赁
-  SERVICE // 兼职/劳务
-  NDA // 保密协议
-  SALE // 买卖合同
-  LOAN // 借款/民间借贷
-  EQUITY // 股权转让
-  CUSTOM // 非标合同
+  LABOR // 劳动合同。示例：张三与艾克米科技签订的劳动合同
+  INTERNSHIP // 实习协议（在校生，不构成劳动关系）。示例：大三学生实习协议
+  LEASE // 房屋租赁。示例：办公室租赁合同
+  SERVICE // 兼职/劳务。示例：兼职设计师劳务协议
+  NDA // 保密协议。示例：项目合作保密协议
+  SALE // 买卖合同。示例：设备采购合同（仅深度套餐）
+  LOAN // 借款/民间借贷。示例：股东借款合同（仅深度套餐）
+  EQUITY // 股权转让。示例：员工股权转让协议（仅深度套餐）
+  CUSTOM // 非标合同。示例：独家代理协议（仅深度套餐）
 }
 
+/// 合同条款：解析阶段按标题/编号切出的条款片段，是风险引用（quote）与锚点定位的基准
+/// 业务角色：规则轨/Agent 轨逐条判定；改稿导出按条款原文做段落锚点匹配
+/// 关键关系：N:1 Contract（删合同级联删除）；1:N Risk（删条款置空 clauseId）
+/// 示例行：{ "id": "cm1x2y3z40015abcd5678ijkl", "contractId": "cm1x2y3z40014abcd5678ijkl",
+///           "indexNo": 3, "title": "第三条 试用期", "clauseType": "TERM", "content": "试用期为八个月……" }
 model Clause {
-  id         String     @id @default(cuid())
-  contractId String     @map("contract_id")
-  indexNo    Int        @map("index_no")
-  title      String     @db.VarChar(200)
-  content    String     @db.Text
-  clauseType ClauseType @default(OTHER) @map("clause_type")
-  metadata   Json?
+  id         String     @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40015abcd5678ijkl"
+  contractId String     @map("contract_id") // 所属合同 ID（N:1 Contract）。示例："cm1x2y3z40014abcd5678ijkl"
+  indexNo    Int        @map("index_no") // 条款序号（同一合同内从 0/1 递增）。示例：3
+  title      String     @db.VarChar(200) // 条款标题。示例："第三条 试用期"
+  content    String     @db.Text // 条款原文（长文本）。示例："试用期为八个月，自入职之日起计算……"
+  clauseType ClauseType @default(OTHER) @map("clause_type") // 条款类型，默认其他。示例：TERM（期限）/ AMOUNT（价款）
+  metadata   Json? // 扩展元数据（起止偏移、页码等），可空。示例：{"start":860,"end":1120}
 
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  risks    Risk[]
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade) // N:1 → contracts，删合同级联删除条款
+  risks    Risk[] // 1:N → risks，命中该条款的风险
 
-  @@unique([contractId, indexNo])
-  @@index([contractId])
-  @@map("clauses")
+  @@unique([contractId, indexNo]) // 唯一约束：同一合同内条款序号不重复
+  @@index([contractId]) // 加速按合同加载条款列表
+  @@map("clauses") // 物理表名 clauses
 }
 
+/// 条款类型：规则匹配与展示分组用，解析后按关键词/LLM 归类
+/// 示例：「试用期八个月」条款 → TERM；「违约金 50 万」→ BREACH
 enum ClauseType {
-  PARTIES // 缔约双方
-  AMOUNT // 价款/支付
-  TERM // 期限/交付
-  BREACH // 违约责任
-  TERMINATION // 解除/终止
-  GOVERNING_LAW // 适用法律/争议解决
-  CONFIDENTIALITY
-  IP // 知识产权
-  OTHER
+  PARTIES // 缔约双方。示例：「甲方：艾克米科技有限公司 乙方：张三」
+  AMOUNT // 价款/支付。示例：「月工资 8000 元，每月 10 日发放」
+  TERM // 期限/交付。示例：「试用期为三个月」
+  BREACH // 违约责任。示例：「提前离职需支付违约金 5 万元」
+  TERMINATION // 解除/终止。示例：「双方协商一致可以解除本合同」
+  GOVERNING_LAW // 适用法律/争议解决。示例：「争议提交北京市仲裁委」
+  CONFIDENTIALITY // 保密义务。示例：保密协议中的保密范围条款
+  IP // 知识产权。示例：「在职期间的发明创造归公司所有」
+  OTHER // 未归类的其他条款。示例：通知送达条款
 }
 
+/// 审查任务：一次双轨审查的运行实例，绑定 LangGraph threadId 以支持中断/恢复（HITL）
+/// 业务角色：记录是否深度轨（isDeep）与是否核销深度券（couponUsed），供计费与权益校验
+/// 关键关系：N:1 Tenant/Contract（级联删除）、N:1 User（终审人，置空）；1:N Risk/ContractVersion
+/// 示例行：{ "id": "cm1x2y3z40016abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "contractId": "cm1x2y3z40014abcd5678ijkl", "status": "APPROVED", "isDeep": true,
+///           "couponUsed": false, "threadId": "review-cm1x2y3z40014" }
 model ReviewTask {
-  id         String           @id @default(cuid())
-  tenantId   String           @map("tenant_id")
-  contractId String           @map("contract_id")
-  reviewerId String?          @map("reviewer_id")
-  status     ReviewTaskStatus @default(RUNNING)
-  threadId   String           @unique @map("thread_id") @db.VarChar(80)
-  isDeep     Boolean          @default(false) @map("is_deep") // 本次是否解锁 Agent 深度轨（深度套餐或深度券）
-  couponUsed Boolean          @default(false) @map("coupon_used") // 本次是否以深度券核销
-  stats      Json?
-  createdAt  DateTime         @default(now()) @map("created_at")
-  updatedAt  DateTime         @updatedAt @map("updated_at")
+  id         String           @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40016abcd5678ijkl"
+  tenantId   String           @map("tenant_id") // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  contractId String           @map("contract_id") // 被审合同 ID（N:1 Contract）。示例："cm1x2y3z40014abcd5678ijkl"
+  reviewerId String?          @map("reviewer_id") // 终审人 ID，可空；null=尚未指定/系统自动。示例："cm1x2y3z40003abcd5678ijkl"
+  status     ReviewTaskStatus @default(RUNNING) // 任务状态，默认运行中。示例：RUNNING / WAITING_REVIEW / APPROVED / REJECTED / FAILED
+  threadId   String           @unique @map("thread_id") @db.VarChar(80) // LangGraph 线程 ID（全局唯一，用于 checkpoint 恢复）。示例："review-cm1x2y3z40014"
+  isDeep     Boolean          @default(false) @map("is_deep") // 本次是否解锁 Agent 深度轨（深度套餐或深度券），默认 false。示例：true（TEAM 套餐）/ false（FREE 仅规则轨）
+  couponUsed Boolean          @default(false) @map("coupon_used") // 本次是否以深度券核销，默认 false。示例：true（扣 1 张深度券）/ false（套餐自带深度权益）
+  stats      Json? // 运行统计（各轨耗时/风险数等），可空。示例：{"agent":6,"rule":4,"merged":8}
+  createdAt  DateTime         @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:31:00.000Z"
+  updatedAt  DateTime         @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:38:42.000Z"
 
-  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contract Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  reviewer User?             @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  risks    Risk[]
-  versions ContractVersion[]
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除任务
+  contract Contract          @relation(fields: [contractId], references: [id], onDelete: Cascade) // N:1 → contracts，删合同级联删除任务
+  reviewer User?             @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: SetNull) // N:1 → users（终审人），删用户置空
+  risks    Risk[] // 1:N → risks，本次任务检出的风险（级联删除）
+  versions ContractVersion[] // 1:N → contract_versions，本任务产出的修订稿/意见书
 
-  @@index([tenantId, status])
-  @@index([contractId])
-  @@map("review_tasks")
+  @@index([tenantId, status]) // 加速审查任务列表按租户+状态筛选
+  @@index([contractId]) // 加速按合同查历史任务
+  @@map("review_tasks") // 物理表名 review_tasks
 }
 
-// 合同文档版本归档：ORIGINAL=上传原件（复用 contracts.storage_path，不复制文件）
-// OPINION=终审通过时归档的审查意见书 docx；REVISED=每次导出修订稿归档一版
+/// 合同文档版本归档：ORIGINAL=上传原件（复用 contracts.storage_path，不复制文件）
+/// OPINION=终审通过时归档的审查意见书 docx；REVISED=每次导出修订稿归档一版
+/// 关键关系：N:1 Tenant/Contract（级联删除）、N:1 ReviewTask（置空）；按合同+创建时间倒序查阅
+/// 示例行：{ "id": "cm1x2y3z40017abcd5678ijkl", "contractId": "cm1x2y3z40014abcd5678ijkl",
+///           "taskId": "cm1x2y3z40016abcd5678ijkl", "kind": "REVISED", "sizeBytes": 48213, "appliedCount": 5 }
 model ContractVersion {
-  id             String   @id @default(cuid())
-  tenantId       String   @map("tenant_id")
-  contractId     String   @map("contract_id")
-  taskId         String?  @map("task_id")
-  kind           String   @db.VarChar(20) // ORIGINAL | REVISED | OPINION
-  fileName       String   @map("file_name") @db.VarChar(300)
-  storagePath    String   @map("storage_path") @db.VarChar(500)
-  sizeBytes      Int      @default(0) @map("size_bytes")
-  appliedCount   Int?     @map("applied_count") // REVISED：原句锚点命中条数
-  unmatchedCount Int?     @map("unmatched_count") // REVISED：未命中进附加节条数
-  createdById    String?  @map("created_by_id")
-  createdAt      DateTime @default(now()) @map("created_at")
+  id             String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40017abcd5678ijkl"
+  tenantId       String   @map("tenant_id") // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  contractId     String   @map("contract_id") // 所属合同 ID（N:1 Contract）。示例："cm1x2y3z40014abcd5678ijkl"
+  taskId         String?  @map("task_id") // 来源审查任务 ID，可空；null=与任务无关（如原件归档）。示例："cm1x2y3z40016abcd5678ijkl"
+  kind           String   @db.VarChar(20) // 版本类型（字符串枚举）：ORIGINAL 原件 | REVISED 修订稿 | OPINION 审查意见书。示例："REVISED"
+  fileName       String   @map("file_name") @db.VarChar(300) // 归档文件名（含中文名）。示例："张三-劳动合同-修订稿.docx"
+  storagePath    String   @map("storage_path") @db.VarChar(500) // 归档文件磁盘相对路径。示例："uploads/1730000123456-d4e5f6.docx"
+  sizeBytes      Int      @default(0) @map("size_bytes") // 文件大小（字节），默认 0。示例：48213
+  appliedCount   Int?     @map("applied_count") // REVISED：原句锚点命中条数，可空；null=非修订稿。示例：5
+  unmatchedCount Int?     @map("unmatched_count") // REVISED：未命中进附加节条数，可空；null=非修订稿。示例：1
+  createdById    String?  @map("created_by_id") // 操作人 ID（仅记录，无外键），可空。示例："cm1x2y3z40003abcd5678ijkl"
+  createdAt      DateTime @default(now()) @map("created_at") // 归档时间。示例："2026-10-21T16:40:00.000Z"
 
-  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contract Contract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  task     ReviewTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除版本
+  contract Contract    @relation(fields: [contractId], references: [id], onDelete: Cascade) // N:1 → contracts，删合同级联删除版本
+  task     ReviewTask? @relation(fields: [taskId], references: [id], onDelete: SetNull) // N:1 → review_tasks，删任务置空
 
-  @@index([contractId, createdAt(sort: Desc)])
-  @@map("contract_versions")
+  @@index([contractId, createdAt(sort: Desc)]) // 加速按合同倒序加载版本列表
+  @@map("contract_versions") // 物理表名 contract_versions
 }
 
+/// 审查任务状态：RUNNING 双轨执行中 / WAITING_REVIEW 待人工终审 / APPROVED 通过 / REJECTED 驳回 / FAILED 失败
+/// 示例：Agent 轨结束进入 interrupt → WAITING_REVIEW；HR 确认 → APPROVED
 enum ReviewTaskStatus {
-  RUNNING
-  WAITING_REVIEW
-  APPROVED
-  REJECTED
-  FAILED
+  RUNNING // 双轨审查执行中。示例：规则轨 + Agent 轨并行
+  WAITING_REVIEW // 等待人工终审（HITL 中断点）。示例：风险已合并待拍板
+  APPROVED // 终审通过，可生成意见书。示例：张三点击「通过」
+  REJECTED // 终审驳回，需重新审查。示例：风险误报过多被退回
+  FAILED // 执行失败。示例：模型调用异常终止
 }
 
+/// 风险项：双轨审查产出的一条风险结论，含强制引用原文、法律依据、修改建议与改稿结果
+/// 业务角色：审查工作台逐条展示；人工接受/忽略/修订后写入 status 与 reviewerComment
+/// 关键关系：N:1 ReviewTask/Contract（级联删除）、N:1 Clause（置空）；ruleId 关联规则 code（无外键）
+/// 示例行：{ "id": "cm1x2y3z40018abcd5678ijkl", "reviewTaskId": "cm1x2y3z40016abcd5678ijkl",
+///           "contractId": "cm1x2y3z40014abcd5678ijkl", "severity": "HIGH", "category": "试用期",
+///           "title": "试用期超过法定上限", "detectedBy": "AGENT", "status": "PENDING", "confidence": 0.92 }
 model Risk {
-  id              String     @id @default(cuid())
-  reviewTaskId    String     @map("review_task_id")
-  contractId      String     @map("contract_id")
-  clauseId        String?    @map("clause_id")
-  clauseTitle     String?    @map("clause_title") @db.VarChar(200)
-  quote           String     @db.Text // 命中的原文片段（强制引用，治幻觉）
-  severity        Severity
-  category        String     @db.VarChar(50)
-  title           String     @db.VarChar(200)
-  analysis        String     @db.Text
-  suggestion      String?    @db.Text
-  legalBasis      String?    @map("legal_basis") @db.Text // 法规/模板依据
+  id              String     @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40018abcd5678ijkl"
+  reviewTaskId    String     @map("review_task_id") // 所属审查任务 ID（N:1 ReviewTask）。示例："cm1x2y3z40016abcd5678ijkl"
+  contractId      String     @map("contract_id") // 所属合同 ID（N:1 Contract，冗余便于直查）。示例："cm1x2y3z40014abcd5678ijkl"
+  clauseId        String?    @map("clause_id") // 命中条款 ID，可空；null=跨条款/未定位到具体条款。示例："cm1x2y3z40015abcd5678ijkl"
+  clauseTitle     String?    @map("clause_title") @db.VarChar(200) // 命中条款标题快照，可空；null=未关联条款。示例："第三条 试用期"
+  quote           String     @db.Text // 命中的原文片段（强制引用，治幻觉）。示例："试用期为八个月。"
+  severity        Severity // 风险等级：HIGH/MED/LOW。示例：HIGH（试用期超法定上限）
+  category        String     @db.VarChar(50) // 风险分类标签。示例："试用期" / "违约金" / "保密"
+  title           String     @db.VarChar(200) // 风险标题（一句话结论）。示例："试用期超过法定上限"
+  analysis        String     @db.Text // 风险分析说明（为什么有风险）。示例："约定试用期 8 个月，超过《劳动合同法》第十九条上限……"
+  suggestion      String?    @db.Text // 修改建议，可空；null=仅提示风险无具体建议。示例："将试用期调整为不超过 6 个月"
+  legalBasis      String?    @map("legal_basis") @db.Text // 法规/模板依据，可空；null=无明确法条。示例："《劳动合同法》第十九条"
   // AI 改稿台（FR-9）：rewritten=可直接替换的改写句；revisionStatus=NONE/PENDING/ACCEPTED/REJECTED
-  rewritten       String?    @db.Text
-  revisionStatus  String     @default("NONE") @map("revision_status") @db.VarChar(20)
-  refs            Json? // RAG 来源 [{docTitle, chunkId, score}]
-  confidence      Float?
-  detectedBy      RiskSource @default(AGENT) @map("detected_by")
-  ruleId          String?    @map("rule_id") @db.VarChar(50)
-  status          RiskStatus @default(PENDING)
-  reviewerComment String?    @map("reviewer_comment") @db.Text
-  createdAt       DateTime   @default(now()) @map("created_at")
-  updatedAt       DateTime   @updatedAt @map("updated_at")
+  rewritten       String?    @db.Text // AI 改写后的替换句，可空；null=尚未生成改稿。示例："试用期为三个月，自入职之日起计算。"
+  revisionStatus  String     @default("NONE") @map("revision_status") @db.VarChar(20) // 改稿状态，默认 NONE。示例：NONE / PENDING / ACCEPTED / REJECTED
+  refs            Json? // RAG 来源 [{docTitle, chunkId, score}]，可空；null=无召回引用。示例：[{"docTitle":"劳动合同法","chunkId":"cm1x2y3z40013abcd5678ijkl","score":0.86}]
+  confidence      Float? // 模型置信度 0~1，可空；null=规则轨无置信度。示例：0.92
+  detectedBy      RiskSource @default(AGENT) @map("detected_by") // 检出来源，默认 Agent 轨。示例：RULE / AGENT / BOTH / PLAYBOOK
+  ruleId          String?    @map("rule_id") @db.VarChar(50) // 命中的规则 code（弱关联 review_rules.code），可空。示例："LABOR_PROBATION_EXCEED"
+  status          RiskStatus @default(PENDING) // 人工处置状态，默认待处理。示例：PENDING / ACCEPTED / IGNORED / EDITED
+  reviewerComment String?    @map("reviewer_comment") @db.Text // 终审人批注，可空；null=未批注。示例："已与业务确认，试用期改为 3 个月"
+  createdAt       DateTime   @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:33:05.000Z"
+  updatedAt       DateTime   @updatedAt @map("updated_at") // 最后更新时间（处置/改稿）。示例："2026-10-21T16:38:00.000Z"
 
-  reviewTask ReviewTask @relation(fields: [reviewTaskId], references: [id], onDelete: Cascade)
-  contract   Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  clause     Clause?    @relation(fields: [clauseId], references: [id], onDelete: SetNull)
+  reviewTask ReviewTask @relation(fields: [reviewTaskId], references: [id], onDelete: Cascade) // N:1 → review_tasks，删任务级联删除风险
+  contract   Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade) // N:1 → contracts，删合同级联删除风险
+  clause     Clause?    @relation(fields: [clauseId], references: [id], onDelete: SetNull) // N:1 → clauses，删条款置空（风险保留）
 
-  @@index([reviewTaskId])
-  @@index([contractId])
-  @@index([status])
-  @@map("risks")
+  @@index([reviewTaskId]) // 加速按任务加载风险列表
+  @@index([contractId]) // 加速按合同跨任务查风险
+  @@index([status]) // 加速统计待处理/已接受风险
+  @@map("risks") // 物理表名 risks
 }
 
+/// 风险等级：决定工作台排序与报告中的高亮颜色
+/// 示例：试用期超法定上限 → HIGH；未约定送达地址 → LOW
 enum Severity {
-  HIGH
-  MED
-  LOW
+  HIGH // 高风险：违法/重大不利，建议必改。示例：试用期 8 个月
+  MED // 中风险：条款不利或表述不清，建议修改。示例：违约金比例偏高
+  LOW // 低风险：提示性/完善性建议。示例：缺少送达条款
 }
 
+/// 风险检出来源：区分规则轨、Agent 轨与两者同时命中，以及企业 Playbook 命中
+/// 示例：规则正则与 Agent 语义都命中同一条 → BOTH（合并去重）
 enum RiskSource {
-  RULE
-  AGENT
-  BOTH
-  PLAYBOOK // 企业 Playbook 公司红线/偏好规则命中（FR-17）
+  RULE // 仅规则轨命中。示例：正则匹配到「试用期.*[七八九十]个月」
+  AGENT // 仅 Agent 轨命中。示例：LLM 结合法规 RAG 判定
+  BOTH // 双轨同时命中（已合并去重）。示例：规则与 Agent 各报一次后合并
+  PLAYBOOK // 企业 Playbook 公司红线/偏好规则命中（FR-17）。示例：命中「禁止无补偿竞业」红线
 }
 
+/// 风险人工处置状态：终审人对每条风险的拍板结果
+/// 示例：HR 接受「试用期超限」建议 → ACCEPTED；误报则 IGNORED
 enum RiskStatus {
-  PENDING
-  ACCEPTED
-  IGNORED
-  EDITED
+  PENDING // 待处理（默认）。示例：刚产出、尚未终审
+  ACCEPTED // 已接受（认可风险）。示例：风险成立，导出意见书时列出
+  IGNORED // 已忽略（判定误报）。示例：业务特殊约定，风险不成立
+  EDITED // 已修改（人工改写了风险描述/建议）。示例：法务调整了 suggestion 文案
 }
 
-// 声明式审查规则：正则/关键词保底 + LLM 语义判定描述
+/// 声明式审查规则：正则/关键词保底 + LLM 语义判定描述
+/// 业务角色：规则轨按 scope 域生效；Agent 轨复用 prompt 做语义判定；后台可增删改
+/// 关键关系：无外键；Risk.ruleId 记录命中的 rule.code（弱关联）
+/// 示例行：{ "id": "cm1x2y3z40019abcd5678ijkl", "code": "LABOR_PROBATION_EXCEED",
+///           "name": "试用期超过法定上限", "severity": "HIGH", "scope": "LABOR", "enabled": true, "sortOrder": 10 }
 model ReviewRule {
-  id          String   @id @default(cuid())
-  code        String   @unique @db.VarChar(50)
-  name        String   @db.VarChar(200)
-  severity    Severity @default(MED)
-  category    String   @db.VarChar(50)
-  scope       String   @default("ALL") @db.VarChar(20) // 适用范围：ALL=所有合同，LABOR=劳动/用工类合同
-  pattern     String?  @db.Text // 正则，可空
-  keywords    String[] @default([])
-  prompt      String   @db.Text // 给模型的语义判定描述（Agent 轨使用）
-  suggestion  String?  @db.Text // 命中后给用户的修改建议（规则轨直接产出）
-  legalBasis  String?  @map("legal_basis") @db.Text // 法律依据原文出处
-  enabled     Boolean  @default(true)
-  sortOrder   Int      @default(100) @map("sort_order")
-  description String?  @db.Text // 风险解释（命中后写入 Risk.analysis）
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40019abcd5678ijkl"
+  code        String   @unique @db.VarChar(50) // 规则编码，全局唯一（业务标识）。示例："LABOR_PROBATION_EXCEED"
+  name        String   @db.VarChar(200) // 规则名称。示例："试用期超过法定上限"
+  severity    Severity @default(MED) // 默认风险等级，默认中风险。示例：HIGH / MED / LOW
+  category    String   @db.VarChar(50) // 风险分类。示例："试用期"
+  scope       String   @default("ALL") @db.VarChar(20) // 适用范围：ALL=所有合同，LABOR=劳动/用工类合同。示例："LABOR"
+  pattern     String?  @db.Text // 正则，可空；null=不使用正则匹配。示例："试用期.{0,6}[七八九十]个?月"
+  keywords    String[] @default([]) // 关键词数组，默认空，用于规则轨字面匹配。示例：["试用期","个月"]
+  prompt      String   @db.Text // 给模型的语义判定描述（Agent 轨使用）。示例："判断试用期是否超过法定上限……"
+  suggestion  String?  @db.Text // 命中后给用户的修改建议（规则轨直接产出）。示例："调整为不超过 6 个月"
+  legalBasis  String?  @map("legal_basis") @db.Text // 法律依据原文出处。示例："《劳动合同法》第十九条"
+  enabled     Boolean  @default(true) // 是否启用，默认 true。示例：false（临时停用某条规则）
+  sortOrder   Int      @default(100) @map("sort_order") // 展示/执行排序，默认 100（越小越前）。示例：10
+  description String?  @db.Text // 风险解释（命中后写入 Risk.analysis）。示例："试用期超过法定上限将面临赔偿风险"
+  createdAt   DateTime @default(now()) @map("created_at") // 创建时间。示例："2026-03-10T06:00:00.000Z"
+  updatedAt   DateTime @updatedAt @map("updated_at") // 最后更新时间。示例："2026-09-18T10:12:00.000Z"
 
-  @@map("review_rules")
+  @@map("review_rules") // 物理表名 review_rules
 }
 
 // ════════════════════════ 平台层：审计与配置 ════════════════════════
 
+/// 操作审计日志：记录登录、上传、审查、导出、计费等关键动作，用于安全追溯与合规留痕
+/// 业务角色：超管/租户管理员按 action、时间检索；detail 写入前经 sanitizeDetail 递归脱敏
+/// 关键关系：N:1 User（置空，删用户仍保留日志）；tenantId 仅记录无外键
+/// 示例行：{ "id": "cm1x2y3z40020abcd5678ijkl", "userId": "cm1x2y3z40003abcd5678ijkl",
+///           "action": "contract.upload", "resource": "contract", "resourceId": "cm1x2y3z40014abcd5678ijkl",
+///           "tenantId": "cm1x2y3z40001abcd5678ijkl", "ip": "203.0.113.8" }
 model AuditLog {
-  id         String   @id @default(cuid())
-  userId     String?  @map("user_id")
-  action     String   @db.VarChar(100)
-  resource   String   @db.VarChar(100)
-  resourceId String?  @map("resource_id") @db.VarChar(100)
-  detail     Json?
-  ip         String?  @db.VarChar(45)
-  userAgent  String?  @map("user_agent") @db.VarChar(500)
-  tenantId   String?  @map("tenant_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id         String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40020abcd5678ijkl"
+  userId     String?  @map("user_id") // 操作人 ID，可空；null=系统任务/匿名。示例："cm1x2y3z40003abcd5678ijkl"
+  action     String   @db.VarChar(100) // 动作标识（点分命名）。示例："contract.upload" / "risk.accept" / "auth.login"
+  resource   String   @db.VarChar(100) // 资源类型。示例："contract" / "risk" / "order"
+  resourceId String?  @map("resource_id") @db.VarChar(100) // 资源 ID，可空；null=批量/非实体操作。示例："cm1x2y3z40014abcd5678ijkl"
+  detail     Json? // 操作详情（已脱敏），可空。示例：{"fileName":"张三-劳动合同.docx","size":48213}
+  ip         String?  @db.VarChar(45) // 客户端 IP（兼容 IPv6），可空。示例："203.0.113.8"
+  userAgent  String?  @map("user_agent") @db.VarChar(500) // 客户端 UA，可空。示例："Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+  tenantId   String?  @map("tenant_id") // 所属租户 ID（无外键，仅记录），可空。示例："cm1x2y3z40001abcd5678ijkl"
+  createdAt  DateTime @default(now()) @map("created_at") // 发生时间。示例："2026-10-21T16:30:00.000Z"
 
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull) // N:1 → users，删用户置空保留日志
 
-  @@index([userId])
-  @@index([action])
-  @@index([tenantId])
-  @@index([createdAt])
-  @@map("audit_logs")
+  @@index([userId]) // 加速按操作人检索
+  @@index([action]) // 加速按动作类型统计/筛选
+  @@index([tenantId]) // 加速租户管理员查看本租户日志
+  @@index([createdAt]) // 加速按时间范围检索
+  @@map("audit_logs") // 物理表名 audit_logs
 }
 
-// Refresh Token 持久化：每次刷新轮转（旧 token 撤销 + replacedById 指向新 token）。
-// 收到已撤销的 token = 疑似泄漏/重放，立即撤销该用户全部 refresh token，强制重新登录。
+/// Refresh Token 持久化：每次刷新轮转（旧 token 撤销 + replacedById 指向新 token）。
+/// 收到已撤销的 token = 疑似泄漏/重放，立即撤销该用户全部 refresh token，强制重新登录。
+/// 关键关系：N:1 User（级联删除）；只存 sha256 哈希，不存明文
+/// 示例行：{ "id": "cm1x2y3z40021abcd5678ijkl", "userId": "cm1x2y3z40003abcd5678ijkl",
+///           "tokenHash": "9f2c...e1", "expiresAt": "2026-11-20T16:30:00.000Z", "revokedAt": null }
 model RefreshToken {
-  id           String    @id @default(cuid())
-  userId       String    @map("user_id") @db.VarChar(50)
-  tokenHash    String    @unique @map("token_hash") @db.VarChar(255) // sha256(明文 refresh token)
-  expiresAt    DateTime  @map("expires_at")
-  revokedAt    DateTime? @map("revoked_at")
-  replacedById String?   @map("replaced_by_id") @db.VarChar(50)
-  ip           String?   @db.VarChar(45)
-  userAgent    String?   @map("user_agent") @db.VarChar(500)
-  createdAt    DateTime  @default(now()) @map("created_at")
+  id           String    @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40021abcd5678ijkl"
+  userId       String    @map("user_id") @db.VarChar(50) // 所属用户 ID（N:1 User）。示例："cm1x2y3z40003abcd5678ijkl"
+  tokenHash    String    @unique @map("token_hash") @db.VarChar(255) // sha256(明文 refresh token)，唯一。示例："9f2c1a...e1"（64 位十六进制）
+  expiresAt    DateTime  @map("expires_at") // 过期时间（到期不可再刷新）。示例："2026-11-20T16:30:00.000Z"
+  revokedAt    DateTime? @map("revoked_at") // 撤销时间，可空；null=仍有效。示例："2026-10-21T18:00:00.000Z"
+  replacedById String?   @map("replaced_by_id") @db.VarChar(50) // 轮转后的新 token ID（弱关联），可空；null=未轮转/已登出。示例："cm1x2y3z40022abcd5678ijkl"
+  ip           String?   @db.VarChar(45) // 签发时客户端 IP，可空。示例："203.0.113.8"
+  userAgent    String?   @map("user_agent") @db.VarChar(500) // 签发时客户端 UA，可空。示例："Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+  createdAt    DateTime  @default(now()) @map("created_at") // 签发时间。示例："2026-10-21T16:30:00.000Z"
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade) // N:1 → users，删用户级联删除令牌
 
-  @@index([userId])
-  @@map("refresh_tokens")
+  @@index([userId]) // 加速按用户批量撤销令牌（疑似泄漏时）
+  @@map("refresh_tokens") // 物理表名 refresh_tokens
 }
 
 // ════════════════════════ 增长改造 v2：台账 / Playbook / 订单 / 埋点 / 集成 ════════════════════════
 
-// 合同台账：企业全生命周期管理，个人空间轻量复用（额度 ≤10）
+/// 合同台账：企业全生命周期管理，个人空间轻量复用（额度 ≤10）
+/// 记录员工合同关键日期（起止/试用期到期），驱动到期提醒与续签；可与具体合同建立弱关联
+/// 关键关系：N:1 Tenant（级联删除）；N:1 Contract（置空）；自关联续签链（renewedFrom/renewals）；N:1 User 创建人（置空）
+/// 示例行：{ "id": "cm1x2y3z40023abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "employeeName": "张三", "dept": "人力资源部", "contractType": "FIXED_TERM_LABOR",
+///           "startDate": "2026-01-01", "endDate": "2028-12-31", "status": "ACTIVE" }
 model ContractLedger {
-  id               String       @id @default(cuid())
-  tenantId         String       @map("tenant_id") @db.VarChar(50)
-  employeeName     String       @map("employee_name") @db.VarChar(100)
-  dept             String?      @db.VarChar(100)
+  id               String       @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40023abcd5678ijkl"
+  tenantId         String       @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  employeeName     String       @map("employee_name") @db.VarChar(100) // 员工姓名。示例："张三"
+  dept             String?      @db.VarChar(100) // 所属部门，可空；null=未填写。示例："人力资源部"
   // 7 类字符串枚举：FIXED_TERM_LABOR/OPEN_ENDED_LABOR/SERVICE/INTERNSHIP/NDA/NON_COMPETE/OTHER
-  contractType     String       @default("FIXED_TERM_LABOR") @map("contract_type") @db.VarChar(30)
-  startDate        DateTime     @map("start_date") @db.Date
-  endDate          DateTime?    @map("end_date") @db.Date
-  probationEnd     DateTime?    @map("probation_end") @db.Date
-  position         String?      @db.VarChar(100)
-  note             String?      @db.Text
-  status           LedgerStatus @default(ACTIVE)
-  linkedContractId String?      @map("linked_contract_id") @db.VarChar(50)
-  renewedFromId    String?      @map("renewed_from_id") @db.VarChar(50)
-  remindBeforeDays Int          @default(30) @map("remind_before_days")
-  createdById      String?      @map("created_by_id") @db.VarChar(50)
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
+  contractType     String       @default("FIXED_TERM_LABOR") @map("contract_type") @db.VarChar(30) // 合同类型（字符串枚举），默认固定期限劳动合同。示例："FIXED_TERM_LABOR" / "NDA" / "INTERNSHIP"
+  startDate        DateTime     @map("start_date") @db.Date // 合同起始日期（仅日期）。示例："2026-01-01"
+  endDate          DateTime?    @map("end_date") @db.Date // 合同到期日期，可空；null=无固定期限/长期。示例："2028-12-31"
+  probationEnd     DateTime?    @map("probation_end") @db.Date // 试用期结束日期，可空；null=无试用期。示例："2026-04-01"
+  position         String?      @db.VarChar(100) // 岗位名称，可空。示例："HR 专员"
+  note             String?      @db.Text // 备注，可空。示例："续签一次后拟转无固定期限"
+  status           LedgerStatus @default(ACTIVE) // 台账状态，默认在期。示例：ACTIVE / RENEWED / TERMINATED
+  linkedContractId String?      @map("linked_contract_id") @db.VarChar(50) // 关联合同 ID（弱关联+外键），可空；null=未上传原件。示例："cm1x2y3z40014abcd5678ijkl"
+  renewedFromId    String?      @map("renewed_from_id") @db.VarChar(50) // 续签来源台账 ID（自关联），可空；null=首签。示例："cm1x2y3z40023abcd5678ijkl"
+  remindBeforeDays Int          @default(30) @map("remind_before_days") // 到期提前提醒天数，默认 30。示例：60（提前两月提醒）
+  createdById      String?      @map("created_by_id") @db.VarChar(50) // 创建人 ID（N:1 User），可空；null=系统导入。示例："cm1x2y3z40003abcd5678ijkl"
+  createdAt        DateTime     @default(now()) @map("created_at") // 创建时间。示例："2026-01-02T03:00:00.000Z"
+  updatedAt        DateTime     @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  linkedContract Contract?        @relation("LedgerLinkedContract", fields: [linkedContractId], references: [id], onDelete: SetNull)
-  renewedFrom    ContractLedger?  @relation("LedgerRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull)
-  renewals       ContractLedger[] @relation("LedgerRenewal")
-  createdBy      User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除台账
+  linkedContract Contract?        @relation("LedgerLinkedContract", fields: [linkedContractId], references: [id], onDelete: SetNull) // N:1 → contracts，删合同置空
+  renewedFrom    ContractLedger?  @relation("LedgerRenewal", fields: [renewedFromId], references: [id], onDelete: SetNull) // 自关联：指向被续签的上一条台账
+  renewals       ContractLedger[] @relation("LedgerRenewal") // 自关联：由本记录续签出的后续台账（1:N）
+  createdBy      User?            @relation(fields: [createdById], references: [id], onDelete: SetNull) // N:1 → users，删用户置空
 
-  @@index([tenantId, status])
-  @@index([tenantId, endDate])
-  @@map("contract_ledgers")
+  @@index([tenantId, status]) // 加速台账列表按租户+状态筛选
+  @@index([tenantId, endDate]) // 加速到期提醒扫描（租户+到期日）
+  @@map("contract_ledgers") // 物理表名 contract_ledgers
 }
 
+/// 台账状态：ACTIVE 在期 / RENEWED 已续签 / TERMINATED 已终止
+/// 示例：合同续签后旧记录置 RENEWED，新记录为 ACTIVE
 enum LedgerStatus {
-  ACTIVE
-  RENEWED
-  TERMINATED
+  ACTIVE // 在期有效。示例：张三当前劳动合同
+  RENEWED // 已续签（被新台账接续）。示例：2026 年合同续签后旧记录
+  TERMINATED // 已终止（离职/解约）。示例：员工离职后标记
 }
 
-// Playbook 企业自定义审查规则（企业护城河）
+/// Playbook 企业自定义审查规则（企业护城河）
+/// 承载公司红线、偏好口径、标准合同库与行业专项包；AI 可从企业范本提炼规则（人工确认后导入）
+/// 关键关系：N:1 Tenant（级联删除）；N:1 User 创建人（置空）；命中时 Risk.detectedBy=PLAYBOOK
+/// 示例行：{ "id": "cm1x2y3z40024abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "kind": "FORBIDDEN", "title": "禁止约定竞业限制无补偿", "enabled": true, "hitCount": 7,
+///           "source": "AI", "contractTypes": ["FIXED_TERM_LABOR"] }
 model PlaybookRule {
-  id            String         @id @default(cuid())
-  tenantId      String         @map("tenant_id") @db.VarChar(50)
-  kind          PlaybookKind   @default(FORBIDDEN)
-  title         String         @db.VarChar(200)
-  description   String?        @db.Text
-  naturalPrompt String         @default("") @map("natural_prompt") @db.Text
+  id            String         @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40024abcd5678ijkl"
+  tenantId      String         @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  kind          PlaybookKind   @default(FORBIDDEN) // 规则类别，默认红线。示例：FORBIDDEN / PREFERENCE / STANDARD / INDUSTRY
+  title         String         @db.VarChar(200) // 规则标题。示例："禁止约定竞业限制无补偿"
+  description   String?        @db.Text // 规则说明，可空。示例："竞业限制须约定经济补偿，否则条款无效"
+  naturalPrompt String         @default("") @map("natural_prompt") @db.Text // 自然语言判定提示词，默认空串。示例："检查是否约定竞业限制但未约定补偿"
   // 结构化规则草稿：{ keywords?: string[], regex?: string, severity?: ..., prompt?: string }
-  pattern       Json?
-  contractTypes String[]       @default([]) @map("contract_types")
-  enabled       Boolean        @default(true)
-  hitCount      Int            @default(0) @map("hit_count")
-  source        PlaybookSource @default(MANUAL)
+  pattern       Json? // 结构化规则草稿，可空；null=仅自然语言规则。示例：{"keywords":["竞业限制"],"severity":"HIGH"}
+  contractTypes String[]       @default([]) @map("contract_types") // 适用合同类型数组，默认空=全部。示例：["FIXED_TERM_LABOR","NDA"]
+  enabled       Boolean        @default(true) // 是否启用，默认 true。示例：false（暂停命中）
+  hitCount      Int            @default(0) @map("hit_count") // 累计命中次数，默认 0。示例：7
+  source        PlaybookSource @default(MANUAL) // 规则来源，默认手工。示例：MANUAL / AI / SEED_PACK
   // 来源溯源：source=AI 时记录所来源的企业范本标题；MANUAL/SEED_PACK 为空
-  sourceLabel   String?        @map("source_label") @db.VarChar(200)
-  createdById   String?        @map("created_by_id") @db.VarChar(50)
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  sourceLabel   String?        @map("source_label") @db.VarChar(200) // 来源范本标题，可空。示例："艾克米科技-劳动合同范本.docx"
+  createdById   String?        @map("created_by_id") @db.VarChar(50) // 创建人 ID（N:1 User），可空。示例："cm1x2y3z40003abcd5678ijkl"
+  createdAt     DateTime       @default(now()) @map("created_at") // 创建时间。示例："2026-09-10T02:00:00.000Z"
+  updatedAt     DateTime       @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除规则
+  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull) // N:1 → users，删用户置空
 
-  @@index([tenantId, enabled])
-  @@map("playbook_rules")
+  @@index([tenantId, enabled]) // 加速审查时加载本租户启用中的规则
+  @@map("playbook_rules") // 物理表名 playbook_rules
 }
 
+/// Playbook 规则类别：红线/偏好/标准库/行业包，决定匹配策略与提示方式
+/// 示例：禁止无补偿竞业 → FORBIDDEN；要求仲裁地在本市 → PREFERENCE
 enum PlaybookKind {
-  FORBIDDEN // 红线规则（禁止条款）
-  PREFERENCE // 偏好口径
-  STANDARD // 企业标准合同库
-  INDUSTRY // 行业专项包
+  FORBIDDEN // 红线规则（禁止条款）。示例：禁止约定「放弃社保」条款
+  PREFERENCE // 偏好口径。示例：争议解决优先约定本市仲裁委
+  STANDARD // 企业标准合同库。示例：以企业标准范本比对缺失条款
+  INDUSTRY // 行业专项包。示例：教培行业包中的退费条款要求
 }
 
+/// Playbook 规则来源：MANUAL 手工创建 / AI 从范本提炼 / SEED_PACK 预置行业包
+/// 示例：上传企业范本后 AI 提炼 → AI；开通行业包 → SEED_PACK
 enum PlaybookSource {
-  MANUAL
-  AI
-  SEED_PACK
+  MANUAL // 手工新建。示例：法务直接录入红线规则
+  AI // AI 从企业范本提炼。示例：上传范本后生成 5 条规则
+  SEED_PACK // 预置行业专项包。示例：开通「餐饮行业包」批量导入
 }
 
-// 企业自有合同范本：上传后可由 AI 提炼为 Playbook 审查规则（人工确认后导入）
+/// 企业自有合同范本：上传后可由 AI 提炼为 Playbook 审查规则（人工确认后导入）
+/// 业务角色：模板库页展示，供审查比对/规则提炼；正文全文入库便于二次加工
+/// 关键关系：N:1 Tenant（级联删除）；N:1 User 上传人（置空）
+/// 示例行：{ "id": "cm1x2y3z40025abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "title": "艾克米科技-劳动合同范本", "fileName": "劳动合同范本.docx", "fileType": "docx",
+///           "fileSize": 53248, "charCount": 9100 }
 model TenantTemplate {
-  id           String   @id @default(cuid())
-  tenantId     String   @map("tenant_id") @db.VarChar(50)
-  title        String   @db.VarChar(200)
-  fileName     String   @map("file_name") @db.VarChar(255)
-  storagePath  String   @map("storage_path") @db.VarChar(500)
-  fileType     String   @map("file_type") @db.VarChar(20)
-  fileSize     Int      @map("file_size")
-  charCount    Int      @default(0) @map("char_count")
-  content      String   @db.Text
-  uploadedById String?  @map("uploaded_by_id") @db.VarChar(50)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40025abcd5678ijkl"
+  tenantId     String   @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  title        String   @db.VarChar(200) // 范本标题。示例："艾克米科技-劳动合同范本"
+  fileName     String   @map("file_name") @db.VarChar(255) // 原始文件名。示例："劳动合同范本.docx"
+  storagePath  String   @map("storage_path") @db.VarChar(500) // 磁盘相对路径。示例："uploads/1730000345678-a7b8c9.docx"
+  fileType     String   @map("file_type") @db.VarChar(20) // 文件类型。示例："docx" / "pdf" / "txt"
+  fileSize     Int      @map("file_size") // 文件大小（字节）。示例：53248
+  charCount    Int      @default(0) @map("char_count") // 正文字符数，默认 0。示例：9100
+  content      String   @db.Text // 范本全文（用于 AI 提炼规则/比对）。示例："甲方（用人单位）：艾克米科技有限公司……"
+  uploadedById String?  @map("uploaded_by_id") @db.VarChar(50) // 上传人 ID（N:1 User），可空。示例："cm1x2y3z40003abcd5678ijkl"
+  createdAt    DateTime @default(now()) @map("created_at") // 上传时间。示例："2026-09-08T05:00:00.000Z"
+  updatedAt    DateTime @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  uploadedBy User?  @relation("TenantTemplateUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除范本
+  uploadedBy User?  @relation("TenantTemplateUploader", fields: [uploadedById], references: [id], onDelete: SetNull) // N:1 → users，删用户置空
 
-  @@index([tenantId, createdAt])
-  @@map("tenant_templates")
+  @@index([tenantId, createdAt]) // 加速按租户倒序列出范本
+  @@map("tenant_templates") // 物理表名 tenant_templates
 }
 
-// 模拟订单：不接真实支付，收银台一键 PAID 立即生效
+/// 模拟订单：不接真实支付，收银台一键 PAID 立即生效
+/// 也承载银行转账人工确认流程（提交凭证 → 超管确认到账/驳回），以及退款工单的关联订单
+/// 关键关系：N:1 Tenant（级联删除）、N:1 User 创建人（置空）；1:N RefundRequest
+/// 示例行：{ "id": "cm1x2y3z40026abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "kind": "SUBSCRIPTION", "period": "YEAR", "targetPlan": "TEAM", "amountFen": 199900,
+///           "status": "PAID", "payChannel": "BANK", "paidAt": "2026-10-21T16:30:00.000Z" }
 model Order {
-  id            String       @id @default(cuid())
-  tenantId      String       @map("tenant_id") @db.VarChar(50)
-  kind          OrderKind
-  period        OrderPeriod?
-  targetPlan    String?      @map("target_plan") @db.VarChar(20)
-  couponQty     Int?         @map("coupon_qty")
-  amountFen     Int          @default(0) @map("amount_fen")
-  status        OrderStatus  @default(PENDING)
-  createdById   String?      @map("created_by_id") @db.VarChar(50)
-  paidAt        DateTime?    @map("paid_at")
+  id            String       @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40026abcd5678ijkl"
+  tenantId      String       @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  kind          OrderKind // 订单类型：订阅/券包/升级。示例：SUBSCRIPTION
+  period        OrderPeriod? // 订阅周期，可空；null=一次性（券包）。示例：MONTH / YEAR / NONE
+  targetPlan    String?      @map("target_plan") @db.VarChar(20) // 目标套餐（字符串），可空；null=非订阅单。示例："TEAM"
+  couponQty     Int?         @map("coupon_qty") // 购买深度券数量，可空；null=非券包单。示例：10
+  amountFen     Int          @default(0) @map("amount_fen") // 订单金额（分），默认 0。示例：199900（即 1999.00 元）
+  status        OrderStatus  @default(PENDING) // 订单状态，默认待支付。示例：PENDING / PAID / CANCELLED / REFUNDED
+  createdById   String?      @map("created_by_id") @db.VarChar(50) // 下单用户 ID（N:1 User），可空。示例："cm1x2y3z40003abcd5678ijkl"
+  paidAt        DateTime?    @map("paid_at") // 支付时间，可空；null=未支付。示例："2026-10-21T16:30:00.000Z"
   // 转账支付通道（银行转账人工确认模式）：WECHAT/ALIPAY/BANK
-  payChannel    String?      @map("pay_channel") @db.VarChar(20)
+  payChannel    String?      @map("pay_channel") @db.VarChar(20) // 支付渠道，可空；null=未选择。示例："WECHAT" / "ALIPAY" / "BANK"
   // 用户提交的转账单号（对账凭据）
-  transferNo    String?      @map("transfer_no") @db.VarChar(100)
+  transferNo    String?      @map("transfer_no") @db.VarChar(100) // 转账单号，可空；null=非转账支付。示例："2026102100012345"
   // 用户上传的转账凭证截图 [{ name, size, path }]（≤3 张，文件存 ./uploads/）
-  payProof      Json?        @map("pay_proof")
+  payProof      Json?        @map("pay_proof") // 转账凭证数组，可空。示例：[{"name":"凭证.png","size":102400,"path":"uploads/proof-1.png"}]
   // 超管驳回原因（CANCELLED 时填写）
-  rejectReason  String?      @map("reject_reason") @db.VarChar(500)
+  rejectReason  String?      @map("reject_reason") @db.VarChar(500) // 驳回/取消原因，可空。示例："转账金额与订单不符"
   // 超管确认到账信息
-  confirmedById String?      @map("confirmed_by_id") @db.VarChar(50)
-  confirmedAt   DateTime?    @map("confirmed_at")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  confirmedById String?      @map("confirmed_by_id") @db.VarChar(50) // 确认到账的超管 ID（无外键），可空。示例："cm1x2y3z40002abcd5678ijkl"
+  confirmedAt   DateTime?    @map("confirmed_at") // 确认到账时间，可空。示例："2026-10-21T18:00:00.000Z"
+  createdAt     DateTime     @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:00:00.000Z"
+  updatedAt     DateTime     @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T18:00:00.000Z"
 
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除订单
+  createdBy User?  @relation(fields: [createdById], references: [id], onDelete: SetNull) // N:1 → users，删用户置空
 
-  refundRequests RefundRequest[]
+  refundRequests RefundRequest[] // 1:N → refund_requests，本订单的退款工单
 
-  @@index([tenantId, createdAt])
-  @@index([status])
-  @@map("orders")
+  @@index([tenantId, createdAt]) // 加速租户账单页倒序查订单
+  @@index([status]) // 加速超管待确认/待处理订单筛选
+  @@map("orders") // 物理表名 orders
 }
 
+/// 订单类型：SUBSCRIPTION 套餐订阅 / COUPON_PACK 深度券包 / UPGRADE 套餐升级
+/// 示例：个人版升团队版 → UPGRADE；买 10 张深度券 → COUPON_PACK
 enum OrderKind {
-  SUBSCRIPTION
-  COUPON_PACK
-  UPGRADE
+  SUBSCRIPTION // 套餐订阅。示例：购买 TEAM 年付
+  COUPON_PACK // 深度券包。示例：购买 10 张深度券
+  UPGRADE // 套餐升级（差额补款）。示例：PERSONAL → TEAM
 }
 
+/// 订单周期：MONTH 月付 / YEAR 年付 / NONE 一次性（券包）
+/// 示例：年付订阅 → YEAR；券包 → NONE
 enum OrderPeriod {
-  MONTH
-  YEAR
-  NONE
+  MONTH // 按月订阅。示例：TEAM 月付
+  YEAR // 按年订阅。示例：TEAM 年付（1999 元）
+  NONE // 一次性购买。示例：深度券包
 }
 
+/// 订单状态：PENDING 待支付 / PAID 已支付 / CANCELLED 已取消 / REFUNDED 已退款
+/// 示例：转账待超管确认 → PENDING；确认到账 → PAID；退款完成 → REFUNDED
 enum OrderStatus {
-  PENDING
-  PAID
-  CANCELLED
-  REFUNDED
+  PENDING // 待支付/待确认到账。示例：用户已传凭证等超管确认
+  PAID // 已支付，权益已生效。示例：一键支付成功
+  CANCELLED // 已取消/驳回。示例：超管驳回转账凭证
+  REFUNDED // 已退款。示例：退款工单同意后置为已退款
 }
 
-// 增长埋点事件：只采事件与属性元数据，绝不采合同正文/风险全文
+/// 增长埋点事件：只采事件与属性元数据，绝不采合同正文/风险全文
+/// 业务角色：转化漏斗（注册→上传→审查→付费）分析；匿名 ID 打通注册前后行为
+/// 关键关系：无外键，tenantId/userId 仅记录字符串，避免埋点写入阻塞主链路
+/// 示例行：{ "id": "cm1x2y3z40027abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "userId": "cm1x2y3z40003abcd5678ijkl", "anonymousId": "anon-7f3a9c",
+///           "type": "review_start", "path": "/contracts", "props": {"scene":"LABOR"} }
 model AnalyticsEvent {
-  id          String   @id @default(cuid())
-  tenantId    String?  @map("tenant_id") @db.VarChar(50)
-  userId      String?  @map("user_id") @db.VarChar(50)
+  id          String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40027abcd5678ijkl"
+  tenantId    String?  @map("tenant_id") @db.VarChar(50) // 所属租户 ID（无外键），可空；null=注册前匿名事件。示例："cm1x2y3z40001abcd5678ijkl"
+  userId      String?  @map("user_id") @db.VarChar(50) // 用户 ID（无外键），可空；null=未登录。示例："cm1x2y3z40003abcd5678ijkl"
   // 匿名设备 ID：注册前行为与注册后用户打通的纽带（前端 localStorage 生成）
-  anonymousId String?  @map("anonymous_id") @db.VarChar(50)
-  type        String   @db.VarChar(50)
-  path        String?  @db.VarChar(500)
-  props       Json?
-  createdAt   DateTime @default(now()) @map("created_at")
+  anonymousId String?  @map("anonymous_id") @db.VarChar(50) // 匿名设备 ID，可空；null=未生成。示例："anon-7f3a9c"
+  type        String   @db.VarChar(50) // 事件类型。示例："page_view" / "review_start" / "pay_success"
+  path        String?  @db.VarChar(500) // 页面路径，可空。示例："/contracts"
+  props       Json? // 事件属性（不含正文），可空。示例：{"scene":"LABOR","durationMs":1200}
+  createdAt   DateTime @default(now()) @map("created_at") // 事件时间。示例："2026-10-21T16:30:00.000Z"
 
-  @@index([tenantId, createdAt])
-  @@index([type, createdAt])
-  @@index([anonymousId, createdAt])
-  @@map("analytics_events")
+  @@index([tenantId, createdAt]) // 加速按租户+时间做漏斗分析
+  @@index([type, createdAt]) // 加速按事件类型统计趋势
+  @@index([anonymousId, createdAt]) // 加速匿名行为归因
+  @@map("analytics_events") // 物理表名 analytics_events
 }
 
-// 试用计量：非演示 FREE 租户每项 AI 功能终身免费 2 次，用完触发付费墙
+/// 试用计量：非演示 FREE 租户每项 AI 功能终身免费 2 次，用完触发付费墙
+/// 业务角色：付费墙判断依据（读 usedCount）；REVIEW/CHAT/DRAFT/EXPORT 分别计数
+/// 关键关系：无外键，tenantId 仅记录；唯一键 tenant+feature 保证 upsert
+/// 示例行：{ "id": "cm1x2y3z40028abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "feature": "REVIEW", "usedCount": 2, "updatedAt": "2026-10-21T16:30:00.000Z" }
 model TrialUsage {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id") @db.VarChar(50)
+  id        String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40028abcd5678ijkl"
+  tenantId  String   @map("tenant_id") @db.VarChar(50) // 所属租户 ID（无外键）。示例："cm1x2y3z40001abcd5678ijkl"
   // REVIEW 审查 / CHAT AI问答 / DRAFT AI改稿 / EXPORT 报告导出
-  feature   String   @db.VarChar(20)
-  usedCount Int      @default(0) @map("used_count")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  feature   String   @db.VarChar(20) // 功能标识（大写）。示例："REVIEW" / "CHAT" / "DRAFT" / "EXPORT"
+  usedCount Int      @default(0) @map("used_count") // 已用次数，默认 0；达到 2 即触发付费墙。示例：2
+  createdAt DateTime @default(now()) @map("created_at") // 首次使用时间。示例："2026-10-01T02:00:00.000Z"
+  updatedAt DateTime @updatedAt @map("updated_at") // 最后计数时间。示例："2026-10-21T16:30:00.000Z"
 
-  @@unique([tenantId, feature])
-  @@map("trial_usages")
+  @@unique([tenantId, feature]) // 唯一约束：每租户每功能仅一条计数
+  @@map("trial_usages") // 物理表名 trial_usages
 }
 
-// 集成配置：P0 飞书群机器人 Webhook（config 加密存储、脱敏返回）
+/// 集成配置：P0 飞书群机器人 Webhook（config 加密存储、脱敏返回）
+/// 业务角色：审查完成/告警推送到企业群；lastTestAt 记录连通性测试时间
+/// 关键关系：N:1 Tenant（tenant_id 唯一，业务上 1:1），删租户级联删除
+/// 示例行：{ "id": "cm1x2y3z40029abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "provider": "FEISHU", "config": {"webhook":"https://open.feishu.cn/..."}, "status": "ACTIVE" }
 model IntegrationConfig {
-  id         String              @id @default(cuid())
-  tenantId   String              @unique @map("tenant_id") @db.VarChar(50)
-  provider   IntegrationProvider @default(FEISHU)
-  config     Json                @default("{}")
-  status     IntegrationStatus   @default(NOT_CONFIGURED)
-  lastTestAt DateTime?           @map("last_test_at")
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
+  id         String              @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40029abcd5678ijkl"
+  tenantId   String              @unique @map("tenant_id") @db.VarChar(50) // 所属租户 ID（1:1，唯一）。示例："cm1x2y3z40001abcd5678ijkl"
+  provider   IntegrationProvider @default(FEISHU) // 集成提供方，默认飞书。示例：FEISHU
+  config     Json                @default("{}") // 加密后的配置 JSON，默认空对象。示例：{"webhook":"https://open.feishu.cn/open-apis/bot/v2/hook/xxx"}
+  status     IntegrationStatus   @default(NOT_CONFIGURED) // 配置状态，默认未配置。示例：NOT_CONFIGURED / ACTIVE
+  lastTestAt DateTime?           @map("last_test_at") // 最近连通性测试时间，可空；null=未测试。示例："2026-10-21T16:30:00.000Z"
+  createdAt  DateTime            @default(now()) @map("created_at") // 创建时间。示例："2026-09-01T03:00:00.000Z"
+  updatedAt  DateTime            @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // 1:1 → tenants，删租户级联删除配置
 
-  @@map("integration_configs")
+  @@map("integration_configs") // 物理表名 integration_configs
 }
 
+/// 集成提供方：当前仅支持飞书群机器人
+/// 示例：配置飞书 Webhook → FEISHU
 enum IntegrationProvider {
-  FEISHU
+  FEISHU // 飞书群机器人 Webhook。示例：审查完成后推送卡片到企业群
 }
 
+/// 集成配置状态：NOT_CONFIGURED 未配置 / ACTIVE 已配置且测试通过
+/// 示例：填入 Webhook 并测试成功 → ACTIVE
 enum IntegrationStatus {
-  NOT_CONFIGURED
-  ACTIVE
+  NOT_CONFIGURED // 未配置。示例：刚进入集成页
+  ACTIVE // 已配置且可用。示例：群机器人测试消息发送成功
 }
 
-// 集成中心「联系开通」留资（钉钉/企微/电子签/OA/SSO/Open API/Word 插件/私有化）
+/// 集成中心「联系开通」留资（钉钉/企微/电子签/OA/SSO/Open API/Word 插件/私有化）
+/// 业务角色：销售线索池；用户在集成页提交联系方式，运营线下跟进
+/// 关键关系：N:1 Tenant（级联删除）；N:1 User 留资人（置空）
+/// 示例行：{ "id": "cm1x2y3z40030abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "integration": "DINGTALK", "name": "张三", "phone": "13800138000", "note": "希望对接钉钉审批" }
 model IntegrationLead {
-  id          String   @id @default(cuid())
-  tenantId    String   @map("tenant_id") @db.VarChar(50)
-  userId      String?  @map("user_id") @db.VarChar(50)
-  integration String   @db.VarChar(30)
-  name        String   @db.VarChar(100)
-  phone       String   @db.VarChar(30)
-  note        String?  @db.VarChar(500)
-  createdAt   DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40030abcd5678ijkl"
+  tenantId    String   @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  userId      String?  @map("user_id") @db.VarChar(50) // 留资用户 ID，可空；null=匿名留资。示例："cm1x2y3z40003abcd5678ijkl"
+  integration String   @db.VarChar(30) // 目标集成类型。示例："DINGTALK" / "WECOM" / "SSO" / "OPEN_API"
+  name        String   @db.VarChar(100) // 联系人姓名。示例："张三"
+  phone       String   @db.VarChar(30) // 联系电话。示例："13800138000"
+  note        String?  @db.VarChar(500) // 备注需求，可空。示例："希望对接钉钉审批流"
+  createdAt   DateTime @default(now()) @map("created_at") // 提交时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User?  @relation("IntegrationLeadUser", fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除线索
+  user   User?  @relation("IntegrationLeadUser", fields: [userId], references: [id], onDelete: SetNull) // N:1 → users，删用户置空
 
-  @@index([tenantId, createdAt])
-  @@index([userId])
-  @@map("integration_leads")
+  @@index([tenantId, createdAt]) // 加速按租户倒序列出留资
+  @@index([userId]) // 加速查某用户的留资记录
+  @@map("integration_leads") // 物理表名 integration_leads
 }
 
-// 建议/意见反馈（个人版与企业版登录用户均可提交）：落库留底，提交后异步邮件通知平台
+/// 建议/意见反馈（个人版与企业版登录用户均可提交）：落库留底，提交后异步邮件通知平台
+/// 业务角色：产品反馈收集；category 区分问题类型，contact 便于回访
+/// 关键关系：N:1 Tenant（级联删除）；N:1 User 反馈人（置空）
+/// 示例行：{ "id": "cm1x2y3z40031abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "userId": "cm1x2y3z40003abcd5678ijkl", "category": "BUG",
+///           "content": "导出的意见书页眉重复", "contact": "13800138000" }
 model FeedbackEntry {
-  id        String   @id @default(cuid())
-  tenantId  String   @map("tenant_id") @db.VarChar(50)
-  userId    String?  @map("user_id") @db.VarChar(50)
-  category  String   @default("OTHER") @db.VarChar(20)
-  content   String   @db.VarChar(1000)
-  contact   String?  @db.VarChar(100)
-  createdAt DateTime @default(now()) @map("created_at")
+  id        String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40031abcd5678ijkl"
+  tenantId  String   @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  userId    String?  @map("user_id") @db.VarChar(50) // 反馈人 ID，可空；null=已删除用户。示例："cm1x2y3z40003abcd5678ijkl"
+  category  String   @default("OTHER") @db.VarChar(20) // 反馈分类，默认其他。示例："BUG" / "FEATURE" / "OTHER"
+  content   String   @db.VarChar(1000) // 反馈内容（最长 1000 字）。示例："导出的意见书页眉重复"
+  contact   String?  @db.VarChar(100) // 联系方式，可空；null=未留。示例："13800138000"
+  createdAt DateTime @default(now()) @map("created_at") // 提交时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User?  @relation("FeedbackEntryUser", fields: [userId], references: [id], onDelete: SetNull)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除反馈
+  user   User?  @relation("FeedbackEntryUser", fields: [userId], references: [id], onDelete: SetNull) // N:1 → users，删用户置空
 
-  @@index([tenantId, createdAt])
-  @@index([userId])
-  @@map("feedback_entries")
+  @@index([tenantId, createdAt]) // 加速按租户倒序查看反馈
+  @@index([userId]) // 加速查某用户的历史反馈
+  @@map("feedback_entries") // 物理表名 feedback_entries
 }
 
-// 团队邀请链接：管理员生成，有效期内可被多人接受注册（注册后 status=PENDING 需审批）
+/// 团队邀请链接：管理员生成，有效期内可被多人接受注册（注册后 status=PENDING 需审批）
+/// 业务角色：团队版扩容入口；token 随链接分发，接受次数仅统计不限制
+/// 关键关系：N:1 Tenant（级联删除）；createdById 无外键，仅记录生成人
+/// 示例行：{ "id": "cm1x2y3z40032abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "createdById": "cm1x2y3z40003abcd5678ijkl", "token": "8f3a...c1",
+///           "expiresAt": "2026-11-20T16:30:00.000Z", "acceptedCount": 2 }
 model TenantInvite {
-  id            String    @id @default(cuid())
-  tenantId      String    @map("tenant_id") @db.VarChar(50)
-  createdById   String    @map("created_by") @db.VarChar(50)
-  token         String    @unique @db.VarChar(64)
-  expiresAt     DateTime  @map("expires_at")
-  acceptedCount Int       @default(0) @map("accepted_count")
-  revokedAt     DateTime? @map("revoked_at")
-  createdAt     DateTime  @default(now()) @map("created_at")
+  id            String    @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40032abcd5678ijkl"
+  tenantId      String    @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  createdById   String    @map("created_by") @db.VarChar(50) // 生成人用户 ID（无外键）。示例："cm1x2y3z40003abcd5678ijkl"
+  token         String    @unique @db.VarChar(64) // 邀请令牌（全局唯一，64 位）。示例："8f3a2b...c1"
+  expiresAt     DateTime  @map("expires_at") // 过期时间。示例："2026-11-20T16:30:00.000Z"
+  acceptedCount Int       @default(0) @map("accepted_count") // 已接受人数，默认 0。示例：2
+  revokedAt     DateTime? @map("revoked_at") // 撤销时间，可空；null=仍有效。示例："2026-10-25T03:00:00.000Z"
+  createdAt     DateTime  @default(now()) @map("created_at") // 创建时间。示例："2026-10-21T16:30:00.000Z"
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除邀请
 
-  @@index([tenantId])
-  @@map("tenant_invites")
+  @@index([tenantId]) // 加速列出租户的有效邀请
+  @@map("tenant_invites") // 物理表名 tenant_invites
 }
 
 // ════════════════════════ 退款工单（申请 → AI/人工会话 → 处理）════════════════════════
 // 流程：用户提交表单（订单+原因+附件）→ AI 客服接待（可转人工）→ 超管控制台处理
 // 同意=订单标 REFUNDED + 权益立即降级（订阅降 FREE / 券包扣券）；拒绝=工单关闭，订单不变
 
+/// 退款工单：用户对已支付订单发起退款，经 AI 客服/人工会话沟通后由超管处理
+/// 业务角色：同意=订单标 REFUNDED + 权益立即降级；拒绝=工单关闭订单不变；同时记录真实回款信息
+/// 关键关系：N:1 Tenant/User/Order（均级联删除）；1:N RefundMessage
+/// 示例行：{ "id": "cm1x2y3z40033abcd5678ijkl", "tenantId": "cm1x2y3z40001abcd5678ijkl",
+///           "userId": "cm1x2y3z40003abcd5678ijkl", "orderId": "cm1x2y3z40026abcd5678ijkl",
+///           "amountFen": 199900, "reason": "MISBUY", "status": "RESOLVED", "resolution": "APPROVED" }
 model RefundRequest {
-  id                String       @id @default(cuid())
-  tenantId          String       @map("tenant_id") @db.VarChar(50)
-  userId            String       @map("user_id") @db.VarChar(50)
-  orderId           String       @map("order_id") @db.VarChar(50)
-  amountFen         Int          @map("amount_fen")
+  id                String       @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40033abcd5678ijkl"
+  tenantId          String       @map("tenant_id") @db.VarChar(50) // 所属租户 ID（N:1 Tenant）。示例："cm1x2y3z40001abcd5678ijkl"
+  userId            String       @map("user_id") @db.VarChar(50) // 申请人 ID（N:1 User）。示例："cm1x2y3z40003abcd5678ijkl"
+  orderId           String       @map("order_id") @db.VarChar(50) // 关联订单 ID（N:1 Order）。示例："cm1x2y3z40026abcd5678ijkl"
+  amountFen         Int          @map("amount_fen") // 申请退款金额（分）。示例：199900（即 1999.00 元）
   // 退款原因：MISBUY 误购 / DUPLICATE 重复扣款 / NOT_AS_EXPECTED 效果不符 / OTHER 其他
-  reason            String       @db.VarChar(20)
-  description       String?      @db.VarChar(1000)
+  reason            String       @db.VarChar(20) // 退款原因（枚举字符串）。示例："MISBUY" / "DUPLICATE" / "NOT_AS_EXPECTED" / "OTHER"
+  description       String?      @db.VarChar(1000) // 补充说明，可空。示例："误买了团队版年付，希望退款"
   // 附件元数据 [{ name, size, path }]（≤5 份，单份 ≤10MB，文件存 ./uploads/）
-  attachments       Json         @default("[]")
+  attachments       Json         @default("[]") // 附件元数据数组，默认空数组。示例：[{"name":"订单截图.png","size":204800,"path":"uploads/refund-1.png"}]
   // ── 真实退款回款信息（转账订单退款必填）────────────────────────────────
   // 用户收款渠道：WECHAT/ALIPAY/BANK（超管线下转账回款的去向）
-  refundChannel     String?      @map("refund_channel") @db.VarChar(20)
+  refundChannel     String?      @map("refund_channel") @db.VarChar(20) // 收款渠道，可空；null=未填写/模拟退款。示例："ALIPAY" / "BANK"
   // 用户收款账号：微信号 / 手机号 / 银行卡号
-  refundAccount     String?      @map("refund_account") @db.VarChar(100)
+  refundAccount     String?      @map("refund_account") @db.VarChar(100) // 收款账号，可空。示例："13800138000" / "6222 0000 1111 2222"
   // 收款人姓名（转账核对用）
-  refundAccountName String?      @map("refund_account_name") @db.VarChar(50)
+  refundAccountName String?      @map("refund_account_name") @db.VarChar(50) // 收款人姓名，可空。示例："张三"
   // 超管回款转账单号（真实退款的资金凭据，未填=模拟退款）
-  refundTransferNo  String?      @map("refund_transfer_no") @db.VarChar(100)
-  status            RefundStatus @default(CHAT)
+  refundTransferNo  String?      @map("refund_transfer_no") @db.VarChar(100) // 回款转账单号，可空；null=模拟退款。示例："2026102200098765"
+  status            RefundStatus @default(CHAT) // 工单状态，默认 AI 接待中。示例：CHAT / AGENT / RESOLVED
   // 处理结果：APPROVED 同意退款 / REJECTED 拒绝（RESOLVED 时写入）
-  resolution        String?      @db.VarChar(20)
-  resolvedAt        DateTime?    @map("resolved_at") @db.Timestamptz(6)
-  createdAt         DateTime     @default(now()) @map("created_at")
-  updatedAt         DateTime     @updatedAt @map("updated_at")
+  resolution        String?      @db.VarChar(20) // 处理结论，可空；null=未处理。示例："APPROVED" / "REJECTED"
+  resolvedAt        DateTime?    @map("resolved_at") @db.Timestamptz(6) // 处理完成时间（带时区），可空。示例："2026-10-22T02:00:00.000Z"
+  createdAt         DateTime     @default(now()) @map("created_at") // 提交时间。示例："2026-10-21T16:30:00.000Z"
+  updatedAt         DateTime     @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-22T02:00:00.000Z"
 
-  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  order    Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  messages RefundMessage[]
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade) // N:1 → tenants，删租户级联删除工单
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade) // N:1 → users，删用户级联删除工单
+  order    Order           @relation(fields: [orderId], references: [id], onDelete: Cascade) // N:1 → orders，删订单级联删除工单
+  messages RefundMessage[] // 1:N → refund_messages，工单会话消息
 
-  @@index([tenantId, createdAt])
-  @@index([status, createdAt])
-  @@index([orderId])
-  @@map("refund_requests")
+  @@index([tenantId, createdAt]) // 加速租户倒序查看退款记录
+  @@index([status, createdAt]) // 加速超管按状态处理待办工单
+  @@index([orderId]) // 加速按订单查退款工单
+  @@map("refund_requests") // 物理表名 refund_requests
 }
 
+/// 退款工单消息：用户、AI 客服、人工客服与系统提示的会话流水
+/// 业务角色：支撑退款页聊天窗口；SYSTEM 消息记录转人工等系统动作
+/// 关键关系：N:1 RefundRequest（删工单级联删除全部消息）
+/// 示例行：{ "id": "cm1x2y3z40034abcd5678ijkl", "requestId": "cm1x2y3z40033abcd5678ijkl",
+///           "sender": "USER", "content": "我误买了团队版，能退款吗？", "createdAt": "2026-10-21T16:31:00.000Z" }
 model RefundMessage {
-  id        String       @id @default(cuid())
-  requestId String       @map("request_id") @db.VarChar(50)
-  sender    RefundSender
-  content   String       @db.VarChar(2000)
+  id        String       @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40034abcd5678ijkl"
+  requestId String       @map("request_id") @db.VarChar(50) // 所属工单 ID（N:1 RefundRequest）。示例："cm1x2y3z40033abcd5678ijkl"
+  sender    RefundSender // 发送方：USER/AI/AGENT/SYSTEM。示例：USER
+  content   String       @db.VarChar(2000) // 消息内容（最长 2000 字）。示例："我误买了团队版，能退款吗？"
   // 扩展信息（如 SYSTEM 消息的转人工原因）
-  meta      Json?
-  createdAt DateTime     @default(now()) @map("created_at")
+  meta      Json? // 扩展信息，可空；null=无附加信息。示例：{"reason":"用户要求人工"}
+  createdAt DateTime     @default(now()) @map("created_at") // 发送时间。示例："2026-10-21T16:31:00.000Z"
 
-  request RefundRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  request RefundRequest @relation(fields: [requestId], references: [id], onDelete: Cascade) // N:1 → refund_requests，删工单级联删除消息
 
-  @@index([requestId, createdAt])
-  @@map("refund_messages")
+  @@index([requestId, createdAt]) // 加速按工单加载消息时间线
+  @@map("refund_messages") // 物理表名 refund_messages
 }
 
-// 平台功能文档：任务 Agent 的 platform_help 工具按租户套餐过滤后回答
-// 「功能怎么用 / 我的套餐有什么」类问题（plans 为可见套餐 CSV，如 "PERSONAL,TEAM,ENTERPRISE"）
+/// 平台功能文档：任务 Agent 的 platform_help 工具按租户套餐过滤后回答
+/// 「功能怎么用 / 我的套餐有什么」类问题（plans 为可见套餐 CSV，如 "PERSONAL,TEAM,ENTERPRISE"）
+/// 关键关系：无外键；按 enabled+sortOrder 加载，关键词/套餐在应用层过滤
+/// 示例行：{ "id": "cm1x2y3z40035abcd5678ijkl", "category": "套餐", "title": "团队版包含哪些权益",
+///           "plans": "TEAM,ENTERPRISE", "keywords": "团队版,权益,成员", "enabled": true, "sortOrder": 10 }
 model PlatformDoc {
-  id        String   @id @default(cuid())
-  category  String   @db.VarChar(30) // 板块：审查 / 台账 / Agent / 法规库 / 账单 / 套餐 ...
-  title     String   @db.VarChar(120)
-  content   String   @db.Text // markdown 说明
-  plans     String   @default("FREE,PERSONAL,TEAM,ENTERPRISE") @db.VarChar(60)
-  keywords  String   @default("") @db.VarChar(200) // 检索关键词 CSV
-  enabled   Boolean  @default(true)
-  sortOrder Int      @default(0) @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid()) // 主键，cuid。示例："cm1x2y3z40035abcd5678ijkl"
+  category  String   @db.VarChar(30) // 板块：审查 / 台账 / Agent / 法规库 / 账单 / 套餐 ...。示例："套餐"
+  title     String   @db.VarChar(120) // 文档标题。示例："团队版包含哪些权益"
+  content   String   @db.Text // markdown 说明。示例："团队版支持 5 名成员协作，含企业台账与 Playbook……"
+  plans     String   @default("FREE,PERSONAL,TEAM,ENTERPRISE") @db.VarChar(60) // 可见套餐 CSV，默认全部。示例："TEAM,ENTERPRISE"
+  keywords  String   @default("") @db.VarChar(200) // 检索关键词 CSV，默认空。示例："团队版,权益,成员"
+  enabled   Boolean  @default(true) // 是否启用，默认 true。示例：false（下线旧文档）
+  sortOrder Int      @default(0) @map("sort_order") // 排序值，默认 0（越小越前）。示例：10
+  createdAt DateTime @default(now()) @map("created_at") // 创建时间。示例："2026-07-01T02:00:00.000Z"
+  updatedAt DateTime @updatedAt @map("updated_at") // 最后更新时间。示例："2026-10-21T16:30:00.000Z"
 
-  @@index([enabled, sortOrder])
-  @@map("platform_docs")
+  @@index([enabled, sortOrder]) // 加速加载启用中的文档并排序
+  @@map("platform_docs") // 物理表名 platform_docs
 }
 
+/// 退款工单状态：CHAT=AI 客服接待 / AGENT=人工客服 / RESOLVED=已处理终态
+/// 示例：用户要求转人工 → AGENT；超管同意退款 → RESOLVED
 enum RefundStatus {
-  CHAT // AI 客服接待中
-  AGENT // 人工客服处理中
-  RESOLVED // 已处理（同意/拒绝），终态
+  CHAT // AI 客服接待中。示例：提交退款后自动进入 AI 对话
+  AGENT // 人工客服处理中。示例：用户点击「转人工」
+  RESOLVED // 已处理（同意/拒绝），终态。示例：超管同意退款并完成回款
 }
 
+/// 退款会话发送方：USER 用户 / AI 智能客服 / AGENT 人工客服 / SYSTEM 系统提示
+/// 示例：转人工时插入一条 SYSTEM 消息 → SYSTEM
 enum RefundSender {
-  USER
-  AI
-  AGENT
-  SYSTEM
+  USER // 用户消息。示例：提交退款原因
+  AI // AI 客服消息。示例：自动询问订单号
+  AGENT // 人工客服消息。示例：客服确认可退
+  SYSTEM // 系统消息。示例：「已转人工客服」
 }
