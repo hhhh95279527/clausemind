@@ -33,6 +33,17 @@ export interface RetrievedChunk {
   mode: 'vector' | 'keyword'
   category: string
   preview: string
+  /** chunk 级结构元数据（条款号/标题/段落类型/页码范围/来源类型等），由 contract-splitter 注入 */
+  metadata?: {
+    clauseNo?: string | null
+    clauseTitle?: string
+    section?: string
+    pageRange?: [number, number] | null
+    sourceType?: 'native' | 'ocr'
+    hasAmount?: boolean
+    subIndex?: number
+    subTotal?: number
+  } | null
 }
 
 const SIMILARITY_THRESHOLD = 0.35
@@ -199,6 +210,7 @@ export async function retrieveFromPg(
 }
 
 function toResult(c: any, score: number, mode: 'vector' | 'keyword'): RetrievedChunk {
+  const meta = c.metadata || null
   return {
     chunkId: c.id,
     docId: c.documentId,
@@ -208,6 +220,16 @@ function toResult(c: any, score: number, mode: 'vector' | 'keyword'): RetrievedC
     mode,
     category: c.document?.category || '通用',
     preview: `${c.content.slice(0, 80).replace(/\s+/g, ' ')}...`,
+    metadata: meta ? {
+      clauseNo: meta.clauseNo ?? null,
+      clauseTitle: meta.clauseTitle,
+      section: meta.section,
+      pageRange: meta.pageRange ?? null,
+      sourceType: meta.sourceType,
+      hasAmount: meta.hasAmount,
+      subIndex: meta.subIndex,
+      subTotal: meta.subTotal,
+    } : null,
   }
 }
 

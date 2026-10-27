@@ -171,35 +171,98 @@ export async function retrieveDocs(question: string, opts: RetrieveOptions = {})
 }
 
 // ── RAG Prompt ────────────────────────────────────────────────
-const RAG_SYSTEM = `你是 ClauseMind AI 知识库助手，是一个严谨的智能问答系统。
+// 防幻觉核心约束：回答必须逐句带条款级引用，数字必须与原文一致。
+const RAG_SYSTEM = `你是 ClauseMind AI 知识库助手，是一个严谨的合同/法律问答系统。
 
-## 核心规则
-1. 只根据下方提供的参考文档回答，绝不使用文档之外的知识
-2. 如果文档中没有相关内容，明确回复"知识库中未找到相关内容"
-3. 回答要准确、简洁、有条理，必要时使用要点列表
-4. 对具体数据（数字、日期、名称）必须与原文一致；文档间有矛盾时如实指出
-5. 回答末尾另起一行，用 【来源：文档名】 格式标注引用了哪些文档`
+## 核心规则（必须严格遵守）
+1. **只根据下方提供的参考文档回答**，绝不使用文档之外的知识，不得推测或补全。
+2. 如果参考文档中没有相关内容，明确回复"知识库中未找到相关内容"，不得编造。
+3. **每个事实性陈述必须紧跟引用标注**，格式：[来源：文档名·第X条]（无条款号时用文档名）。
+4. 对具体数据（金额、比例、期限、日期、名称）**必须与原文逐字一致**，不得四舍五入、换算或改写。
+5. 若多个来源对同一问题有矛盾，分别列出各自说法并标注来源，不得自行取舍。
+6. 回答末尾另起一行附【引用清单】，列出所有引用过的文档名与条款号。`
 
-const COMPRESS_PROMPT = `请从以下参考文档中提取与问题最相关的内容，保留关键数据、结论和论据。
-直接输出精简后的内容，不要加额外说明。
-
-问题：{question}
-
-文档内容：{content}`
-
-async function compressDoc(content: string, question: string, callbacks?: BaseCallbackHandler[]): Promise<string> {
+/**
+ * 抽取式摘要：从原文中挑选与问题最相关的句子，**绝不改写原文**。
+ * 旧版用 LLM 压缩（compressDoc）会改写原文引入幻觉，此处改为纯算法：
+ * 按问题关键词命中度给句子打分，取 top-N 句，保留原文措辞。
+ */
+function extractRelevantSentences(content: string, question: string, maxSentences = 6): string {
   if (content.length < 300) return content
-  try {
-    const prompt = ChatPromptTemplate.fromMessages([['human', COMPRESS_PROMPT]])
-    return await prompt.pipe(chatModel).pipe(new StringOutputParser())
-      .invoke({ question, content }, { callbacks })
-  } catch {
-    return content
+  const questionTokens = tokenizeForMatch(question)
+  if (!questionTokens.length) return content.slice(0, 1200)
+
+  // 按句号/分号/问号/感叹号切句（保留标点）
+  const sentences = content.match(/[^。；;!?！？\n]+[。；;!?！？]?/g) || [content]
+  const scored = sentences
+    .map((s) => {
+      const sTokens = tokenizeForMatch(s)
+      const overlap = questionTokens.filter((t) => sTokens.includes(t)).length
+      return { s: s.trim(), overlap }
+    })
+    .filter((x) => x.s.length > 0)
+    .sort((a, b) => b.overlap - a.overlap)
+
+  const top = scored.slice(0, maxSentences).map((x) => x.s)
+  // 若命中句太少（<2），回退到原文截取（避免上下文丢失）
+  const hitCount = scored.filter((x) => x.overlap > 0).length
+  if (hitCount < 2) return content.slice(0, 1200)
+  return top.join('')
+}
+
+/** 轻量匹配分词：中文 n-gram + 英文词，用于句子相关度打分（不依赖外部分词器） */
+function tokenizeForMatch(text: string): string[] {
+  const tokens = new Set<string>()
+  for (const seg of text.split(/[\s，。、？?！!,.；;：:"'()（）\[\]【】]+/)) {
+    if (!seg) continue
+    if (/^[a-zA-Z0-9]+$/.test(seg)) {
+      tokens.add(seg.toLowerCase())
+    } else {
+      // 中文 2~4 字 n-gram
+      const chars = Array.from(seg)
+      for (let n = 2; n <= Math.min(4, chars.length); n++) {
+        for (let i = 0; i + n <= chars.length; i++) {
+          tokens.add(chars.slice(i, i + n).join(''))
+        }
+      }
+    }
   }
+  return [...tokens]
+}
+
+/**
+ * 数字校验：回答中的数字必须能在检索原文中找到对应，否则删除该数字并标注"原文未明确"。
+ * 这是防幻觉的最后一道闸门——合同金额/比例/期限是最高风险点。
+ */
+function verifyNumbersInAnswer(answer: string, sourceContents: string[]): string {
+  // 匹配数字（含小数点、千分位、百分号、金额单位）
+  const numberPattern = /\d[\d,，.]*(?:％|%|万?元|万元|块|年|个月|月|日|天|小时)?/g
+  const sourceText = sourceContents.join('\n')
+  // 否定语境（"并非60000元""不是3个月"）中的数字是在纠正/排除，不应标记
+  const NEGATION_BEFORE = /(?:不是|并非|非|没有|无|未|否|不等于)\s*$/
+
+  return answer.replace(numberPattern, (match, offset: number, whole: string) => {
+    const before = whole.slice(Math.max(0, offset - 8), offset)
+    if (NEGATION_BEFORE.test(before)) return match
+    // 去除千分位逗号和单位，提取纯数字核心
+    const core = match.replace(/[,，]/g, '').match(/\d+(?:\.\d+)?/)
+    if (!core) return match
+    const numStr = core[0]
+    // 在原文中查找该数字
+    if (sourceText.includes(numStr)) return match
+    // 数字在原文中找不到 → 标注存疑
+    return `【原文未明确：${match}】`
+  })
 }
 
 function buildContext(docs: RetrievedChunk[]): string {
-  return docs.map((doc, i) => `[参考${i + 1}] 来源：${doc.title}\n${doc.content}`).join('\n\n---\n\n')
+  return docs.map((doc, i) => {
+    const meta = doc.metadata
+    const locator = meta?.clauseNo ? `${meta.clauseNo} ${meta.clauseTitle || ''}` : (meta?.clauseTitle || '')
+    const page = meta?.pageRange ? `（第${meta.pageRange[0]}-${meta.pageRange[1]}页）` : ''
+    const ocrTag = meta?.sourceType === 'ocr' ? ' [OCR识别，建议核对原件]' : ''
+    return `[参考${i + 1}] 来源：${doc.title}${locator ? ' · ' + locator.trim() : ''}${page}${ocrTag}\n${doc.content}`
+  }).join('\n\n---\n\n')
 }
 
 interface RagOptions extends RetrieveOptions {
@@ -223,19 +286,29 @@ export async function ragQueryStream(question: string, options: RagOptions = {})
         return
       }
 
-      const compressedDocs = await Promise.all(
-        docs.map(async (doc) => ({ ...doc, content: await compressDoc(doc.content, rewrittenQuestion, callbacks) })),
-      )
+      // 抽取式摘要：只挑相关句子，绝不改写原文（消除 LLM 压缩引入的幻觉）
+      const extractedDocs = docs.map((doc) => ({
+        ...doc,
+        content: extractRelevantSentences(doc.content, rewrittenQuestion),
+      }))
+      const sourceContents = docs.map((d) => d.content)
+
       const prompt = ChatPromptTemplate.fromMessages([
         ['system', RAG_SYSTEM],
         ...history.map((m) => [m.role === 'user' ? 'human' : 'assistant', m.content] as any),
-        ['human', `参考文档：\n${buildContext(compressedDocs as any)}\n\n问题：${question}`],
+        ['human', `参考文档：\n${buildContext(extractedDocs as any)}\n\n问题：${question}`],
       ])
 
+      // 收集完整回答后做数字校验，再输出（防幻觉优先于流式实时性）
+      let fullAnswer = ''
       const stream = await prompt.pipe(chatModel).stream({}, { callbacks })
       for await (const chunk of stream) {
-        if (chunk.content) yield chunk.content
+        if (chunk.content) fullAnswer += chunk.content
       }
+
+      // 数字专项校验：回答中的金额/比例/期限必须能在原文中找到
+      const verified = verifyNumbersInAnswer(fullAnswer, sourceContents)
+      yield verified
     },
   }
 }

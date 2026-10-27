@@ -3,7 +3,7 @@
 // 与旧版差异：移除 ChromaDB 外部依赖，检索层见 pg-store.ts；docType 区分法规/模板/普通库。
 import fs from 'fs/promises'
 import path from 'path'
-import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters'
+import os from 'os'
 import type { DocType } from '@prisma/client'
 import { logger } from '../../utils/logger.js'
 import { DatabaseService } from '../../database/database.service.js'
@@ -12,9 +12,32 @@ import * as mammoth from 'mammoth'
 import * as XLSX from 'xlsx'
 import type { BaseCallbackHandler } from '@langchain/core/callbacks/base'
 import { ocrImageFile } from '../vision-ocr.js'
+import { splitContract, type ContractChunk } from './contract-splitter.js'
+import { createCanvas } from '@napi-rs/canvas'
 
-// 单次入库最多 300 个 chunk，防止 embedding API 调用过多
-const MAX_CHUNKS = 300
+// pdfjs-dist 4.x 在模块初始化时就调用 Promise.withResolvers（Node 22+ 才提供）。
+// 生产镜像是 node:20-alpine，静态 import 会导致服务启动即崩溃，故惰性加载并补垫片。
+let pdfjsPromise: Promise<any> | null = null
+
+async function loadPdfjs(): Promise<any> {
+  if (typeof (Promise as any).withResolvers !== 'function') {
+    (Promise as any).withResolvers = function <T>() {
+      let resolve!: (value: T | PromiseLike<T>) => void
+      let reject!: (reason?: any) => void
+      const promise = new Promise<T>((res, rej) => {
+        resolve = res
+        reject = rej
+      })
+      return { promise, resolve, reject }
+    }
+  }
+  if (!pdfjsPromise) pdfjsPromise = import('pdfjs-dist')
+  return pdfjsPromise
+}
+
+// 单次入库 chunk 上限：合同按条款切，一份合同通常 20~100 条款；
+// 长合同（如工程合同 50 页）可能到 300+，放宽到 1000 并在超限时告警而非静默截断。
+const MAX_CHUNKS = 1000
 
 // ── 数据库服务引用（由 KnowledgeController / ContractModule 注入）──
 let db: DatabaseService | null = null
@@ -43,6 +66,74 @@ function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> 
       (e) => { clearTimeout(timer); reject(e) },
     )
   })
+}
+
+// ── 扫描件 PDF 逐页渲染 + OCR ──────────────────────────────────
+// 用 pdfjs-dist 把每页渲染为 PNG（scale=2 兼顾清晰度与体积），
+// 临时落盘后复用 ocrImageFile 走 deepseek-flash 视觉转录。
+// 每页 OCR 结果前加「[第 N 页]」标记，便于后续切分估算页码范围。
+const PDF_RENDER_SCALE = 2
+
+// pdfjs 在 Node 端默认 require('canvas')（本机未安装），需显式注入 canvasFactory，
+// 否则渲染时报 "Cannot read properties of undefined (reading 'createCanvas')"。
+const ragCanvasFactory = {
+  create(width: number, height: number) {
+    const canvas = createCanvas(width, height)
+    return { canvas, context: canvas.getContext('2d') }
+  },
+  reset(canvasAndCtx: any, width: number, height: number) {
+    canvasAndCtx.canvas.width = width
+    canvasAndCtx.canvas.height = height
+  },
+  destroy(canvasAndCtx: any) {
+    canvasAndCtx.canvas.width = 0
+    canvasAndCtx.canvas.height = 0
+    canvasAndCtx.canvas = null
+    canvasAndCtx.context = null
+  },
+}
+
+async function ocrScannedPdf(
+  buffer: Buffer,
+  pageCountHint: number,
+  callbacks?: BaseCallbackHandler[],
+): Promise<{ text: string; pageCount: number }> {
+  const data = new Uint8Array(buffer)
+  const pdfjsLib = await loadPdfjs()
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    isEvalSupported: false,
+    canvasFactory: ragCanvasFactory as any,
+  })
+  const pdf = await loadingTask.promise
+  const pageCount = pdf.numPages || pageCountHint || 1
+  logger.info('rag: scanned PDF OCR start', { pageCount })
+
+  const pages: string[] = []
+  for (let i = 1; i <= pageCount; i++) {
+    const page = await pdf.getPage(i)
+    const viewport = page.getViewport({ scale: PDF_RENDER_SCALE })
+    const canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height))
+    const ctx = canvas.getContext('2d')
+    await page.render({ canvasContext: ctx, viewport } as any).promise
+    const pngBuffer = canvas.toBuffer('image/png')
+
+    // 临时落盘供 ocrImageFile 读取（ocrImageFile 内部按 filePath 读文件）
+    const tmpPath = path.join(
+      os.tmpdir(),
+      `rag_pdf_page_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 6)}.png`,
+    )
+    await fs.writeFile(tmpPath, pngBuffer)
+    try {
+      const pageText = await ocrImageFile(tmpPath, '.png', callbacks)
+      pages.push(`[第 ${i} 页]\n${pageText}`)
+    } finally {
+      await fs.unlink(tmpPath).catch(() => {})
+    }
+  }
+
+  logger.info('rag: scanned PDF OCR done', { pageCount, totalChars: pages.join('').length })
+  return { text: pages.join('\n\n'), pageCount }
 }
 
 // ── 文本提取（对外）：超时 + 长度硬上限包装 ─────────────────────
@@ -78,12 +169,32 @@ async function extractTextUnsafe(
       return { text, metadata: meta }
     }
 
-    // 2. Word (.docx)
+    // 2. Word (.docx)：用 convertToHtml 保留表格结构，再把 <table> 拍平为「列名：值」行
     if (ext === '.docx') {
       const buffer = await fs.readFile(filePath)
-      const result = await mammoth.extractRawText({ buffer })
-      text = result.value
-      if (text.includes('\t') || /\|.*\|/.test(text)) {
+      const result = await mammoth.convertToHtml({ buffer })
+      const html = result.value
+      // 把 HTML 表格转为结构化文本行（保留行列关系，避免金额明细丢失）
+      const withTables = html.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, inner) => {
+        const rows = inner.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || []
+        return rows.map((row) => {
+          const cells = row.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi) || []
+          const values = cells.map((c) =>
+            c.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+          ).filter(Boolean)
+          return values.join(' | ')
+        }).join('\n') + '\n'
+      })
+      // 其余 HTML 标签去除，保留段落换行
+      text = withTables
+        .replace(/<\/p>/gi, '\n')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+      if (text.includes('|') || /\t/.test(text)) {
         meta.hasTables = true
       }
       return { text, metadata: meta }
@@ -106,7 +217,7 @@ async function extractTextUnsafe(
       return { text, metadata: meta }
     }
 
-    // 4. PDF 文件
+    // 4. PDF 文件：原生文字用 pdf-parse 提取；扫描件（文字密度低）逐页渲染为 PNG 后走视觉 OCR
     if (ext === '.pdf') {
       const buffer = await fs.readFile(filePath)
 
@@ -136,16 +247,21 @@ async function extractTextUnsafe(
         }
       }
 
-      // 检测是否为扫描版（文字密度低）
+      // 检测是否为扫描版（文字密度低）：平均每页 < 50 字符且总文本 < 100 字符
       const avgCharsPerPage = extractedText.length / Math.max(pageCount, 1)
-      const isScanned = avgCharsPerPage < 50
+      const isScanned = avgCharsPerPage < 50 && extractedText.trim().length < 100
 
-      if (isScanned && extractedText.trim().length < 100) {
-        logger.info('PDF detected as scanned, OCR not fully supported', { avgCharsPerPage })
-        text = `[此 PDF 为扫描版（共 ${pageCount} 页），当前版本仅支持原生文字 PDF，请转换后上传]`
+      if (isScanned) {
+        logger.info('rag: PDF detected as scanned, rendering pages for OCR', { pageCount, avgCharsPerPage })
+        const ocr = await ocrScannedPdf(buffer, pageCount, callbacks)
+        text = ocr.text
+        pageCount = ocr.pageCount
         meta.hasImages = true
+        meta.ocr = true
+        meta.sourceType = 'ocr'
       } else {
         text = extractedText
+        meta.sourceType = 'native'
       }
 
       meta.pageCount = pageCount
@@ -157,6 +273,7 @@ async function extractTextUnsafe(
       text = await ocrImageFile(filePath, ext, callbacks)
       meta.hasImages = true
       meta.ocr = true
+      meta.sourceType = 'ocr'
       return { text, metadata: meta }
     }
 
@@ -214,14 +331,21 @@ export async function ingestDocument(input: IngestInput) {
   const { text: rawText, metadata: docMetadata } = await extractText(filePath)
   if (!rawText.trim()) throw new Error('文档内容为空，无法处理')
 
-  // 2. 文档分片
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 800,
-    chunkOverlap: 80,
-    separators: ['\n\n\n', '\n\n', '\n', '。', '；', '，', ' ', ''],
+  // 2. 文档分片：合同结构感知切分（按条款边界，而非字符数硬切）
+  const contractChunks: ContractChunk[] = splitContract(rawText, {
+    sourceType: docMetadata.sourceType || 'native',
+    pageCount: docMetadata.pageCount || 0,
   })
-  const textChunks = (await splitter.splitText(rawText)).slice(0, MAX_CHUNKS)
-  logger.info('rag: document split', { docId, chunks: textChunks.length })
+
+  // 超限告警但继续入库（绝不静默截断合同内容）
+  if (contractChunks.length > MAX_CHUNKS) {
+    logger.warn('rag: chunk count exceeds MAX_CHUNKS, truncating', {
+      docId, count: contractChunks.length, max: MAX_CHUNKS,
+    })
+  }
+  const finalChunks = contractChunks.slice(0, MAX_CHUNKS)
+  const textChunks = finalChunks.map((c) => c.content)
+  logger.info('rag: document split', { docId, chunks: textChunks.length, sourceType: docMetadata.sourceType })
 
   // 3. 向量化（无 key 时得到空数组，检索层自动走关键词模式）
   const vectors = await embedTexts(textChunks).catch((e) => {
@@ -246,13 +370,14 @@ export async function ingestDocument(input: IngestInput) {
     },
   })
   await db.docChunk.createMany({
-    data: textChunks.map((content, i) => ({
+    data: finalChunks.map((chunk, i) => ({
       id: `chk_${docId}_${i}`,
       documentId: docId,
       chunkIndex: i,
-      content,
+      content: chunk.content,
       embedding: vectors[i] as any,
-      metadata: { ...docMetadata, chunkIndex: i } as any,
+      // 合并文档级元数据 + chunk 级结构元数据（条款号/标题/段落类型/页码范围等）
+      metadata: { ...docMetadata, ...chunk.metadata, chunkIndex: i } as any,
     })),
   })
 
