@@ -39,8 +39,8 @@ const userPayloadSchema: SchemaObject = {
   properties: {
     id: { type: 'string', description: '用户 ID（cuid）' },
     username: { type: 'string', description: '用户名' },
-    email: { type: ['string', 'null'], description: '邮箱，可能为 null' },
-    displayName: { type: ['string', 'null'], description: '显示名称，可能为 null' },
+    email: { type: 'string', nullable: true, description: '邮箱，可能为 null' },
+    displayName: { type: 'string', nullable: true, description: '显示名称，可能为 null' },
     role: { type: 'string', enum: ['ADMIN', 'USER'] },
     tenantId: { type: 'string' },
     plan: { type: 'string', enum: ['FREE', 'TEAM', 'PERSONAL', 'ENTERPRISE'] },

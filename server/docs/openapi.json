@@ -106,17 +106,13 @@
                           "description": "用户名"
                         },
                         "email": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": "string",
+                          "nullable": true,
                           "description": "邮箱，可能为 null"
                         },
                         "displayName": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": "string",
+                          "nullable": true,
                           "description": "显示名称，可能为 null"
                         },
                         "role": {
@@ -291,17 +287,13 @@
                           "description": "用户名"
                         },
                         "email": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": "string",
+                          "nullable": true,
                           "description": "邮箱，可能为 null"
                         },
                         "displayName": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": "string",
+                          "nullable": true,
                           "description": "显示名称，可能为 null"
                         },
                         "role": {
@@ -425,17 +417,13 @@
                           "description": "用户名"
                         },
                         "email": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": "string",
+                          "nullable": true,
                           "description": "邮箱，可能为 null"
                         },
                         "displayName": {
-                          "type": [
-                            "string",
-                            "null"
-                          ],
+                          "type": "string",
+                          "nullable": true,
                           "description": "显示名称，可能为 null"
                         },
                         "role": {
@@ -687,17 +675,13 @@
                       "description": "用户名"
                     },
                     "email": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": "string",
+                      "nullable": true,
                       "description": "邮箱，可能为 null"
                     },
                     "displayName": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": "string",
+                      "nullable": true,
                       "description": "显示名称，可能为 null"
                     },
                     "role": {
@@ -786,17 +770,13 @@
                       "description": "用户名"
                     },
                     "email": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": "string",
+                      "nullable": true,
                       "description": "邮箱，可能为 null"
                     },
                     "displayName": {
-                      "type": [
-                        "string",
-                        "null"
-                      ],
+                      "type": "string",
+                      "nullable": true,
                       "description": "显示名称，可能为 null"
                     },
                     "role": {
@@ -2359,10 +2339,8 @@
                       }
                     },
                     "review": {
-                      "type": [
-                        "object",
-                        "null"
-                      ]
+                      "type": "object",
+                      "nullable": true
                     }
                   }
                 }
@@ -2438,10 +2416,8 @@
                       "additionalProperties": true
                     },
                     "detected": {
-                      "type": [
-                        "object",
-                        "null"
-                      ]
+                      "type": "object",
+                      "nullable": true
                     }
                   }
                 }
@@ -2783,10 +2759,8 @@
                       "type": "string"
                     },
                     "reportMd": {
-                      "type": [
-                        "string",
-                        "null"
-                      ]
+                      "type": "string",
+                      "nullable": true
                     },
                     "stats": {
                       "type": "object",

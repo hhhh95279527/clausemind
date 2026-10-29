@@ -360,7 +360,7 @@ export class ContractController implements OnModuleInit {
     description: '返回合同元信息、全部条款（按序号升序）及最近一次审查任务（含全部风险）。跨租户访问返回 404。',
   })
   @ApiParam({ name: 'id', description: '合同 ID' })
-  @ApiOkResponse({ schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true }, clauses: { type: 'array', items: { type: 'object', additionalProperties: true } }, review: { type: ['object', 'null'] } } } })
+  @ApiOkResponse({ schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true }, clauses: { type: 'array', items: { type: 'object', additionalProperties: true } }, review: { type: 'object', nullable: true } } } })
   async detail(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const contract = await this.db.contract.findFirst({
@@ -524,7 +524,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
-  @ApiOkResponse({ schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true }, detected: { type: ['object', 'null'] } } } })
+  @ApiOkResponse({ schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true }, detected: { type: 'object', nullable: true } } } })
   async updateScene(
     @Req() req: Request,
     @Param('id') id: string,
@@ -818,7 +818,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
-  @ApiResponse({ status: 201, schema: { type: 'object', properties: { status: { type: 'string' }, contractStatus: { type: 'string' }, reportMd: { type: ['string', 'null'] }, stats: { type: 'object', additionalProperties: true } } } })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { status: { type: 'string' }, contractStatus: { type: 'string' }, reportMd: { type: 'string', nullable: true }, stats: { type: 'object', additionalProperties: true } } } })
   async decision(
     @Req() req: Request,
     @Param('taskId') taskId: string,
