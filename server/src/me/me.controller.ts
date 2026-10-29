@@ -4,7 +4,7 @@
 import {
   Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Req,
 } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { randomUUID } from 'crypto'
 import { DatabaseService } from '../database/database.service.js'
 import { EntitlementsService } from '../billing/entitlements.service.js'
@@ -53,6 +53,7 @@ export class MeController {
   // ── 权益快照（工作台额度卡 / 付费墙数据）──
   @Get('entitlements')
   @ApiOperation({ summary: '当前空间权益快照', description: '返回套餐、深度券余额、月度额度用量、功能开关等，供工作台额度卡与付费墙使用。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async getEntitlements(@Req() req: any) {
     const snapshot = await this.entitlements.getEntitlementSnapshot(req.user.tenantId)
     if (!snapshot) throw new NotFoundException('工作空间不存在')
@@ -62,6 +63,7 @@ export class MeController {
   // ── 审查偏好 + 条款库 ──
   @Get('preferences')
   @ApiOperation({ summary: '审查偏好与个人条款库', description: '返回当前用户的审查关注项、审查语气、立场及收藏的个人条款。' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { reviewPrefs: { type: 'object', additionalProperties: true }, clauseLibrary: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async preferences(@Req() req: any) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: req.user.userId } })
     const meta = this.readMeta(user.metadata)
@@ -83,6 +85,7 @@ export class MeController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', properties: { reviewPrefs: { type: 'object', additionalProperties: true }, clauseLibrary: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async patchPreferences(
     @Req() req: any,
     @Body() body: { followRisks?: string[]; tone?: string; stance?: string },
@@ -121,6 +124,7 @@ export class MeController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { clauseLibrary: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async addClause(
     @Req() req: any,
     @Body() body: { title?: string; content?: string; scene?: string },
@@ -160,6 +164,7 @@ export class MeController {
   @Delete('clause-library/:id')
   @ApiOperation({ summary: '删除收藏的个人条款' })
   @ApiParam({ name: 'id', description: '条款条目 ID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { clauseLibrary: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async removeClause(@Req() req: any, @Param('id') id: string) {
     const user = await this.db.user.findUniqueOrThrow({ where: { id: req.user.userId } })
     const meta = this.readMeta(user.metadata)

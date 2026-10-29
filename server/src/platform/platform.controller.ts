@@ -1,7 +1,7 @@
 // server/src/platform/platform.controller.ts
 // 平台超管接口（/api/platform）：全部 @Roles('PLATFORM_ADMIN')，登录端点除外
 import { Body, Controller, Delete, ForbiddenException, Get, Param, Post, Put, Req, Query, NotFoundException } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags, type SchemaObject } from '@nestjs/swagger'
 import type { Request } from 'express'
 import { PlatformService } from './platform.service.js'
 import { RuleAdminService, type RuleInput, type RuleListQuery } from './rule-admin.service.js'
@@ -64,6 +64,7 @@ export class PlatformController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   login(@Body() body: { username?: string; password?: string }) {
     return this.platform.login(body.username || '', body.password || '')
   }
@@ -72,6 +73,7 @@ export class PlatformController {
   @ApiBearerAuth('platform')
   @Get('overview')
   @ApiOperation({ summary: '运营总览', description: '平台运营总览数据（租户数、关键增长与用量指标）。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   overview() {
     return this.platform.overview()
   }
@@ -80,6 +82,7 @@ export class PlatformController {
   @ApiBearerAuth('platform')
   @Get('tenants')
   @ApiOperation({ summary: '全量租户列表', description: '返回平台全部租户及其套餐、订阅到期时间、状态等。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listTenants() {
     return this.platform.listTenants()
   }
@@ -103,6 +106,7 @@ export class PlatformController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   createTenant(@Body() body: { name?: string; plan?: string; adminUsername?: string; adminPassword?: string }) {
     return this.platform.createTenant(body || {})
   }
@@ -122,6 +126,7 @@ export class PlatformController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   updateTenantPlan(@Param('id') id: string, @Body() body: { plan?: string; planExpiresAt?: string | null }) {
     return this.platform.updateTenantPlan(id, body || {})
   }
@@ -138,6 +143,7 @@ export class PlatformController {
       properties: { status: { type: 'string', enum: ['ACTIVE', 'DISABLED'], description: '目标状态' } },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   setTenantStatus(@Param('id') id: string, @Body() body: { status?: string }) {
     return this.platform.setTenantStatus(id, body?.status || '')
   }
@@ -147,6 +153,7 @@ export class PlatformController {
   @Get('tenants/:id/users')
   @ApiOperation({ summary: '租户成员管理：成员列表', description: '查看指定租户的全部成员。' })
   @ApiParam({ name: 'id', description: '租户 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listTenantUsers(@Param('id') id: string) {
     return this.platform.listTenantUsers(id)
   }
@@ -166,6 +173,7 @@ export class PlatformController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   updateTenantUser(
     @Param('id') id: string,
     @Param('userId') userId: string,
@@ -180,6 +188,7 @@ export class PlatformController {
   @ApiOperation({ summary: '租户成员管理：重置成员密码', description: '由平台超管重置指定成员密码并返回新凭证。' })
   @ApiParam({ name: 'id', description: '租户 ID' })
   @ApiParam({ name: 'userId', description: '目标成员用户 ID' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   resetPassword(@Param('id') id: string, @Param('userId') userId: string) {
     return this.platform.resetTenantUserPassword(id, userId)
   }
@@ -191,6 +200,7 @@ export class PlatformController {
   @Get('transfer-orders')
   @ApiOperation({ summary: '转账订单列表', description: '按状态筛选转账订单，默认 PENDING。' })
   @ApiQuery({ name: 'status', required: false, enum: ['PENDING', 'CONFIRMED', 'REJECTED'], description: '订单状态，默认 PENDING' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listTransferOrders(@Query('status') status?: string) {
     return this.orders.listTransferOrders(status || 'PENDING')
   }
@@ -200,6 +210,7 @@ export class PlatformController {
   @Post('transfer-orders/:id/confirm')
   @ApiOperation({ summary: '确认转账到账', description: '确认后为租户开通对应套餐（续费自原到期日顺延）；重复确认同一单号返回 409。' })
   @ApiParam({ name: 'id', description: '转账订单 ID' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   confirmTransferOrder(@Param('id') id: string, @Req() req: Request) {
     return this.orders.confirmTransferOrder(id, (req as any).user?.username || 'platform')
   }
@@ -216,6 +227,7 @@ export class PlatformController {
       properties: { reason: { type: 'string', description: '驳回原因（必填）' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   rejectTransferOrder(@Param('id') id: string, @Req() req: Request, @Body() body: { reason?: string }) {
     return this.orders.rejectTransferOrder(id, (req as any).user?.username || 'platform', body.reason || '')
   }
@@ -232,6 +244,7 @@ export class PlatformController {
   @ApiQuery({ name: 'plan', required: false, description: '按套餐过滤' })
   @ApiQuery({ name: 'from', required: false, description: '起始时间 ISO 字符串，默认 30 天前' })
   @ApiQuery({ name: 'to', required: false, description: '结束时间 ISO 字符串，默认当前' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   funnel(
     @Query('plan') plan?: string,
     @Query('from') from?: string,
@@ -248,6 +261,7 @@ export class PlatformController {
   @ApiQuery({ name: 'dim', required: false, enum: ['persona', 'plan', 'scene'], description: '下钻维度，默认 plan' })
   @ApiQuery({ name: 'from', required: false, description: '起始时间 ISO 字符串，默认 30 天前' })
   @ApiQuery({ name: 'to', required: false, description: '结束时间 ISO 字符串，默认当前' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   breakdown(
     @Query('dim') dim = 'plan',
     @Query('from') from?: string,
@@ -273,6 +287,7 @@ export class PlatformController {
   @ApiQuery({ name: 'plan', required: false, description: '按套餐过滤' })
   @ApiQuery({ name: 'feature', required: false, description: '按功能过滤（contract_review/knowledge/agent 等）' })
   @ApiQuery({ name: 'status', required: false, description: '按状态过滤（success/error 等）' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   traces(
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '20',
@@ -296,6 +311,7 @@ export class PlatformController {
   @Get('traces/:id')
   @ApiOperation({ summary: '跨租户调用链路详情（瀑布）', description: '查看任意租户的 Trace 详情，含全部 spans 与 Input/Output/Metadata。' })
   @ApiParam({ name: 'id', description: 'Trace ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async traceDetail(@Param('id') id: string) {
     const detail = await this.monitor.getTraceDetailById(id)
     if (!detail) throw new NotFoundException('链路不存在')
@@ -316,6 +332,7 @@ export class PlatformController {
   @ApiQuery({ name: 'enabled', required: false, enum: ['true', 'false'], description: '按启停状态过滤' })
   @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
   @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 50' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listRules(
     @Query('q') q?: string,
     @Query('scope') scope?: string,
@@ -346,6 +363,7 @@ export class PlatformController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   tryRule(@Body() body: { id?: string; rule?: RuleInput; text?: string; labor?: boolean; internship?: boolean }) {
     return this.rules.tryRule(body)
   }
@@ -355,6 +373,7 @@ export class PlatformController {
   @Get('rules/:id')
   @ApiOperation({ summary: '平台审查规则详情' })
   @ApiParam({ name: 'id', description: '规则 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   getRule(@Param('id') id: string) {
     return this.rules.get(id)
   }
@@ -364,6 +383,7 @@ export class PlatformController {
   @Post('rules')
   @ApiOperation({ summary: '新建平台审查规则（全平台立即生效）' })
   @ApiBody({ schema: ruleInputSchema })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   createRule(@Body() body: RuleInput) {
     logger.info('platform: review rule created', { code: body.code })
     return this.rules.create(body)
@@ -375,6 +395,7 @@ export class PlatformController {
   @ApiOperation({ summary: '更新平台审查规则（全平台立即生效）' })
   @ApiParam({ name: 'id', description: '规则 ID' })
   @ApiBody({ schema: ruleInputSchema })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   updateRule(@Param('id') id: string, @Body() body: RuleInput) {
     logger.info('platform: review rule updated', { id, fields: Object.keys(body) })
     return this.rules.update(id, body)
@@ -385,6 +406,7 @@ export class PlatformController {
   @Delete('rules/:id')
   @ApiOperation({ summary: '删除平台审查规则' })
   @ApiParam({ name: 'id', description: '规则 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   deleteRule(@Param('id') id: string) {
     logger.info('platform: review rule deleted', { id })
     return this.rules.remove(id)
@@ -398,6 +420,7 @@ export class PlatformController {
   @ApiOperation({ summary: '离线评测记录列表', description: 'EvalRun 为平台基线数据（无租户维度），分页返回。' })
   @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
   @ApiQuery({ name: 'pageSize', required: false, description: '每页条数，默认 20' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listEvalRuns(@Query('page') page = '1', @Query('pageSize') pageSize = '20') {
     const skip = (Number(page) - 1) * Number(pageSize)
     const take = Number(pageSize)
@@ -427,6 +450,7 @@ export class PlatformController {
   @Get('eval-runs/:id')
   @ApiOperation({ summary: '评测记录详情', description: '含评测汇总与逐 case 结果（是否通过、得分、实际输出、评审理由、耗时）。' })
   @ApiParam({ name: 'id', description: '评测运行 ID（EvalRun id）' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async getEvalRun(@Param('id') id: string) {
     const run = await this.db.evalRun.findUnique({ where: { id } })
     if (!run) throw new ForbiddenException('评测记录不存在')
@@ -469,6 +493,7 @@ export class PlatformController {
   @ApiBearerAuth('platform')
   @Get('billing/tenants')
   @ApiOperation({ summary: '全租户当前账期汇总', description: '平台账单总览：各租户当前账期 token 用量与费用汇总（按费用倒序）。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listTenantBilling() {
     return this.billing.listTenantBilling()
   }
@@ -478,6 +503,7 @@ export class PlatformController {
   @Get('billing/tenants/:tenantId')
   @ApiOperation({ summary: '指定租户完整账单', description: '含峰谷计价、功能占比、历史账期与超额记录。' })
   @ApiParam({ name: 'tenantId', description: '租户 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   getTenantBilling(@Param('tenantId') tenantId: string) {
     return this.billing.getBilling(tenantId)
   }

@@ -6,7 +6,7 @@
 //   POST   /api/billing/subscription/cancel       取消订阅（二次确认）
 //   POST   /api/billing/enterprise-lead           企业版/席位增购留资
 import { Body, Controller, ForbiddenException, Get, Param, Post, Req, Res } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { OrdersService, type PayChannel } from './orders.service.js'
 import { Public } from '../auth/decorators/public.decorator.js'
 import { config } from '../config/index.js'
@@ -23,6 +23,7 @@ export class OrdersController {
   @Public()
   @Get('public-config')
   @ApiOperation({ summary: '公开计费配置（无需登录）', description: '返回购买入口总开关 paymentEnabled；false 时前端隐藏定价页、收银台与升级入口。' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { paymentEnabled: { type: 'boolean' } } } })
   publicConfig() {
     return { paymentEnabled: config.billing.paymentEnabled }
   }
@@ -39,6 +40,9 @@ export class OrdersController {
       properties: { item: { type: 'string', enum: CHECKOUT_ITEMS, description: '商品编码' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { order: { type: 'object', additionalProperties: true } } } })
+  @ApiResponse({ status: 400, description: '商品编码非法，或当前套餐不支持购买该商品（如企业版为定制套餐）', schema: { type: 'object', properties: { error: { type: 'object', properties: { message: { type: 'string' } } } } } })
+  @ApiResponse({ status: 403, description: '支付功能未开放', schema: { type: 'object', properties: { error: { type: 'object', properties: { message: { type: 'string' } } } } } })
   async create(@Req() req: any, @Body() body: { item?: string }) {
     if (!config.billing.paymentEnabled) {
       throw new ForbiddenException('购买功能暂未开放')
@@ -54,6 +58,7 @@ export class OrdersController {
 
   @Get('orders')
   @ApiOperation({ summary: '订单记录', description: '返回当前租户的订单列表（含订阅、券包、升级单）。' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { orders: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async list(@Req() req: any) {
     return { orders: await this.orders.listOrders(req.user.tenantId) }
   }
@@ -67,6 +72,7 @@ export class OrdersController {
       properties: { channel: { type: 'string', enum: ['WECHAT', 'ALIPAY'], description: '支付渠道，默认 WECHAT', default: 'WECHAT' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   async pay(
     @Req() req: any,
     @Param('id') id: string,
@@ -86,6 +92,7 @@ export class OrdersController {
       properties: { confirm: { type: 'boolean', description: '必须为 true 才执行取消' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   async cancel(@Req() req: any, @Body() body: { confirm?: boolean }) {
     return this.orders.cancelSubscription(req.user.tenantId, req.user.userId, body.confirm === true)
   }
@@ -107,6 +114,7 @@ export class OrdersController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   async lead(
     @Req() req: any,
     @Body() body: { company?: string; teamSize?: string; contact?: string; note?: string },
@@ -118,6 +126,7 @@ export class OrdersController {
   // 收款信息（管理员收款码等），登录即可读
   @Get('payment-info')
   @ApiOperation({ summary: '转账收款信息', description: '返回收银台「银行转账」页签展示的收款码/收款说明。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   paymentInfo() {
     return this.orders.getPaymentInfo()
   }
@@ -125,6 +134,7 @@ export class OrdersController {
   /** 收银台支付模式：白名单账号可模拟支付，其余账号仅真实转账 */
   @Get('pay-options')
   @ApiOperation({ summary: '收银台支付模式', description: '返回当前账号是否可模拟支付（simulatePay）。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async payOptions(@Req() req: any) {
     return this.orders.getPayOptions(req.user.userId)
   }
@@ -148,6 +158,7 @@ export class OrdersController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   async submitTransfer(
     @Req() req: any,
     @Body() body: { item?: string; channel?: string; transferNo?: string },

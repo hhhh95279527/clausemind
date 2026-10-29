@@ -10,7 +10,7 @@
 //   GET    /packs                             行业专项包列表
 //   POST   /packs/:code/enable                一键复制为租户规则
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags, type SchemaObject } from '@nestjs/swagger'
 import { PlaybookService, type RuleUpsertDto } from './playbook.service.js'
 
 const SCENE_TYPES = ['LABOR', 'INTERNSHIP', 'LEASE', 'SERVICE', 'NDA', 'SALE', 'LOAN', 'EQUITY', 'CUSTOM', 'ALL']
@@ -46,6 +46,7 @@ export class PlaybookController {
   @Get('rules')
   @ApiOperation({ summary: '规则列表', description: '返回当前租户的 Playbook 规则及近 30 天命中数。' })
   @ApiQuery({ name: 'kind', required: false, enum: ['FORBIDDEN', 'PREFERENCE'], description: '按规则类型过滤' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   list(@Req() req: any, @Query('kind') kind?: string) {
     return this.playbook.listRules(req.user.tenantId, kind)
   }
@@ -53,6 +54,7 @@ export class PlaybookController {
   @Post('rules')
   @ApiOperation({ summary: '新建规则' })
   @ApiBody({ schema: ruleBodySchema })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   create(@Req() req: any, @Body() body: RuleUpsertDto) {
     return this.playbook.createRule(req.user.tenantId, req.user.userId, body || {})
   }
@@ -69,6 +71,7 @@ export class PlaybookController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   parse(@Body() body: { naturalPrompt?: string; contractTypes?: string[] }) {
     return this.playbook.parseRule(body?.naturalPrompt ?? '', body?.contractTypes ?? [])
   }
@@ -78,12 +81,14 @@ export class PlaybookController {
   @ApiBody({
     schema: {
       type: 'object',
+      required: ['pattern', 'samples'],
       properties: {
-        pattern: { description: '结构化匹配模式（keywords/regex/severity/suggestion）' },
+        pattern: { description: '结构化匹配模式（keywords/regex/severity/suggestion）；keywords 与 regex 至少填写一项' },
         samples: { type: 'array', items: { type: 'string' }, description: '待试命中的样例条款文本列表' },
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   test(@Body() body: { pattern?: unknown; samples?: unknown }) {
     return this.playbook.testRule(body?.pattern, body?.samples)
   }
@@ -120,6 +125,7 @@ export class PlaybookController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   importRules(
     @Req() req: any,
     @Body() body: { templateId?: string; rules?: Parameters<PlaybookService['importFromTemplate']>[3] },
@@ -136,6 +142,7 @@ export class PlaybookController {
   @ApiOperation({ summary: '编辑规则' })
   @ApiParam({ name: 'id', description: '规则 ID' })
   @ApiBody({ schema: ruleBodySchema })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   update(@Req() req: any, @Param('id') id: string, @Body() body: RuleUpsertDto) {
     return this.playbook.updateRule(req.user.tenantId, req.user.userId, id, body || {})
   }
@@ -149,6 +156,7 @@ export class PlaybookController {
       properties: { enabled: { type: 'boolean', description: 'true=启用，false=停用' } },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   toggle(@Req() req: any, @Param('id') id: string, @Body() body: { enabled?: boolean }) {
     return this.playbook.toggleRule(req.user.tenantId, req.user.userId, id, body?.enabled === true)
   }
@@ -156,12 +164,14 @@ export class PlaybookController {
   @Delete('rules/:id')
   @ApiOperation({ summary: '删除规则' })
   @ApiParam({ name: 'id', description: '规则 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   remove(@Req() req: any, @Param('id') id: string) {
     return this.playbook.deleteRule(req.user.tenantId, req.user.userId, id)
   }
 
   @Get('packs')
   @ApiOperation({ summary: '行业专项包列表', description: '平台预置行业规则包，含是否已启用状态。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   packs(@Req() req: any) {
     return this.playbook.listPacks(req.user.tenantId)
   }
@@ -169,6 +179,7 @@ export class PlaybookController {
   @Post('packs/:code/enable')
   @ApiOperation({ summary: '一键启用行业专项包', description: '将专项包规则复制为当前租户的 Playbook 规则。' })
   @ApiParam({ name: 'code', description: '专项包编码' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   enablePack(@Req() req: any, @Param('code') code: string) {
     return this.playbook.enablePack(req.user.tenantId, req.user.userId, code)
   }

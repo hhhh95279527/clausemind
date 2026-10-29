@@ -1,5 +1,5 @@
 import { Controller, Get, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import type { Request } from 'express'
 import { NotificationsService } from './notifications.service.js'
 
@@ -14,6 +14,7 @@ export class NotificationsController {
     summary: '站内通知列表',
     description: '实时计算当前租户的站内通知（审查结果、到期提醒、套餐账单等）。',
   })
+  @ApiOkResponse({ schema: { type: 'object', properties: { items: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   list(@Req() req: Request) {
     return this.notifications.list((req as any).user.tenantId, (req as any).user.role)
   }

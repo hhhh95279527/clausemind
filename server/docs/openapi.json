@@ -72,7 +72,101 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "邀请加入待审批（INVITE，无 token）\n\n注册成功（PERSONAL/TEAM 注册即登录）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user",
+                    "accessToken",
+                    "refreshToken"
+                  ],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role",
+                        "tenantId",
+                        "plan",
+                        "workspaceType",
+                        "couponBalance",
+                        "onboardingCompleted",
+                        "emailVerified"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "用户 ID（cuid）"
+                        },
+                        "username": {
+                          "type": "string",
+                          "description": "用户名"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "邮箱，可能为 null"
+                        },
+                        "displayName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "显示名称，可能为 null"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "ADMIN",
+                            "USER"
+                          ]
+                        },
+                        "tenantId": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string",
+                          "enum": [
+                            "FREE",
+                            "TEAM",
+                            "PERSONAL",
+                            "ENTERPRISE"
+                          ]
+                        },
+                        "workspaceType": {
+                          "type": "string",
+                          "enum": [
+                            "PERSONAL",
+                            "TEAM"
+                          ]
+                        },
+                        "couponBalance": {
+                          "type": "number",
+                          "description": "深度券余额"
+                        },
+                        "onboardingCompleted": {
+                          "type": "boolean"
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "用户注册（个人/团队分流）",
@@ -108,7 +202,22 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "boolean"
+                    },
+                    "cooldownSeconds": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "发送登录邮箱验证码",
@@ -148,7 +257,101 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user",
+                    "accessToken",
+                    "refreshToken"
+                  ],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role",
+                        "tenantId",
+                        "plan",
+                        "workspaceType",
+                        "couponBalance",
+                        "onboardingCompleted",
+                        "emailVerified"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "用户 ID（cuid）"
+                        },
+                        "username": {
+                          "type": "string",
+                          "description": "用户名"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "邮箱，可能为 null"
+                        },
+                        "displayName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "显示名称，可能为 null"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "ADMIN",
+                            "USER"
+                          ]
+                        },
+                        "tenantId": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string",
+                          "enum": [
+                            "FREE",
+                            "TEAM",
+                            "PERSONAL",
+                            "ENTERPRISE"
+                          ]
+                        },
+                        "workspaceType": {
+                          "type": "string",
+                          "enum": [
+                            "PERSONAL",
+                            "TEAM"
+                          ]
+                        },
+                        "couponBalance": {
+                          "type": "number",
+                          "description": "深度券余额"
+                        },
+                        "onboardingCompleted": {
+                          "type": "boolean"
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "邮箱验证码登录",
@@ -188,7 +391,101 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "登录成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "user",
+                    "accessToken",
+                    "refreshToken"
+                  ],
+                  "properties": {
+                    "user": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "username",
+                        "role",
+                        "tenantId",
+                        "plan",
+                        "workspaceType",
+                        "couponBalance",
+                        "onboardingCompleted",
+                        "emailVerified"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "description": "用户 ID（cuid）"
+                        },
+                        "username": {
+                          "type": "string",
+                          "description": "用户名"
+                        },
+                        "email": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "邮箱，可能为 null"
+                        },
+                        "displayName": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "显示名称，可能为 null"
+                        },
+                        "role": {
+                          "type": "string",
+                          "enum": [
+                            "ADMIN",
+                            "USER"
+                          ]
+                        },
+                        "tenantId": {
+                          "type": "string"
+                        },
+                        "plan": {
+                          "type": "string",
+                          "enum": [
+                            "FREE",
+                            "TEAM",
+                            "PERSONAL",
+                            "ENTERPRISE"
+                          ]
+                        },
+                        "workspaceType": {
+                          "type": "string",
+                          "enum": [
+                            "PERSONAL",
+                            "TEAM"
+                          ]
+                        },
+                        "couponBalance": {
+                          "type": "number",
+                          "description": "深度券余额"
+                        },
+                        "onboardingCompleted": {
+                          "type": "boolean"
+                        },
+                        "emailVerified": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "refreshToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "用户名密码登录",
@@ -223,7 +520,22 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "发送成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "忘记密码（发送重置链接）",
@@ -263,7 +575,22 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "重置成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "重置密码",
@@ -297,7 +624,28 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "刷新成功（返回新 token 对）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "accessToken",
+                    "refreshToken"
+                  ],
+                  "properties": {
+                    "accessToken": {
+                      "type": "string",
+                      "description": "访问令牌（JWT，7d）"
+                    },
+                    "refreshToken": {
+                      "type": "string",
+                      "description": "刷新令牌（JWT，30d）"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "刷新访问令牌",
@@ -313,7 +661,85 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "用户资料",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "tenantId",
+                    "plan",
+                    "workspaceType",
+                    "couponBalance",
+                    "onboardingCompleted",
+                    "emailVerified"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "用户 ID（cuid）"
+                    },
+                    "username": {
+                      "type": "string",
+                      "description": "用户名"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "邮箱，可能为 null"
+                    },
+                    "displayName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "显示名称，可能为 null"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "ADMIN",
+                        "USER"
+                      ]
+                    },
+                    "tenantId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "FREE",
+                        "TEAM",
+                        "PERSONAL",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "workspaceType": {
+                      "type": "string",
+                      "enum": [
+                        "PERSONAL",
+                        "TEAM"
+                      ]
+                    },
+                    "couponBalance": {
+                      "type": "number",
+                      "description": "深度券余额"
+                    },
+                    "onboardingCompleted": {
+                      "type": "boolean"
+                    },
+                    "emailVerified": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -334,7 +760,85 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "更新后的用户资料",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "username",
+                    "role",
+                    "tenantId",
+                    "plan",
+                    "workspaceType",
+                    "couponBalance",
+                    "onboardingCompleted",
+                    "emailVerified"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "description": "用户 ID（cuid）"
+                    },
+                    "username": {
+                      "type": "string",
+                      "description": "用户名"
+                    },
+                    "email": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "邮箱，可能为 null"
+                    },
+                    "displayName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "显示名称，可能为 null"
+                    },
+                    "role": {
+                      "type": "string",
+                      "enum": [
+                        "ADMIN",
+                        "USER"
+                      ]
+                    },
+                    "tenantId": {
+                      "type": "string"
+                    },
+                    "plan": {
+                      "type": "string",
+                      "enum": [
+                        "FREE",
+                        "TEAM",
+                        "PERSONAL",
+                        "ENTERPRISE"
+                      ]
+                    },
+                    "workspaceType": {
+                      "type": "string",
+                      "enum": [
+                        "PERSONAL",
+                        "TEAM"
+                      ]
+                    },
+                    "couponBalance": {
+                      "type": "number",
+                      "description": "深度券余额"
+                    },
+                    "onboardingCompleted": {
+                      "type": "boolean"
+                    },
+                    "emailVerified": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -378,7 +882,19 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "修改成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -399,7 +915,22 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "uptime": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "存活探针（liveness）",
@@ -415,7 +946,25 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "uptime": {
+                      "type": "number"
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "健康检查",
@@ -431,7 +980,23 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -467,7 +1032,20 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -498,7 +1076,27 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -527,7 +1125,19 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -667,7 +1277,23 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "document": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -718,7 +1344,26 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "documents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "scope": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -749,7 +1394,19 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -858,7 +1515,26 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string"
+                    },
+                    "categories": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -872,9 +1548,187 @@
         ]
       }
     },
+    "/api/agent/sessions": {
+      "get": {
+        "description": "返回当前用户全部任务 Agent 会话（按更新时间倒序）及消息数。",
+        "operationId": "AgentController_listSessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "任务会话列表",
+        "tags": [
+          "agent"
+        ]
+      },
+      "post": {
+        "description": "标题缺省为「新任务」，首轮提问后自动改写为任务摘要。",
+        "operationId": "AgentController_createSession",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "会话标题（可选）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "新建任务会话",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
+    "/api/agent/sessions/{id}": {
+      "get": {
+        "description": "切换会话时懒加载，最多返回最近 200 条消息，助理消息附工具执行步骤 steps。仅会话属主可查。",
+        "operationId": "AgentController_sessionDetail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "会话 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "session": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "会话详情（含历史消息）",
+        "tags": [
+          "agent"
+        ]
+      },
+      "delete": {
+        "description": "删除会话，消息经外键级联一并删除。仅会话属主可操作。",
+        "operationId": "AgentController_removeSession",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "会话 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "删除会话",
+        "tags": [
+          "agent"
+        ]
+      }
+    },
     "/api/agent/run": {
       "post": {
-        "description": "ReAct Agent 编排业务工具（合同查询、台账、法规检索等），成功返回 201 + SSE。事件帧：`start` → 若干工具执行进度帧（thought/tool/observation 等）→ 结束；失败发 `error` 帧。所有工具强制租户上下文，无有效租户时拒绝调用。任务描述上限 2000 字。",
+        "description": "ReAct Agent 编排业务工具（合同查询、台账、法规检索等），成功返回 201 + SSE。事件帧：`session`（会话信息）→ `start` → 若干工具执行进度帧（tool_call/tool_result/token）→ `done`；失败发 `error` 帧。携带 sessionId 时延续该会话上下文（多轮追问），不传则隐式创建新会话；消息持久化，首轮任务自动作为会话标题。任务描述上限 2000 字。",
         "operationId": "AgentController_run",
         "parameters": [],
         "requestBody": {
@@ -891,6 +1745,10 @@
                     "type": "string",
                     "maxLength": 2000,
                     "description": "要执行的任务描述"
+                  },
+                  "sessionId": {
+                    "type": "string",
+                    "description": "任务会话 ID（不传则隐式创建）"
                   }
                 }
               }
@@ -904,7 +1762,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "description": "event: start|...工具步骤...|error\\ndata: { JSON }"
+                  "description": "event: session|start|tool_call|tool_result|token|done|error\\ndata: { JSON }"
                 }
               }
             }
@@ -915,7 +1773,7 @@
             "bearer": []
           }
         ],
-        "summary": "执行自然语言任务（SSE 流式）",
+        "summary": "执行自然语言任务（SSE 流式，多轮会话）",
         "tags": [
           "agent"
         ]
@@ -928,7 +1786,23 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -944,12 +1818,28 @@
     },
     "/api/agent/examples": {
       "get": {
-        "description": "返回输入框引导用的示例任务（法规核查/合同盘点/到期预警/风险复盘/范本推荐）。",
+        "description": "返回分类示例及每类 3 条高频问题（prompts）。前端点击分类展开 prompts，点击某条 prompt 直接执行。teamOnly 的分类仅团队空间展示。",
         "operationId": "AgentController_examples",
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "examples": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -970,7 +1860,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -991,7 +1889,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1045,7 +1951,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1076,7 +1990,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1139,7 +2061,20 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "建档成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contract": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1202,7 +2137,20 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "建档成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contract": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1260,8 +2208,17 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "description": "allowed/deep + 权益快照"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1282,7 +2239,15 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1326,7 +2291,26 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sampleCopied": {
+                      "type": "boolean"
+                    },
+                    "contracts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1357,7 +2341,33 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contract": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "clauses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    },
+                    "review": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1417,7 +2427,26 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contract": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "detected": {
+                      "type": [
+                        "object",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1446,7 +2475,19 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1490,7 +2531,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1499,6 +2548,37 @@
           }
         ],
         "summary": "结构化信息抽取（企业审查台）",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/contracts/{id}/preview": {
+      "get": {
+        "description": "返回可内嵌的预览内容：docx 转 HTML、pdf/图片 inline stream、txt/md 纯文本。跨租户 404。",
+        "operationId": "ContractController_preview",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "合同 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "合同原件在线预览",
         "tags": [
           "contract"
         ]
@@ -1597,7 +2677,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1682,7 +2770,32 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string"
+                    },
+                    "contractStatus": {
+                      "type": "string"
+                    },
+                    "reportMd": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "stats": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1733,7 +2846,19 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1764,7 +2889,22 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reportMd": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1856,7 +2996,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1902,8 +3050,16 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -1931,8 +3087,16 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2028,8 +3192,16 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2079,8 +3251,16 @@
           }
         },
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2109,8 +3289,16 @@
           }
         ],
         "responses": {
-          "201": {
-            "description": ""
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2119,6 +3307,63 @@
           }
         ],
         "summary": "改稿台：模拟对方就该风险点进行反驳",
+        "tags": [
+          "contract"
+        ]
+      }
+    },
+    "/api/risks/{riskId}/rewrite": {
+      "post": {
+        "description": "用户在风险卡片里手写自己的修改示例，保存后覆写 risk.rewritten 并置 revisionStatus=ACCEPTED。Word/PDF 导出将使用该版本。",
+        "operationId": "RevisionController_saveRewrite",
+        "parameters": [
+          {
+            "name": "riskId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "rewritten"
+                ],
+                "properties": {
+                  "rewritten": {
+                    "type": "string",
+                    "description": "用户手写的改写后条款文本（最终进入修订稿的版本）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "审查台：保存用户手写的改写句并标记采纳",
         "tags": [
           "contract"
         ]
@@ -2183,7 +3428,29 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "contractId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "versions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2242,7 +3509,23 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2253,6 +3536,39 @@
         "summary": "站内通知列表",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/billing/public-config": {
+      "get": {
+        "description": "返回购买入口总开关 paymentEnabled；false 时前端隐藏定价页、收银台与升级入口。",
+        "operationId": "OrdersController_publicConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "paymentEnabled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "公开计费配置（无需登录）",
+        "tags": [
+          "billing"
         ]
       }
     },
@@ -2288,7 +3604,60 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "order": {
+                      "type": "object",
+                      "additionalProperties": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "商品编码非法，或当前套餐不支持购买该商品（如企业版为定制套餐）",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "支付功能未开放",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2307,7 +3676,23 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2359,7 +3744,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2399,7 +3792,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2452,7 +3853,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2473,7 +3882,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2487,15 +3904,44 @@
         ]
       }
     },
+    "/api/billing/pay-options": {
+      "get": {
+        "description": "返回当前账号是否可模拟支付（simulatePay）。",
+        "operationId": "OrdersController_payOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "收银台支付模式",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/billing/transfer-orders": {
       "post": {
-        "description": "提交转账单号后等待平台超管人工确认到账；确认后开通对应套餐，续费自原到期日顺延。同一转账单号重复提交会被拦截。",
+        "description": "提交转账单号 + 可选凭证截图后等待平台超管人工确认到账；确认后开通对应套餐。同一转账单号重复提交会被拦截。",
         "operationId": "OrdersController_submitTransfer",
         "parameters": [],
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {
+            "multipart/form-data": {
               "schema": {
                 "type": "object",
                 "required": [
@@ -2525,6 +3971,14 @@
                   "transferNo": {
                     "type": "string",
                     "description": "转账凭证单号/流水号"
+                  },
+                  "proof": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "转账截图（≤3 张，单张 ≤10MB）"
                   }
                 }
               }
@@ -2533,7 +3987,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2547,6 +4009,46 @@
         ]
       }
     },
+    "/api/billing/transfer-orders/{id}/proof/{index}": {
+      "get": {
+        "description": "按截图下标下载转账凭证图片（0 起）。",
+        "operationId": "OrdersController_downloadProof",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "订单 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "required": true,
+            "in": "path",
+            "description": "凭证下标",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "下载转账凭证截图",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
     "/api/me/entitlements": {
       "get": {
         "description": "返回套餐、深度券余额、月度额度用量、功能开关等，供工作台额度卡与付费墙使用。",
@@ -2554,7 +4056,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2575,7 +4085,27 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reviewPrefs": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "clauseLibrary": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2639,7 +4169,27 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "reviewPrefs": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "clauseLibrary": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2702,7 +4252,23 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clauseLibrary": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2732,7 +4298,23 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "clauseLibrary": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2767,7 +4349,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2775,7 +4365,7 @@
             "bearer": []
           }
         ],
-        "summary": "企业规则列表",
+        "summary": "规则列表",
         "tags": [
           "playbook"
         ]
@@ -2874,7 +4464,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2882,7 +4480,7 @@
             "bearer": []
           }
         ],
-        "summary": "新建企业规则",
+        "summary": "新建规则",
         "tags": [
           "playbook"
         ]
@@ -2933,7 +4531,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2958,9 +4564,13 @@
             "application/json": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "pattern",
+                  "samples"
+                ],
                 "properties": {
                   "pattern": {
-                    "description": "结构化匹配模式（keywords/regex/severity/suggestion）"
+                    "description": "结构化匹配模式（keywords/regex/severity/suggestion）；keywords 与 regex 至少填写一项"
                   },
                   "samples": {
                     "type": "array",
@@ -2976,7 +4586,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3008,7 +4626,7 @@
                 "properties": {
                   "templateId": {
                     "type": "string",
-                    "description": "来源企业范本 ID"
+                    "description": "来源自有范本 ID"
                   },
                   "rules": {
                     "type": "array",
@@ -3075,7 +4693,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3083,7 +4709,7 @@
             "bearer": []
           }
         ],
-        "summary": "从企业范本批量导入候选规则",
+        "summary": "从自有范本批量导入候选规则",
         "tags": [
           "playbook"
         ]
@@ -3194,7 +4820,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3202,7 +4836,7 @@
             "bearer": []
           }
         ],
-        "summary": "编辑企业规则",
+        "summary": "编辑规则",
         "tags": [
           "playbook"
         ]
@@ -3222,7 +4856,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3230,7 +4872,7 @@
             "bearer": []
           }
         ],
-        "summary": "删除企业规则",
+        "summary": "删除规则",
         "tags": [
           "playbook"
         ]
@@ -3268,7 +4910,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3289,7 +4939,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3320,7 +4978,15 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3378,7 +5044,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3459,7 +5133,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3551,7 +5233,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3579,7 +5269,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3672,7 +5370,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3703,7 +5409,15 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3743,7 +5457,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3764,7 +5486,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3785,7 +5515,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3840,7 +5578,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3871,7 +5617,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3892,7 +5646,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3931,7 +5693,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3949,7 +5719,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3969,7 +5747,15 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3990,7 +5776,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4033,7 +5827,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4051,7 +5853,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4071,7 +5881,15 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4092,7 +5910,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4131,7 +5957,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4149,7 +5983,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4169,7 +6011,15 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4222,7 +6072,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4262,7 +6120,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4293,7 +6159,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4340,7 +6214,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4387,7 +6269,7 @@
     },
     "/api/tenant-templates/upload": {
       "post": {
-        "description": "仅团队空间可用。支持文字版 txt/md/docx/pdf（≤30MB），同步提取全文入库；不支持扫描件/图片。每租户上限 30 份。",
+        "description": "个人/团队空间均可。支持文字版 txt/md/docx/pdf（≤30MB），同步提取全文入库；不支持扫描件/图片。每租户上限 30 份。",
         "operationId": "TenantTemplateController_upload",
         "parameters": [],
         "requestBody": {
@@ -4417,7 +6299,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4425,7 +6315,7 @@
             "bearer": []
           }
         ],
-        "summary": "上传企业合同范本（multipart）",
+        "summary": "上传自有合同范本（multipart）",
         "tags": [
           "tenant-templates"
         ]
@@ -4433,12 +6323,20 @@
     },
     "/api/tenant-templates": {
       "get": {
-        "description": "返回当前租户的企业范本（不含正文大字段）与数量上限。",
+        "description": "返回当前租户的自有范本（不含正文大字段）与数量上限。",
         "operationId": "TenantTemplateController_list",
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4446,7 +6344,7 @@
             "bearer": []
           }
         ],
-        "summary": "企业范本列表",
+        "summary": "自有范本列表",
         "tags": [
           "tenant-templates"
         ]
@@ -4469,7 +6367,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4477,7 +6383,7 @@
             "bearer": []
           }
         ],
-        "summary": "企业范本详情（含全文）",
+        "summary": "自有范本详情（含全文）",
         "tags": [
           "tenant-templates"
         ]
@@ -4520,7 +6426,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4528,7 +6442,7 @@
             "bearer": []
           }
         ],
-        "summary": "在线编辑企业范本（标题/正文）",
+        "summary": "在线编辑自有范本（标题/正文）",
         "tags": [
           "tenant-templates"
         ]
@@ -4549,7 +6463,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4557,7 +6479,7 @@
             "bearer": []
           }
         ],
-        "summary": "删除企业范本",
+        "summary": "删除自有范本",
         "tags": [
           "tenant-templates"
         ]
@@ -4597,7 +6519,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4651,7 +6581,22 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "提交成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4682,7 +6627,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "summary": "【公开】查询邀请链接信息",
@@ -4698,7 +6651,15 @@
         "parameters": [],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4729,7 +6690,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4760,7 +6729,15 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4791,7 +6768,15 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4823,15 +6808,17 @@
                     "description": "批量事件列表；也允许直接在请求体放置单个事件对象",
                     "items": {
                       "type": "object",
+                      "required": [
+                        "type"
+                      ],
                       "properties": {
-                        "name": {
+                        "type": {
                           "type": "string",
-                          "description": "事件名（如 sign_up / first_review_start / paywall_show 等）"
+                          "description": "事件类型（如 page_view / sign_up / first_review_start / paywall_show / checkout_success 等，最长 50 字符）"
                         },
-                        "timestamp": {
+                        "path": {
                           "type": "string",
-                          "format": "date-time",
-                          "description": "事件时间（可选，缺省服务端时间）"
+                          "description": "事件发生的页面路径（可选）"
                         },
                         "props": {
                           "type": "object",
@@ -4841,9 +6828,13 @@
                       }
                     }
                   },
-                  "name": {
+                  "type": {
                     "type": "string",
-                    "description": "单事件形态的事件名"
+                    "description": "单事件形态的事件类型"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "单事件形态的页面路径（可选）"
                   },
                   "props": {
                     "type": "object",
@@ -4868,7 +6859,19 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "接收成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accepted": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "summary": "埋点事件上报（公开，支持匿名与 sendBeacon）",
@@ -4908,7 +6911,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "summary": "平台超管登录（公开）",
@@ -4924,7 +6935,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4945,7 +6964,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5004,7 +7031,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5065,7 +7100,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5119,7 +7162,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5150,7 +7201,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5217,7 +7276,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5257,7 +7324,15 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5293,7 +7368,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5324,7 +7407,15 @@
         ],
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5374,7 +7465,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5423,7 +7522,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5477,7 +7584,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5549,7 +7664,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5580,7 +7703,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5652,7 +7783,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5751,7 +7890,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5875,7 +8022,15 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -5905,7 +8060,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6014,7 +8177,15 @@
         },
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6042,7 +8213,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6078,7 +8257,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6109,7 +8296,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6130,7 +8325,15 @@
         "parameters": [],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6161,7 +8364,15 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         },
         "security": [
@@ -6172,6 +8383,536 @@
         "summary": "指定租户完整账单",
         "tags": [
           "platform"
+        ]
+      }
+    },
+    "/api/refunds": {
+      "post": {
+        "description": "仅 PAID 订单可申请，每笔订单仅一次。附件 ≤5 份、单份 ≤10MB。AI 可用时进入 AI 客服接待，否则直接进入人工队列。",
+        "operationId": "RefundsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "orderId",
+                  "reason"
+                ],
+                "properties": {
+                  "orderId": {
+                    "type": "string",
+                    "description": "订单 ID"
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "MISBUY",
+                      "DUPLICATE",
+                      "NOT_AS_EXPECTED",
+                      "OTHER"
+                    ],
+                    "description": "退款原因"
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "补充说明"
+                  },
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    },
+                    "description": "附件（≤5 份，单份 ≤10MB）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "创建退款申请（multipart）",
+        "tags": [
+          "refunds"
+        ]
+      },
+      "get": {
+        "description": "当前用户提交的退款工单（新→旧）。",
+        "operationId": "RefundsController_listMine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "我的退款申请",
+        "tags": [
+          "refunds"
+        ]
+      }
+    },
+    "/api/refunds/{id}": {
+      "get": {
+        "description": "退款工单详情、订单摘要与会话消息（非本人/跨租户 404）。",
+        "operationId": "RefundsController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "工单详情与会话",
+        "tags": [
+          "refunds"
+        ]
+      }
+    },
+    "/api/refunds/{id}/messages": {
+      "post": {
+        "description": "CHAT 状态触发 AI 客服回复（命中升级关键词或 AI 判定超政策会自动转人工）；AGENT 状态仅入队等待人工回复。",
+        "operationId": "RefundsController_sendMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "消息内容"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "发送会话消息",
+        "tags": [
+          "refunds"
+        ]
+      }
+    },
+    "/api/refunds/{id}/escalate": {
+      "post": {
+        "description": "CHAT → AGENT，由平台人工客服继续处理。",
+        "operationId": "RefundsController_escalate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "转人工客服",
+        "tags": [
+          "refunds"
+        ]
+      }
+    },
+    "/api/refunds/{id}/attachments/{index}": {
+      "get": {
+        "description": "按附件下标下载（0 起）；非本人 404。",
+        "operationId": "RefundsController_download",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "required": true,
+            "in": "path",
+            "description": "附件下标",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "下载附件",
+        "tags": [
+          "refunds"
+        ]
+      }
+    },
+    "/api/platform/refunds": {
+      "get": {
+        "description": "跨租户全部退款工单（含租户/申请人/订单摘要），可按状态过滤。",
+        "operationId": "RefundsAdminController_list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "状态过滤，缺省全部",
+            "schema": {
+              "enum": [
+                "CHAT",
+                "AGENT",
+                "RESOLVED"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "退款工单列表",
+        "tags": [
+          "platform-refunds"
+        ]
+      }
+    },
+    "/api/platform/refunds/{id}": {
+      "get": {
+        "description": "退款工单详情、会话消息与租户权益快照。",
+        "operationId": "RefundsAdminController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "工单详情与会话",
+        "tags": [
+          "platform-refunds"
+        ]
+      }
+    },
+    "/api/platform/refunds/{id}/messages": {
+      "post": {
+        "description": "以人工客服身份回复用户；CHAT 状态的工单会自动切入 AGENT。RESOLVED 工单不可回复。",
+        "operationId": "RefundsAdminController_reply",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "maxLength": 1000,
+                    "description": "回复内容"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "人工客服回复",
+        "tags": [
+          "platform-refunds"
+        ]
+      }
+    },
+    "/api/platform/refunds/{id}/resolve": {
+      "post": {
+        "description": "APPROVE：订单标 REFUNDED + 权益立即降级；真实转账订单必须提供回款转账单号。REJECT：需填写原因。工单进入终态。",
+        "operationId": "RefundsAdminController_resolve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "decision"
+                ],
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "APPROVE",
+                      "REJECT"
+                    ],
+                    "description": "处理决定"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "处理备注（拒绝时必填）"
+                  },
+                  "refundTransferNo": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "回款转账单号（真实订单同意退款时必填）"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "处理工单（同意退款/拒绝）",
+        "tags": [
+          "platform-refunds"
+        ]
+      }
+    },
+    "/api/platform/refunds/{id}/attachments/{index}": {
+      "get": {
+        "description": "按附件下标下载（0 起）。",
+        "operationId": "RefundsAdminController_download",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "description": "退款工单 ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "required": true,
+            "in": "path",
+            "description": "附件下标",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "platform": []
+          }
+        ],
+        "summary": "下载附件",
+        "tags": [
+          "platform-refunds"
         ]
       }
     }
@@ -6209,12 +8950,16 @@
       "description": "套餐与订单：收银台 / 模拟支付 / 转账 / 订阅 / 企业留资"
     },
     {
+      "name": "refunds",
+      "description": "退款工单：申请 / 会话（AI 客服自动转人工） / 主动转人工 / 附件下载"
+    },
+    {
       "name": "me",
       "description": "个人空间：权益快照 / 审查偏好 / 个人条款库"
     },
     {
       "name": "playbook",
-      "description": "企业红线（Playbook）：禁写/偏好规则与行业专项包"
+      "description": "审查规则（Playbook）：红线/偏好规则与行业专项包，个人/团队空间通用"
     },
     {
       "name": "ledger",
@@ -6238,7 +8983,7 @@
     },
     {
       "name": "tenant-templates",
-      "description": "企业自有范本库：上传 / 预览 / 删除 / AI 提炼审查规则（仅团队空间）"
+      "description": "自有范本库：上传 / 预览 / 删除 / AI 提炼审查规则（个人/团队空间通用）"
     },
     {
       "name": "notifications",
@@ -6263,6 +9008,10 @@
     {
       "name": "platform",
       "description": "平台超级管理员：租户 / 转账审核 / 跨租户链路 / 漏斗 / 全局规则 / 离线评测 / 租户账单（独立账号体系）"
+    },
+    {
+      "name": "platform-refunds",
+      "description": "平台退款工单：跨租户工单列表 / 详情 / 回复与结单（超管）"
     },
     {
       "name": "health",

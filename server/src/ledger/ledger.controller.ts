@@ -8,7 +8,7 @@
 //   DELETE /:id                 删除
 //   POST   /extract             从审查合同 AI 抽取预填（无 Key 409）
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags, type SchemaObject } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags, type SchemaObject } from '@nestjs/swagger'
 import { LedgerService, type LedgerUpsertDto } from './ledger.service.js'
 
 const ledgerBodySchema: SchemaObject = {
@@ -39,6 +39,7 @@ export class LedgerController {
   @ApiQuery({ name: 'filter', required: false, description: '分桶筛选（如即将到期/已到期/试用期等，以服务端支持值为准）' })
   @ApiQuery({ name: 'page', required: false, description: '页码，默认 1' })
   @ApiQuery({ name: 'pageSize', required: false, description: '每页条数' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   list(
     @Req() req: any,
     @Query('q') q?: string,
@@ -52,6 +53,7 @@ export class LedgerController {
   @Post()
   @ApiOperation({ summary: '新建台账记录', description: 'FREE/PERSONAL 空间最多 10 条，超限拦截。' })
   @ApiBody({ schema: ledgerBodySchema })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   create(@Req() req: any, @Body() body: LedgerUpsertDto) {
     return this.ledger.create(req.user.tenantId, req.user.userId, body || {})
   }
@@ -60,6 +62,7 @@ export class LedgerController {
   @ApiOperation({ summary: '编辑台账记录' })
   @ApiParam({ name: 'id', description: '台账记录 ID' })
   @ApiBody({ schema: ledgerBodySchema })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   update(@Req() req: any, @Param('id') id: string, @Body() body: LedgerUpsertDto) {
     return this.ledger.update(req.user.tenantId, req.user.userId, id, body || {})
   }
@@ -68,6 +71,7 @@ export class LedgerController {
   @ApiOperation({ summary: '合同续签', description: '原记录置为 RENEWED，新建一条记录并以 renewedFromId 关联原记录。' })
   @ApiParam({ name: 'id', description: '原台账记录 ID' })
   @ApiBody({ schema: ledgerBodySchema })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   renew(@Req() req: any, @Param('id') id: string, @Body() body: LedgerUpsertDto) {
     return this.ledger.renew(req.user.tenantId, req.user.userId, id, body || {})
   }
@@ -75,6 +79,7 @@ export class LedgerController {
   @Post(':id/terminate')
   @ApiOperation({ summary: '协商解除', description: '将台账记录标记为协商解除，并触发群机器人台账变更通知。' })
   @ApiParam({ name: 'id', description: '台账记录 ID' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   terminate(@Req() req: any, @Param('id') id: string) {
     return this.ledger.terminate(req.user.tenantId, req.user.userId, id)
   }
@@ -82,6 +87,7 @@ export class LedgerController {
   @Delete(':id')
   @ApiOperation({ summary: '删除台账记录' })
   @ApiParam({ name: 'id', description: '台账记录 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   remove(@Req() req: any, @Param('id') id: string) {
     return this.ledger.remove(req.user.tenantId, req.user.userId, id)
   }
@@ -95,6 +101,7 @@ export class LedgerController {
       properties: { contractId: { type: 'string', description: '合同 ID（须属于当前租户）' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   extract(@Req() req: any, @Body() body: { contractId?: string }) {
     return this.ledger.extract(req.user.tenantId, String(body?.contractId ?? ''))
   }

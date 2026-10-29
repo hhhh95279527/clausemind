@@ -3,7 +3,7 @@
 // 多轮会话：复用 ChatSession(role='agent') / Message(feature='agent')，按 userId 属主隔离，
 // 与法规问答（knowledge）同一套会话模型，刷新不丢历史。
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, OnModuleInit, Param, Post, Req, Res } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import { HumanMessage, AIMessage } from '@langchain/core/messages'
 import { runAgent, getToolList } from '../services/agent/agent.js'
@@ -47,6 +47,7 @@ export class AgentController implements OnModuleInit {
   // GET /api/agent/sessions —— 当前用户的任务会话列表
   @Get('sessions')
   @ApiOperation({ summary: '任务会话列表', description: '返回当前用户全部任务 Agent 会话（按更新时间倒序）及消息数。' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { sessions: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async listSessions(@Req() req: Request) {
     const userId: string = (req as any).user.userId
     const sessions = await this.db.chatSession.findMany({
@@ -80,6 +81,7 @@ export class AgentController implements OnModuleInit {
       properties: { title: { type: 'string', maxLength: 200, description: '会话标题（可选）' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { session: { type: 'object', additionalProperties: true } } } })
   async createSession(@Req() req: Request, @Body() body: { title?: string } | undefined) {
     const userId: string = (req as any).user.userId
     const title = (body?.title || '').trim().slice(0, 200) || DEFAULT_TITLE
@@ -93,6 +95,7 @@ export class AgentController implements OnModuleInit {
   @Get('sessions/:id')
   @ApiOperation({ summary: '会话详情（含历史消息）', description: '切换会话时懒加载，最多返回最近 200 条消息，助理消息附工具执行步骤 steps。仅会话属主可查。' })
   @ApiParam({ name: 'id', description: '会话 ID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { session: { type: 'object', additionalProperties: true }, messages: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async sessionDetail(@Req() req: Request, @Param('id') id: string) {
     const session = await this.requireOwnedSession((req as any).user.userId, id)
     const messages = await this.db.message.findMany({
@@ -120,6 +123,7 @@ export class AgentController implements OnModuleInit {
   @Delete('sessions/:id')
   @ApiOperation({ summary: '删除会话', description: '删除会话，消息经外键级联一并删除。仅会话属主可操作。' })
   @ApiParam({ name: 'id', description: '会话 ID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async removeSession(@Req() req: Request, @Param('id') id: string) {
     await this.requireOwnedSession((req as any).user.userId, id)
     await this.db.chatSession.delete({ where: { id } })
@@ -267,6 +271,7 @@ export class AgentController implements OnModuleInit {
   // ── GET /api/agent/tools ───────────────────────────────────────
   @Get('tools')
   @ApiOperation({ summary: '获取 Agent 可用工具清单', description: '返回当前 Agent 注册的业务工具名称与说明。' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { tools: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   tools() {
     return { tools: getToolList() }
   }
@@ -274,6 +279,7 @@ export class AgentController implements OnModuleInit {
   // ── GET /api/agent/examples ────────────────────────────────────
   @Get('examples')
   @ApiOperation({ summary: '获取任务示例', description: '返回分类示例及每类 3 条高频问题（prompts）。前端点击分类展开 prompts，点击某条 prompt 直接执行。teamOnly 的分类仅团队空间展示。' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { examples: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   examples() {
     return {
       examples: [

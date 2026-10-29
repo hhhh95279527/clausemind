@@ -103,7 +103,7 @@ function cleanValue(v: unknown, depth: number): unknown {
 
 /** 归一单条事件：type 白名单校验 + path 截断 + props 清洗 */
 export function normalizeEvent(raw: any): NormalizedEvent {
-  const type = String(raw?.type ?? raw?.eventType ?? '').trim().toLowerCase()
+  const type = String(raw?.type ?? raw?.eventType ?? raw?.name ?? '').trim().toLowerCase()
   if (!type || type.length > 50) {
     throw new BadRequestException('事件 type 缺失或非法')
   }

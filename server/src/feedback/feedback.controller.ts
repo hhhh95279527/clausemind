@@ -1,7 +1,7 @@
 // server/src/feedback/feedback.controller.ts
 // 建议反馈接口（/api/feedback）。个人版与企业版租户用户均可提交。
 import { Body, Controller, Post, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { FeedbackService } from './feedback.service.js'
 
 @ApiTags('feedback')
@@ -31,6 +31,7 @@ export class FeedbackController {
       },
     },
   })
+  @ApiCreatedResponse({ description: '提交成功', schema: { type: 'object', properties: { ok: { type: 'boolean' }, id: { type: 'string' } } } })
   create(
     @Req() req: any,
     @Body() body: { category?: string; content?: string; contact?: string },

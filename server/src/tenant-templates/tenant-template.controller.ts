@@ -7,7 +7,7 @@
 //   DELETE /:id                 删除范本（同步清理磁盘文件）
 //   POST   /:id/extract-rules   AI 提炼候选审查规则（不落库；无 Key 503、超限 429）
 import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { TenantTemplateService } from './tenant-template.service.js'
 
 @ApiTags('tenant-templates')
@@ -32,12 +32,14 @@ export class TenantTemplateController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   upload(@Req() req: any, @Body() body: { title?: string }) {
     return this.templates.upload(req.user.tenantId, req.user.userId, req.file, body?.title)
   }
 
   @Get()
   @ApiOperation({ summary: '自有范本列表', description: '返回当前租户的自有范本（不含正文大字段）与数量上限。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   list(@Req() req: any) {
     return this.templates.list(req.user.tenantId)
   }
@@ -45,6 +47,7 @@ export class TenantTemplateController {
   @Get(':id')
   @ApiOperation({ summary: '自有范本详情（含全文）', description: '在线预览用；跨租户访问返回 404。' })
   @ApiParam({ name: 'id', description: '范本 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   detail(@Req() req: any, @Param('id') id: string) {
     return this.templates.detail(req.user.tenantId, id)
   }
@@ -64,6 +67,7 @@ export class TenantTemplateController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   update(@Req() req: any, @Param('id') id: string, @Body() body: { title?: string; content?: string }) {
     return this.templates.update(req.user.tenantId, req.user.userId, id, body)
   }
@@ -71,6 +75,7 @@ export class TenantTemplateController {
   @Delete(':id')
   @ApiOperation({ summary: '删除自有范本', description: '删除范本记录与磁盘文件；已从该范本导入的审查规则独立保留，不受影响。' })
   @ApiParam({ name: 'id', description: '范本 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   remove(@Req() req: any, @Param('id') id: string) {
     return this.templates.remove(req.user.tenantId, req.user.userId, id)
   }
@@ -89,6 +94,7 @@ export class TenantTemplateController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   extract(@Req() req: any, @Param('id') id: string, @Body() body: { focus?: string }) {
     return this.templates.extractRules(req.user.tenantId, id, body?.focus)
   }

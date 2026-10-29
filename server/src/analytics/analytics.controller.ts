@@ -4,7 +4,7 @@
 // - 固定窗口 IP 频控（60 批/分钟）；单批 ≤50 条、体积 ≤32KB
 // - sendBeacon 兼容：前端以 application/json 的 Blob 发送，Nest json parser 直接可收
 import { Body, Controller, HttpCode, HttpException, HttpStatus, Ip, Post, Req } from '@nestjs/common'
-import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { ApiBody, ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger'
 import { JwtService } from '@nestjs/jwt'
 import { ExtractJwt } from 'passport-jwt'
 import type { Request } from 'express'
@@ -50,20 +50,23 @@ export class AnalyticsController {
           description: '批量事件列表；也允许直接在请求体放置单个事件对象',
           items: {
             type: 'object',
+            required: ['type'],
             properties: {
-              name: { type: 'string', description: '事件名（如 sign_up / first_review_start / paywall_show 等）' },
-              timestamp: { type: 'string', format: 'date-time', description: '事件时间（可选，缺省服务端时间）' },
+              type: { type: 'string', description: '事件类型（如 page_view / sign_up / first_review_start / paywall_show / checkout_success 等，最长 50 字符）' },
+              path: { type: 'string', description: '事件发生的页面路径（可选）' },
               props: { type: 'object', additionalProperties: true, description: '事件属性（persona/scene/utm/referrer 等）' },
             },
           },
         },
-        name: { type: 'string', description: '单事件形态的事件名' },
+        type: { type: 'string', description: '单事件形态的事件类型' },
+        path: { type: 'string', description: '单事件形态的页面路径（可选）' },
         props: { type: 'object', additionalProperties: true, description: '单事件形态的事件属性' },
         anonymousId: { type: 'string', minLength: 8, maxLength: 50, pattern: '^[A-Za-z0-9_-]+$', description: '匿名设备 ID（注册成功后用于关联访客期事件）' },
         token: { type: 'string', description: 'accessToken（仅 sendBeacon 无法带 Authorization 头时作为降级通道）' },
       },
     },
   })
+  @ApiCreatedResponse({ description: '接收成功', schema: { type: 'object', properties: { accepted: { type: 'number' } } } })
   async track(@Req() req: Request, @Body() body: any, @Ip() ip: string) {
     // ① IP 固定窗口频控（按分钟分桶，键 TTL 65s 自动清理）
     // Redis 故障时 fail-open：埋点是 best-effort，跳过限流继续处理，避免抖动期事件全丢

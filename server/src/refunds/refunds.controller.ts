@@ -9,7 +9,7 @@
 import {
   BadRequestException, Body, Controller, Get, Param, Post, Query, Req, Res,
 } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { RefundsService } from './refunds.service.js'
 
 @ApiTags('refunds')
@@ -36,6 +36,7 @@ export class RefundsController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   create(
     @Req() req: any,
     @Body() body: { orderId?: string; reason?: string; description?: string },
@@ -45,6 +46,7 @@ export class RefundsController {
 
   @Get()
   @ApiOperation({ summary: '我的退款申请', description: '当前用户提交的退款工单（新→旧）。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   listMine(@Req() req: any) {
     return this.refunds.listMine(req.user.tenantId, req.user.userId)
   }
@@ -52,6 +54,7 @@ export class RefundsController {
   @Get(':id')
   @ApiOperation({ summary: '工单详情与会话', description: '退款工单详情、订单摘要与会话消息（非本人/跨租户 404）。' })
   @ApiParam({ name: 'id', description: '退款工单 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   detail(@Req() req: any, @Param('id') id: string) {
     return this.refunds.detailForUser(req.user.tenantId, req.user.userId, id)
   }
@@ -69,6 +72,7 @@ export class RefundsController {
       properties: { content: { type: 'string', maxLength: 1000, description: '消息内容' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   sendMessage(@Req() req: any, @Param('id') id: string, @Body() body: { content?: string }) {
     return this.refunds.sendUserMessage(req.user.tenantId, req.user.userId, id, body.content || '')
   }
@@ -76,6 +80,7 @@ export class RefundsController {
   @Post(':id/escalate')
   @ApiOperation({ summary: '转人工客服', description: 'CHAT → AGENT，由平台人工客服继续处理。' })
   @ApiParam({ name: 'id', description: '退款工单 ID' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   escalate(@Req() req: any, @Param('id') id: string) {
     return this.refunds.escalate(req.user.tenantId, req.user.userId, id)
   }
@@ -106,6 +111,7 @@ export class RefundsAdminController {
   @Get()
   @ApiOperation({ summary: '退款工单列表', description: '跨租户全部退款工单（含租户/申请人/订单摘要），可按状态过滤。' })
   @ApiQuery({ name: 'status', enum: ['CHAT', 'AGENT', 'RESOLVED'], required: false, description: '状态过滤，缺省全部' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   list(@Query('status') status?: string) {
     return this.refunds.listForPlatform(status)
   }
@@ -113,6 +119,7 @@ export class RefundsAdminController {
   @Get(':id')
   @ApiOperation({ summary: '工单详情与会话', description: '退款工单详情、会话消息与租户权益快照。' })
   @ApiParam({ name: 'id', description: '退款工单 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   detail(@Param('id') id: string) {
     return this.refunds.detailForPlatform(id)
   }
@@ -130,6 +137,7 @@ export class RefundsAdminController {
       properties: { content: { type: 'string', maxLength: 1000, description: '回复内容' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   reply(@Param('id') id: string, @Req() req: any, @Body() body: { content?: string }) {
     return this.refunds.agentReply(id, (req as any).user?.username || 'platform', body.content || '')
   }
@@ -151,6 +159,7 @@ export class RefundsAdminController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   resolve(
     @Param('id') id: string,
     @Req() req: any,

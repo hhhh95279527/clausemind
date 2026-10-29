@@ -3,7 +3,7 @@
 // 文档归档时间线（FR：修改前后文档归档）：版本列表/归档文件下载/修订稿 PDF 导出
 // 所有路径强制 tenantId 校验，跨租户访问 404；深度能力由 RevisionService 统一门禁。
 import { Body, Controller, Get, NotFoundException, Param, Post, Query, Req, Res } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import { createReadStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
@@ -28,6 +28,7 @@ export class RevisionController {
   // ── 改稿台数据 ──
   @Get('contracts/:id/revisions')
   @ApiOperation({ summary: '改稿台：获取合同的修订建议列表', description: '返回该合同全部风险点及对应的 AI 改写建议、接受状态。跨租户访问返回 404。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async list(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     return this.revisions.list(tenantId, id, await this.planOf(tenantId))
@@ -42,6 +43,7 @@ export class RevisionController {
       properties: { force: { type: 'boolean', description: '是否强制重新生成（默认 false，走缓存）', default: false } },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async generate(
     @Req() req: Request,
     @Param('id') id: string,
@@ -54,6 +56,7 @@ export class RevisionController {
   // ── 全部接受 ──
   @Post('contracts/:id/revisions/accept-all')
   @ApiOperation({ summary: '改稿台：一键接受全部修订建议' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async acceptAll(@Req() req: Request, @Param('id') id: string) {
     return this.revisions.acceptAll((req as any).user.tenantId, id)
   }
@@ -89,6 +92,7 @@ export class RevisionController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async setStatus(
     @Req() req: Request,
     @Param('riskId') riskId: string,
@@ -109,6 +113,7 @@ export class RevisionController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async regenerate(
     @Req() req: Request,
     @Param('riskId') riskId: string,
@@ -120,6 +125,7 @@ export class RevisionController {
   // ── 模拟对方反驳 ──
   @Post('risks/:riskId/revision/rebuttal')
   @ApiOperation({ summary: '改稿台：模拟对方就该风险点进行反驳', description: 'AI 生成谈判对手视角的反驳理由，辅助用户准备沟通策略。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async rebuttal(@Req() req: Request, @Param('riskId') riskId: string) {
     return this.revisions.rebuttal((req as any).user.tenantId, riskId)
   }
@@ -136,6 +142,7 @@ export class RevisionController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async saveRewrite(
     @Req() req: Request,
     @Param('riskId') riskId: string,
@@ -170,6 +177,7 @@ export class RevisionController {
     summary: '文档归档：获取合同的文档版本时间线',
     description: '按时间倒序返回：ORIGINAL 原始合同（无归档行时用合同原件动态合成）、OPINION 审查意见书、REVISED 修订稿（每次导出归档一版）。跨租户访问返回 404。',
   })
+  @ApiOkResponse({ schema: { type: 'object', properties: { contractId: { type: 'string' }, title: { type: 'string' }, versions: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async versions(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const contract = await this.db.contract.findFirst({

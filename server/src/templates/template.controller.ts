@@ -10,7 +10,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiParam, ApiProduces, ApiQuery, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiParam, ApiProduces, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Response } from 'express'
 import { TemplateService } from './template.service.js'
 
@@ -24,6 +24,7 @@ export class TemplateController {
   @ApiOperation({ summary: '范本列表', description: '按分类/关键词返回平台合同范本列表；具体可采用范围由当前套餐决定。' })
   @ApiQuery({ name: 'category', required: false, description: '范本分类' })
   @ApiQuery({ name: 'q', required: false, description: '关键词搜索' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   list(
     @Req() req: any,
     @Query('category') category?: string,
@@ -35,6 +36,7 @@ export class TemplateController {
   @Get(':docId/preview')
   @ApiOperation({ summary: '范本预览', description: '返回范本正文内容供在线预览，所有登录用户可访问。' })
   @ApiParam({ name: 'docId', description: '范本 ID' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   preview(@Req() req: any, @Param('docId') docId: string) {
     return this.templates.preview(req.user.tenantId, docId)
   }
@@ -48,6 +50,7 @@ export class TemplateController {
       properties: { title: { type: 'string', description: '采用后的合同标题，缺省用范本标题' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   adopt(
     @Req() req: any,
     @Param('docId') docId: string,

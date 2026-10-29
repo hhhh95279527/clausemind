@@ -2,10 +2,10 @@
 // 合同业务接口：上传/列表/详情 → 发起审查(SSE) → 待审列表 → 人工决策恢复 → 意见书
 // 所有查询强制 tenantId 过滤；跨租户访问一律 404。
 import {
-  BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
-  NotFoundException, OnModuleInit, Param, Patch, Post, Req, Res,
+  BadRequestException, Body, Controller, Delete, ForbiddenException, Get, HttpCode,
+  HttpStatus, NotFoundException, OnModuleInit, Param, Patch, Post, Req, Res,
 } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiParam, ApiProduces, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOkResponse, ApiOperation, ApiParam, ApiProduces, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger'
 import type { Request, Response } from 'express'
 import { randomUUID } from 'crypto'
 import fs from 'fs/promises'
@@ -123,6 +123,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
+  @ApiResponse({ status: 201, description: '建档成功', schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true } } } })
   async upload(@Req() req: Request, @Body() body: { title?: string; scene?: string }) {
     const file = (req as any).file as Express.Multer.File | undefined
     if (!file) throw new BadRequestException('请选择合同文件')
@@ -186,6 +187,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
+  @ApiResponse({ status: 201, description: '建档成功', schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true } } } })
   async uploadText(
     @Req() req: Request,
     @Body() body: { title?: string; content?: string; scene?: string },
@@ -216,6 +218,7 @@ export class ContractController implements OnModuleInit {
 
   // ── 发起前预检：字数/场景/月额度/试用次数（不扣券、不建任务）；前端据此弹付费墙 ──
   @Post('contracts/eligibility')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '发起审查前预检（不扣券、不建任务）',
     description: '预检字数/场景权益/月度额度/FREE 试用次数。前端据此决定直接发起或弹付费墙。返回 allowed、deep（是否深度审查）及当前权益快照。',
@@ -230,6 +233,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true, description: 'allowed/deep + 权益快照' } })
   async eligibility(@Req() req: Request, @Body() body: { charCount?: number; scene?: string; payWithCoupon?: boolean }) {
     const tenantId = (req as any).user.tenantId
     const charCount = Number(body.charCount) || 0
@@ -251,6 +255,7 @@ export class ContractController implements OnModuleInit {
   // ── 新手引导：体验示例合同（每租户限一次、不扣额度；FR-3）────────
   @Post('contracts/sample')
   @ApiOperation({ summary: '新手引导：领取体验示例合同', description: '每个租户限领一次；复制一份内置埋雷示例合同，不扣额度。' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   async copySample(@Req() req: Request) {
     return this.onboarding.copySampleContract({
       userId: (req as any).user.userId,
@@ -266,6 +271,7 @@ export class ContractController implements OnModuleInit {
   })
   @ApiQuery({ name: 'status', required: false, description: '按合同解析状态过滤，如 UPLOADED/READY/REVIEWING/WAITING_REVIEW/COMPLETED/FAILED' })
   @ApiQuery({ name: 'reviewStatus', required: false, enum: ['PENDING', 'WAITING_REVIEW', 'APPROVED', 'FAILED'], description: '按审查状态过滤' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { sampleCopied: { type: 'boolean' }, contracts: { type: 'array', items: { type: 'object', additionalProperties: true } } } } })
   async list(@Req() req: Request) {
     const tenantId = (req as any).user.tenantId
     const params = new URL(req.url, 'http://x').searchParams
@@ -354,6 +360,7 @@ export class ContractController implements OnModuleInit {
     description: '返回合同元信息、全部条款（按序号升序）及最近一次审查任务（含全部风险）。跨租户访问返回 404。',
   })
   @ApiParam({ name: 'id', description: '合同 ID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true }, clauses: { type: 'array', items: { type: 'object', additionalProperties: true } }, review: { type: ['object', 'null'] } } } })
   async detail(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const contract = await this.db.contract.findFirst({
@@ -408,6 +415,7 @@ export class ContractController implements OnModuleInit {
   })
   @ApiParam({ name: 'id', description: '合同 ID' })
   @ApiQuery({ name: 'force', required: false, enum: ['0', '1'], description: '传 1 强制重新抽取（默认 0 走缓存）' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   async structuredInfo(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const force = new URL(req.url, 'http://x').searchParams.get('force') === '1'
@@ -516,6 +524,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', properties: { contract: { type: 'object', additionalProperties: true }, detected: { type: ['object', 'null'] } } } })
   async updateScene(
     @Req() req: Request,
     @Param('id') id: string,
@@ -572,6 +581,7 @@ export class ContractController implements OnModuleInit {
   @Delete('contracts/:id')
   @ApiOperation({ summary: '删除合同', description: '删除合同及其关联数据，并同步清理 uploads 中的上传原件。跨租户访问返回 404。' })
   @ApiParam({ name: 'id', description: '合同 ID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async remove(@Req() req: Request, @Param('id') id: string) {
     const tenantId = (req as any).user.tenantId
     const existing = await this.db.contract.findFirst({
@@ -761,6 +771,7 @@ export class ContractController implements OnModuleInit {
       properties: { question: { type: 'string', maxLength: 500, description: '追问内容' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   async ask(
     @Req() req: Request,
     @Param('id') id: string,
@@ -807,6 +818,7 @@ export class ContractController implements OnModuleInit {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { status: { type: 'string' }, contractStatus: { type: 'string' }, reportMd: { type: ['string', 'null'] }, stats: { type: 'object', additionalProperties: true } } } })
   async decision(
     @Req() req: Request,
     @Param('taskId') taskId: string,
@@ -882,6 +894,7 @@ export class ContractController implements OnModuleInit {
       properties: { comment: { type: 'string', maxLength: 500, description: '评论内容' } },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', properties: { success: { type: 'boolean' } } } })
   async reviewComment(
     @Req() req: Request,
     @Param('taskId') taskId: string,
@@ -904,6 +917,7 @@ export class ContractController implements OnModuleInit {
   @Get('reviews/:taskId/report')
   @ApiOperation({ summary: '获取审查意见书（Markdown）', description: '终审通过后才生成意见书；未终审完成返回 403。返回 { reportMd, title }。' })
   @ApiParam({ name: 'taskId', description: '审查任务 ID' })
+  @ApiOkResponse({ schema: { type: 'object', properties: { reportMd: { type: 'string' }, title: { type: 'string' } } } })
   async report(@Req() req: Request, @Param('taskId') taskId: string) {
     const tenantId = (req as any).user.tenantId
     const task = await this.db.reviewTask.findFirst({

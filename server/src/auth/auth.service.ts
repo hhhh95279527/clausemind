@@ -515,8 +515,11 @@ export class AuthService {
   //   "lastLoginIp":"::ffff:192.168.1.23", "createdAt":"2026-10-01T02:00:00.000Z",
   //   "updatedAt":"2026-10-21T08:12:34.000Z" }
   async validateUser(username: string, password: string) {
+    if (!username?.trim() || !password?.trim()) {
+      throw new BadRequestException('用户名和密码不能为空')
+    }
     const user = await this.db.user.findFirst({
-      where: { OR: [{ username }, { email: username }] },
+      where: { OR: [{ username: username.trim() }, { email: username.trim() }] },
     })
     if (!user) throw new UnauthorizedException('用户不存在')
     if (user.status === 'PENDING') {

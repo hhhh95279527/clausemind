@@ -1,7 +1,7 @@
 // server/src/integrations/integrations.controller.ts
 // 集成中心接口（/api/integrations）。飞书写操作仅负责人；留资团队成员均可。
 import { Body, Controller, Delete, Get, Post, Put, Req } from '@nestjs/common'
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger'
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger'
 import { Roles } from '../auth/decorators/roles.decorator'
 import { IntegrationsService } from './integrations.service.js'
 
@@ -13,6 +13,7 @@ export class IntegrationsController {
 
   @Get('feishu')
   @ApiOperation({ summary: '获取飞书群机器人配置', description: '凭证 AES-GCM 加密存储，仅返回 webhook 脱敏信息（如末位标识）。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   getFeishu(@Req() req: any) {
     return this.integrations.getFeishu(req.user.tenantId)
   }
@@ -27,6 +28,7 @@ export class IntegrationsController {
       properties: { webhookUrl: { type: 'string', format: 'uri', description: '飞书群机器人 webhook 地址（open.feishu.cn 官方域名）' } },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   saveFeishu(@Req() req: any, @Body() body: { webhookUrl?: string }) {
     return this.integrations.saveFeishu(req.user.tenantId, req.user.userId, body?.webhookUrl ?? '')
   }
@@ -34,6 +36,7 @@ export class IntegrationsController {
   @Delete('feishu')
   @Roles('ADMIN')
   @ApiOperation({ summary: '删除飞书群机器人配置（仅 ADMIN）' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   removeFeishu(@Req() req: any) {
     return this.integrations.deleteFeishu(req.user.tenantId, req.user.userId)
   }
@@ -41,12 +44,14 @@ export class IntegrationsController {
   @Post('feishu/test')
   @Roles('ADMIN')
   @ApiOperation({ summary: '发送飞书测试消息（仅 ADMIN）' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   testFeishu(@Req() req: any) {
     return this.integrations.sendTest(req.user.tenantId, req.user.userId)
   }
 
   @Get('dingtalk')
   @ApiOperation({ summary: '获取钉钉群机器人配置', description: '凭证加密存储，页面仅展示脱敏信息。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   getDingtalk(@Req() req: any) {
     return this.integrations.getDingtalk(req.user.tenantId)
   }
@@ -64,6 +69,7 @@ export class IntegrationsController {
       },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   saveDingtalk(@Req() req: any, @Body() body: { webhookUrl?: string; secret?: string }) {
     return this.integrations.saveDingtalk(req.user.tenantId, req.user.userId, body?.webhookUrl ?? '', body?.secret)
   }
@@ -71,6 +77,7 @@ export class IntegrationsController {
   @Delete('dingtalk')
   @Roles('ADMIN')
   @ApiOperation({ summary: '删除钉钉群机器人配置（仅 ADMIN）' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   removeDingtalk(@Req() req: any) {
     return this.integrations.deleteDingtalk(req.user.tenantId, req.user.userId)
   }
@@ -78,12 +85,14 @@ export class IntegrationsController {
   @Post('dingtalk/test')
   @Roles('ADMIN')
   @ApiOperation({ summary: '发送钉钉测试消息（仅 ADMIN）' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   testDingtalk(@Req() req: any) {
     return this.integrations.sendDingtalkTest(req.user.tenantId, req.user.userId)
   }
 
   @Get('wework')
   @ApiOperation({ summary: '获取企业微信群机器人配置', description: '凭证加密存储，页面仅展示脱敏信息。' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   getWework(@Req() req: any) {
     return this.integrations.getWework(req.user.tenantId)
   }
@@ -98,6 +107,7 @@ export class IntegrationsController {
       properties: { webhookUrl: { type: 'string', format: 'uri', description: '企业微信群机器人 webhook 地址（qyapi.weixin.qq.com 官方域名）' } },
     },
   })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   saveWework(@Req() req: any, @Body() body: { webhookUrl?: string }) {
     return this.integrations.saveWework(req.user.tenantId, req.user.userId, body?.webhookUrl ?? '')
   }
@@ -105,6 +115,7 @@ export class IntegrationsController {
   @Delete('wework')
   @Roles('ADMIN')
   @ApiOperation({ summary: '删除企业微信群机器人配置（仅 ADMIN）' })
+  @ApiOkResponse({ schema: { type: 'object', additionalProperties: true } })
   removeWework(@Req() req: any) {
     return this.integrations.deleteWework(req.user.tenantId, req.user.userId)
   }
@@ -112,6 +123,7 @@ export class IntegrationsController {
   @Post('wework/test')
   @Roles('ADMIN')
   @ApiOperation({ summary: '发送企业微信测试消息（仅 ADMIN）' })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   testWework(@Req() req: any) {
     return this.integrations.sendWeworkTest(req.user.tenantId, req.user.userId)
   }
@@ -130,6 +142,7 @@ export class IntegrationsController {
       },
     },
   })
+  @ApiResponse({ status: 201, schema: { type: 'object', additionalProperties: true } })
   createLead(
     @Req() req: any,
     @Body() body: { integration?: string; name?: string; phone?: string; note?: string },
